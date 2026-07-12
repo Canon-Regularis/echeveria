@@ -1,0 +1,71 @@
+"""Central component registries — the concrete wiring behind the Open/Closed "select by name" story.
+
+Each built-in stage is registered here under a stable name. New implementations register themselves
+the same way (``SEGMENTERS.register("my-seg")(MySegmenter)``) and become selectable via
+``Pipeline.from_config`` / ``Pipeline.from_names`` and the CLI — with no edit to the orchestrator.
+
+Registration is centralized (rather than scattered as decorators on each class) so the
+stage modules stay independent of the registry, and importing any single stage does not drag in the
+whole registry graph.
+"""
+
+from __future__ import annotations
+
+from phytovision.explainability.base import Explainer
+from phytovision.explainability.feature_reasons import FeatureContributionExplainer
+from phytovision.models.base import StressModel
+from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
+from phytovision.models.stress.heuristic import HeuristicStressModel
+from phytovision.phenotyping.aggregation.base import FeatureAggregator
+from phytovision.phenotyping.aggregation.plant_level import PlantLevelAggregator
+from phytovision.phenotyping.base import FeatureExtractor
+from phytovision.phenotyping.colour import ColourFeatures
+from phytovision.phenotyping.geometry import GeometryFeatures
+from phytovision.phenotyping.morphology import MorphologyFeatures
+from phytovision.phenotyping.texture import TextureFeatures
+from phytovision.preprocessing.base import Preprocessor
+from phytovision.preprocessing.basic import ResizeNormalizePreprocessor
+from phytovision.regions.base import RegionProvider
+from phytovision.regions.leaf_instance import LeafInstanceRegionProvider
+from phytovision.regions.whole_plant import WholePlantRegionProvider
+from phytovision.registry import Registry
+from phytovision.segmentation.base import PlantSegmenter
+from phytovision.segmentation.plant.exg_threshold import ExGThresholdSegmenter
+
+PREPROCESSORS: Registry[Preprocessor] = Registry("preprocessor")
+SEGMENTERS: Registry[PlantSegmenter] = Registry("segmenter")
+REGION_PROVIDERS: Registry[RegionProvider] = Registry("region_provider")
+FEATURE_EXTRACTORS: Registry[FeatureExtractor] = Registry("feature_extractor")
+AGGREGATORS: Registry[FeatureAggregator] = Registry("aggregator")
+STRESS_MODELS: Registry[StressModel] = Registry("stress_model")
+EXPLAINERS: Registry[Explainer] = Registry("explainer")
+
+PREPROCESSORS.register("resize-normalize")(ResizeNormalizePreprocessor)
+
+SEGMENTERS.register("exg-otsu")(ExGThresholdSegmenter)
+
+REGION_PROVIDERS.register("whole-plant")(WholePlantRegionProvider)
+REGION_PROVIDERS.register("leaf-instance")(LeafInstanceRegionProvider)
+
+FEATURE_EXTRACTORS.register("geometry")(GeometryFeatures)
+FEATURE_EXTRACTORS.register("colour")(ColourFeatures)
+FEATURE_EXTRACTORS.register("texture")(TextureFeatures)
+FEATURE_EXTRACTORS.register("morphology")(MorphologyFeatures)
+
+AGGREGATORS.register("plant-level")(PlantLevelAggregator)
+
+STRESS_MODELS.register("heuristic")(HeuristicStressModel)
+STRESS_MODELS.register("gradient-boosted")(GradientBoostedStressModel)
+
+EXPLAINERS.register("feature-contribution")(FeatureContributionExplainer)
+
+# Default component names used by Pipeline.default() / from_config() when a slot is unspecified.
+DEFAULTS = {
+    "preprocessor": "resize-normalize",
+    "segmenter": "exg-otsu",
+    "region_provider": "whole-plant",
+    "feature_extractors": ("geometry", "colour", "texture", "morphology"),
+    "aggregator": "plant-level",
+    "model": "heuristic",
+    "explainer": "feature-contribution",
+}

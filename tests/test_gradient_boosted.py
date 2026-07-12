@@ -1,0 +1,83 @@
+"""The trained model is a drop-in for the heuristic (same StressModel contract) and explainable.
+
+Requires the ``ml`` extra; skipped automatically if scikit-learn is absent.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+pytest.importorskip("sklearn")
+
+from phytovision.models.base import ContributionModel, StressModel  # noqa: E402
+from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel  # noqa: E402
+from phytovision.types import PlantFeatures  # noqa: E402
+
+_KEYS = ["colour.gcc_mean", "colour.yellow_fraction", "texture.entropy"]
+
+
+def _training_data(seed: int = 0, per_class: int = 60):
+    """Noisy, separable synthetic samples so the gradient-boosted model can actually learn."""
+    rng = np.random.default_rng(seed)
+    dicts: list[dict[str, float]] = []
+    labels: list[int] = []
+    for _ in range(per_class):  # healthy: green, no yellowing, low texture entropy
+        dicts.append(
+            {
+                "colour.gcc_mean": float(rng.normal(0.40, 0.02)),
+                "colour.yellow_fraction": float(abs(rng.normal(0.03, 0.02))),
+                "texture.entropy": float(rng.normal(2.5, 0.3)),
+            }
+        )
+        labels.append(0)
+    for _ in range(per_class):  # stressed: less green, yellowing, high texture entropy
+        dicts.append(
+            {
+                "colour.gcc_mean": float(rng.normal(0.30, 0.02)),
+                "colour.yellow_fraction": float(abs(rng.normal(0.40, 0.05))),
+                "texture.entropy": float(rng.normal(4.5, 0.3)),
+            }
+        )
+        labels.append(1)
+    return dicts, labels
+
+
+def test_gbm_is_a_substitutable_stress_model() -> None:
+    dicts, labels = _training_data()
+    model = GradientBoostedStressModel(feature_keys=_KEYS).fit(dicts, labels)
+
+    assert isinstance(model, StressModel)
+    assert isinstance(model, ContributionModel)
+
+    stressed = PlantFeatures(
+        values={"colour.gcc_mean": 0.30, "colour.yellow_fraction": 0.45, "texture.entropy": 4.6},
+        region_count=1,
+    )
+    healthy = PlantFeatures(
+        values={"colour.gcc_mean": 0.41, "colour.yellow_fraction": 0.01, "texture.entropy": 2.4},
+        region_count=1,
+    )
+
+    assert model.predict(stressed).score > model.predict(healthy).score
+    for assessment in (model.predict(stressed), model.predict(healthy)):
+        assert 0.0 <= assessment.score <= 1.0
+        assert 0.0 <= assessment.confidence <= 1.0
+
+
+def test_gbm_contributions_cover_all_features() -> None:
+    dicts, labels = _training_data()
+    model = GradientBoostedStressModel(feature_keys=_KEYS).fit(dicts, labels)
+    features = PlantFeatures(
+        values={"colour.gcc_mean": 0.30, "colour.yellow_fraction": 0.45, "texture.entropy": 4.6},
+        region_count=1,
+    )
+    contributions = model.contributions(features)
+    assert set(contributions) == set(_KEYS)
+
+
+def test_gbm_predict_before_fit_raises() -> None:
+    model = GradientBoostedStressModel(feature_keys=_KEYS)
+    features = PlantFeatures(values={k: 0.0 for k in _KEYS}, region_count=1)
+    with pytest.raises(RuntimeError, match="not fitted"):
+        model.predict(features)

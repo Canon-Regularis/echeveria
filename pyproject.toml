@@ -1,0 +1,106 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phytovision"
+version = "0.1.0"
+description = "An explainable computer-vision framework for plant phenotyping and water-stress detection (echeveria)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Matthew Miezaniec" }]
+keywords = ["computer-vision", "plant-phenotyping", "water-stress", "explainable-ai", "segmentation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Typing :: Typed",
+]
+
+# Core deps keep the classical v1 pipeline runnable with no training and no ML stack.
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "scikit-image>=0.24",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+# Interpretable + end-to-end models and SHAP explanations.
+ml = ["scikit-learn>=1.4", "xgboost>=2.0", "shap>=0.44"]
+# Serving surfaces.
+api = ["fastapi>=0.110", "uvicorn>=0.29"]
+dashboard = ["streamlit>=1.33", "plotly>=5.20"]
+# Developer tooling (test, lint, type-check, build).
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+    "mypy>=1.9",
+    "build>=1.2",
+    "twine>=5.0",
+]
+# All runtime feature extras (single-sourced via self-reference; excludes dev tooling).
+all = ["phytovision[ml,api,dashboard]"]
+
+[project.scripts]
+phytovision = "phytovision.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Matthew-Miezaniec/echeveria"
+Documentation = "https://github.com/Matthew-Miezaniec/echeveria/tree/main/docs"
+Repository = "https://github.com/Matthew-Miezaniec/echeveria"
+Issues = "https://github.com/Matthew-Miezaniec/echeveria/issues"
+Changelog = "https://github.com/Matthew-Miezaniec/echeveria/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# Ship the PEP 561 marker so downstream consumers pick up inline types.
+phytovision = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config --cov=phytovision --cov-report=term-missing"
+xfail_strict = true
+
+[tool.coverage.run]
+source = ["phytovision"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 85
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@(abc\\.)?abstractmethod",
+    "\\.\\.\\.",
+    "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+files = ["src"]
+# 3.12+ is required to parse numpy>=2.x type stubs (PEP 695). Runtime still supports 3.11.
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+# scikit-image / sklearn ship no type stubs; relax the two strict flags that would otherwise flag
+# every call into them. The rest of strict mode (untyped defs, implicit optional, ...) stays on.
+disallow_untyped_calls = false
+warn_return_any = false

@@ -44,6 +44,11 @@ class GradientBoostedStressModel(StressModel):
         self._background = np.nanmean(matrix, axis=0)
         model = HistGradientBoostingClassifier()
         model.fit(matrix, list(labels))
+        if self.positive_label not in model.classes_:
+            raise ConfigError(
+                f"positive_label {self.positive_label!r} is not among the fitted classes "
+                f"{list(model.classes_)}"
+            )
         self._model = model
         return self
 
@@ -86,7 +91,7 @@ class GradientBoostedStressModel(StressModel):
         model = self._ensure_fitted()
         proba = model.predict_proba(x.reshape(1, -1))[0]  # type: ignore[attr-defined]
         classes = list(model.classes_)  # type: ignore[attr-defined]
-        idx = classes.index(self.positive_label) if self.positive_label in classes else -1
+        idx = classes.index(self.positive_label)  # guaranteed present: fit() checks this
         return float(proba[idx])
 
 

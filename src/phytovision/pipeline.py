@@ -212,3 +212,5 @@ def _build(registry: Registry[_T], spec: object) -> _T:
         return registry.create(name, **params)
     except KeyError as exc:
         raise ConfigError(str(exc)) from exc
+    except TypeError as exc:
+        raise ConfigError(f"could not construct {name!r}: {exc}") from exc

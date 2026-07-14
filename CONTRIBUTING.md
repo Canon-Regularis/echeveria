@@ -35,7 +35,7 @@ Every stage is behind an interface (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE
 3. It is now selectable via `Pipeline.from_names(...)`, `Pipeline.from_config({...})`, and the CLI —
    **no edit to the orchestrator**.
 4. Add tests, including an LSP substitution test if it introduces a new implementation of an existing
-   seam (see `tests/test_region_providers_lsp.py`).
+   seam (see `tests/test_region_providers.py`).
 
 ## Conventions
 

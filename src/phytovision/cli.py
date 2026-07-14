@@ -11,9 +11,10 @@ import tomllib
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from phytovision.analysis import analyze_dataset, feature_table
+from phytovision.analysis import AnalysisRow, analyze_dataset, feature_table
 from phytovision.datasets.directory import ImageDirectoryLoader
 from phytovision.datasets.folder import FolderClassificationLoader
+from phytovision.evaluation.crossval import grouped_stratified_cv
 from phytovision.evaluation.metrics import binary_metrics
 from phytovision.exceptions import ConfigError, PhytoVisionError
 from phytovision.io import load_image
@@ -62,6 +63,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     _add_pipeline_args(evaluate)
     evaluate.add_argument(
         "--healthy-label", default="healthy", help="label treated as the healthy class"
+    )
+    evaluate.add_argument(
+        "--cv",
+        type=int,
+        metavar="N",
+        help="run N-fold grouped stratified cross-validation instead of a single pass",
     )
 
     serve = sub.add_parser("serve", help="run the HTTP API (needs the 'api' extra)")
@@ -237,6 +244,9 @@ def _evaluate(args: argparse.Namespace) -> int:
         print(f"error: no images found in {args.directory}", file=sys.stderr)
         return 2
 
+    if args.cv is not None:
+        return _evaluate_cv(rows, args)
+
     y_true = [0 if row.label == args.healthy_label else 1 for row in rows]
     y_pred = [
         0 if row.stress_label == "healthy" else 1 for row in rows
@@ -250,6 +260,23 @@ def _evaluate(args: argparse.Namespace) -> int:
     print("                 healthy   stressed")
     print(f"  true healthy   {metrics.tn:>7}   {metrics.fp:>8}")
     print(f"  true stressed  {metrics.fn:>7}   {metrics.tp:>8}")
+    return 0
+
+
+def _evaluate_cv(rows: list[AnalysisRow], args: argparse.Namespace) -> int:
+    try:
+        result = grouped_stratified_cv(rows, healthy_label=args.healthy_label, n_splits=args.cv)
+    except (ImportError, PhytoVisionError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    lo, hi = result.accuracy_ci95
+    print(f"{result.n_splits}-fold {result.strategy} cross-validation")
+    print(
+        f"  accuracy: {result.mean_accuracy:.3f} +/- {result.std_accuracy:.3f}  "
+        f"(95% CI {lo:.3f}..{hi:.3f})"
+    )
+    print(f"  f1:       {result.mean_f1:.3f}")
     return 0
 
 

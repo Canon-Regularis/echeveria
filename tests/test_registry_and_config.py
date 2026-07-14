@@ -74,3 +74,10 @@ def test_unbuildable_component_raises_configerror_not_typeerror() -> None:
     # (a PhytoVisionError), not a raw TypeError.
     with pytest.raises(ConfigError):
         Pipeline.from_names(model="gradient-boosted")
+
+
+def test_from_config_params_only_keeps_default_component() -> None:
+    # A spec with only params (no name) overrides the default component's parameters.
+    pipeline = Pipeline.from_config({"preprocessor": {"params": {"max_size": 256}}})
+    assert isinstance(pipeline.preprocessor, ResizeNormalizePreprocessor)
+    assert pipeline.preprocessor.max_size == 256

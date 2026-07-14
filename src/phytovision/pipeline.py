@@ -76,7 +76,8 @@ class Pipeline:
 
         :param config: keys ``preprocessor``, ``segmenter``, ``region_provider``,
             ``feature_extractors``, ``aggregator``, ``model``, ``explainer``. Each value is a
-            registered name, or ``{"name": ..., "params": {...}}``.
+            registered name, or ``{"name": ..., "params": {...}}``. A spec with only ``params``
+            keeps the slot's default component and just overrides its parameters.
         :raises ConfigError: if a component name is unknown or a spec is malformed.
         """
         cfg = dict(config or {})
@@ -84,16 +85,19 @@ class Pipeline:
         if not isinstance(extractor_specs, Sequence) or isinstance(extractor_specs, str):
             raise ConfigError("`feature_extractors` must be a list of component specs")
         extractors = [_build(FEATURE_EXTRACTORS, s) for s in extractor_specs]
+
+        def slot(name: str, registry: Registry[_T]) -> _T:
+            default = DEFAULTS[name]
+            return _build(registry, cfg.get(name, default), default_name=default)
+
         return cls(
-            preprocessor=_build(PREPROCESSORS, cfg.get("preprocessor", DEFAULTS["preprocessor"])),
-            segmenter=_build(SEGMENTERS, cfg.get("segmenter", DEFAULTS["segmenter"])),
-            region_provider=_build(
-                REGION_PROVIDERS, cfg.get("region_provider", DEFAULTS["region_provider"])
-            ),
+            preprocessor=slot("preprocessor", PREPROCESSORS),
+            segmenter=slot("segmenter", SEGMENTERS),
+            region_provider=slot("region_provider", REGION_PROVIDERS),
             feature_extractor=CompositeFeatureExtractor(extractors),
-            aggregator=_build(AGGREGATORS, cfg.get("aggregator", DEFAULTS["aggregator"])),
-            model=_build(STRESS_MODELS, cfg.get("model", DEFAULTS["model"])),
-            explainer=_build(EXPLAINERS, cfg.get("explainer", DEFAULTS["explainer"])),
+            aggregator=slot("aggregator", AGGREGATORS),
+            model=slot("model", STRESS_MODELS),
+            explainer=slot("explainer", EXPLAINERS),
         )
 
     @classmethod
@@ -195,12 +199,16 @@ class Pipeline:
         return replace(self, heads=(*self.heads, head))
 
 
-def _build(registry: Registry[_T], spec: object) -> _T:
-    """Instantiate a component from a name or ``{"name", "params"}`` spec via ``registry``."""
+def _build(registry: Registry[_T], spec: object, default_name: object = None) -> _T:
+    """Instantiate a component from a name or ``{"name", "params"}`` spec via ``registry``.
+
+    If a mapping spec omits ``name``, ``default_name`` is used, so a config can override just the
+    parameters of a slot's default component.
+    """
     if isinstance(spec, str):
         name, params = spec, {}
     elif isinstance(spec, Mapping):
-        raw_name = spec.get("name")
+        raw_name = spec.get("name", default_name)
         if not isinstance(raw_name, str):
             raise ConfigError(f"component spec needs a string 'name': {spec!r}")
         name = raw_name

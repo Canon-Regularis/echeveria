@@ -11,6 +11,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
+# Image file extensions the folder loaders recognize.
+IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"})
+
 
 @dataclass(frozen=True, slots=True)
 class Sample:

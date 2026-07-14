@@ -9,9 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 
-from phytovision.datasets.base import DatasetLoader, Sample
-
-_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+from phytovision.datasets.base import IMAGE_SUFFIXES, DatasetLoader, Sample
 
 
 class FolderClassificationLoader(DatasetLoader):
@@ -34,7 +32,7 @@ class FolderClassificationLoader(DatasetLoader):
         samples: list[Sample] = []
         for class_dir in sorted(p for p in self.root.iterdir() if p.is_dir()):
             for img in sorted(class_dir.iterdir()):
-                if img.suffix.lower() in _IMAGE_SUFFIXES:
+                if img.suffix.lower() in IMAGE_SUFFIXES:
                     samples.append(
                         Sample(
                             image_path=str(img),

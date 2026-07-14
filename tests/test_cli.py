@@ -5,6 +5,9 @@ from __future__ import annotations
 import csv
 import json
 
+import numpy as np
+import pytest
+
 from phytovision.cli import main
 
 
@@ -92,3 +95,33 @@ def test_cli_config_unknown_component_errors(image_path, tmp_path, capsys) -> No
     rc = main(["analyze", str(image_path), "--config", str(cfg)])
     assert rc == 2
     assert capsys.readouterr().err.startswith("error:")
+
+
+def test_cli_train_then_use_via_model_path(training_dir, tmp_path) -> None:
+    pytest.importorskip("sklearn")
+    model_path = tmp_path / "model.joblib"
+    assert main(["train", str(training_dir), "--out", str(model_path)]) == 0
+    assert model_path.exists()
+
+    image = next((training_dir / "healthy").glob("*.png"))
+    assert main(["analyze", str(image), "--model-path", str(model_path)]) == 0
+
+
+def test_cli_train_single_class_errors(tmp_path, capsys, healthy_image) -> None:
+    from PIL import Image as PILImage
+
+    class_dir = tmp_path / "one" / "healthy"
+    class_dir.mkdir(parents=True)
+    PILImage.fromarray((healthy_image * 255).astype(np.uint8)).save(class_dir / "a.png")
+
+    rc = main(["train", str(tmp_path / "one"), "--out", str(tmp_path / "model.joblib")])
+    assert rc == 2
+    assert "two classes" in capsys.readouterr().err
+
+
+def test_cli_evaluate_runs(dataset_dir, capsys) -> None:
+    rc = main(["evaluate", str(dataset_dir)])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "accuracy" in out
+    assert "confusion" in out

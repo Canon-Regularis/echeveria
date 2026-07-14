@@ -101,3 +101,21 @@ def dataset_dir(tmp_path, healthy_image, stressed_image):
         class_dir.mkdir(parents=True)
         PILImage.fromarray((img * 255).astype(np.uint8)).save(class_dir / f"{label}.png")
     return root
+
+
+@pytest.fixture
+def training_dir(tmp_path):
+    """A labelled folder with several images per class, big enough to fit a small model."""
+    from PIL import Image as PILImage
+
+    root = tmp_path / "train"
+    for label, color, base_seed in (
+        ("healthy", (0.15, 0.60, 0.15), 0),
+        ("wilted", (0.62, 0.50, 0.12), 100),
+    ):
+        class_dir = root / label
+        class_dir.mkdir(parents=True)
+        for i in range(6):
+            img = _blob_image(color, seed=base_seed + i, noise=0.03)
+            PILImage.fromarray((img * 255).astype(np.uint8)).save(class_dir / f"{i}.png")
+    return root

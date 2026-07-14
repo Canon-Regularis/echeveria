@@ -1,8 +1,8 @@
 """The ``RegionProvider`` contract — the pipeline's central extensibility seam.
 
 Every provider maps ``(image, plant_mask)`` to a **non-empty** ``RegionSet``. Whether it returns one
-whole-plant region or N leaf regions, downstream stages are identical. This is Liskov Substitution
-Principle in practice, and ``tests/test_region_providers_lsp.py`` asserts it.
+whole-plant region or N leaf regions, downstream stages are identical, so any provider can replace
+another. ``tests/test_region_providers.py`` checks this.
 """
 
 from __future__ import annotations

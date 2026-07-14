@@ -85,3 +85,19 @@ def image_path(tmp_path, healthy_image):
     path = tmp_path / "plant.png"
     PILImage.fromarray((healthy_image * 255).astype(np.uint8)).save(path)
     return path
+
+
+@pytest.fixture
+def dataset_dir(tmp_path, healthy_image, stressed_image):
+    """A ``root/<label>/<image>`` folder with one healthy and one wilted plant, for dataset tests.
+
+    Returns the root path; it holds 2 images across 2 label subfolders.
+    """
+    from PIL import Image as PILImage
+
+    root = tmp_path / "dataset"
+    for label, img in (("healthy", healthy_image), ("wilted", stressed_image)):
+        class_dir = root / label
+        class_dir.mkdir(parents=True)
+        PILImage.fromarray((img * 255).astype(np.uint8)).save(class_dir / f"{label}.png")
+    return root

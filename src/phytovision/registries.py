@@ -11,9 +11,12 @@ whole registry graph.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from phytovision.explainability.base import Explainer
 from phytovision.explainability.feature_reasons import FeatureContributionExplainer
 from phytovision.models.base import StressModel
+from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
 from phytovision.models.stress.heuristic import HeuristicStressModel
 from phytovision.phenotyping.aggregation.base import FeatureAggregator
@@ -58,6 +61,17 @@ AGGREGATORS.register("plant-level")(PlantLevelAggregator)
 
 STRESS_MODELS.register("heuristic")(HeuristicStressModel)
 STRESS_MODELS.register("gradient-boosted")(GradientBoostedStressModel)
+
+
+def _build_ensemble(
+    members: Sequence[str] = ("heuristic",), weights: Sequence[float] | None = None
+) -> EnsembleStressModel:
+    """Build an ensemble from member model names. Name resolution stays in the composition root."""
+    built = [STRESS_MODELS.create(name) for name in members]
+    return EnsembleStressModel(built, weights=weights)
+
+
+STRESS_MODELS.register("ensemble")(_build_ensemble)
 
 EXPLAINERS.register("feature-contribution")(FeatureContributionExplainer)
 

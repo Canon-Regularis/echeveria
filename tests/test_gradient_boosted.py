@@ -10,6 +10,7 @@ import pytest
 
 pytest.importorskip("sklearn")
 
+from phytovision.exceptions import ConfigError  # noqa: E402
 from phytovision.models.base import ContributionModel, StressModel  # noqa: E402
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel  # noqa: E402
 from phytovision.types import PlantFeatures  # noqa: E402
@@ -81,3 +82,12 @@ def test_gbm_predict_before_fit_raises() -> None:
     features = PlantFeatures(values={k: 0.0 for k in _KEYS}, region_count=1)
     with pytest.raises(RuntimeError, match="not fitted"):
         model.predict(features)
+
+
+def test_gbm_fit_rejects_positive_label_absent_from_classes() -> None:
+    dicts, _ = _training_data()
+    # Relabel to classes {10, 20}; positive_label=1 is then absent, which would otherwise make
+    # predict() silently read an arbitrary class probability.
+    labels = [10] * (len(dicts) // 2) + [20] * (len(dicts) - len(dicts) // 2)
+    with pytest.raises(ConfigError, match="positive_label"):
+        GradientBoostedStressModel(feature_keys=_KEYS).fit(dicts, labels)

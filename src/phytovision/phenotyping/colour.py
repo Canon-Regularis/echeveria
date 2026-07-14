@@ -24,9 +24,9 @@ class ColourFeatures(FeatureExtractor):
         r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
         total = r + g + b + _EPS
 
-        hsv = rgb2hsv(image)[mask]
+        hsv = rgb2hsv(rgb)  # convert the foreground pixels only, not the whole frame
         hue, sat, val = hsv[:, 0], hsv[:, 1], hsv[:, 2]
-        lab = rgb2lab(image)[mask]
+        lab = rgb2lab(rgb)
 
         exg = 2.0 * g - r - b  # excess green
         gcc = g / total  # green chromatic coordinate

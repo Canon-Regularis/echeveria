@@ -16,6 +16,7 @@ import logging
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from functools import lru_cache
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
 import numpy as np
@@ -43,9 +44,18 @@ def finite(value: object) -> float:
     return f if math.isfinite(f) else 0.0
 
 
+@lru_cache(maxsize=4)
+def _region_props_cached(mask_bytes: bytes, shape: tuple[int, ...]) -> Any:
+    mask = np.frombuffer(mask_bytes, dtype=bool).reshape(shape)
+    return regionprops(mask.astype(np.int32))[0]
+
+
 def single_region_props(region: Region) -> Any:
-    """regionprops for the whole region as ONE labelled object (even if disconnected)."""
-    return regionprops(region.mask.astype(np.int32))[0]
+    """regionprops for the whole region as ONE labelled object (even if disconnected).
+
+    Cached by mask content so geometry and morphology extractors share one computation per region.
+    """
+    return _region_props_cached(region.mask.tobytes(), region.mask.shape)
 
 
 def prop(props: object, *names: str) -> float:

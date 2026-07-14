@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from phytovision.models.base import StressModel
+from phytovision.models.base import StressModel, bucket_label
 from phytovision.types import PlantFeatures, StressAssessment
 
 
@@ -68,7 +68,7 @@ class HeuristicStressModel(StressModel):
         return StressAssessment(
             score=score,
             confidence=confidence,
-            label=self._bucket(score),
+            label=bucket_label(score, self.healthy_threshold, self.stressed_threshold),
             model_name=self.name,
         )
 
@@ -85,13 +85,6 @@ class HeuristicStressModel(StressModel):
 
     def feature_label(self, key: str) -> str:
         return self._labels.get(key, key)
-
-    def _bucket(self, score: float) -> str:
-        if score < self.healthy_threshold:
-            return "healthy"
-        if score < self.stressed_threshold:
-            return "mild"
-        return "stressed"
 
 
 def _sigmoid(x: float) -> float:

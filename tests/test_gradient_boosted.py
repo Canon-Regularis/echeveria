@@ -10,7 +10,7 @@ import pytest
 
 pytest.importorskip("sklearn")
 
-from phytovision.exceptions import ConfigError  # noqa: E402
+from phytovision.exceptions import ConfigError, ModelNotFittedError  # noqa: E402
 from phytovision.models.base import ContributionModel, StressModel  # noqa: E402
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel  # noqa: E402
 from phytovision.types import PlantFeatures  # noqa: E402
@@ -91,3 +91,25 @@ def test_gbm_fit_rejects_positive_label_absent_from_classes() -> None:
     labels = [10] * (len(dicts) // 2) + [20] * (len(dicts) - len(dicts) // 2)
     with pytest.raises(ConfigError, match="positive_label"):
         GradientBoostedStressModel(feature_keys=_KEYS).fit(dicts, labels)
+
+
+def test_gbm_save_load_roundtrip(tmp_path) -> None:
+    dicts, labels = _training_data()
+    model = GradientBoostedStressModel(feature_keys=_KEYS).fit(dicts, labels)
+    features = PlantFeatures(
+        values={"colour.gcc_mean": 0.30, "colour.yellow_fraction": 0.45, "texture.entropy": 4.6},
+        region_count=1,
+    )
+    before = model.predict(features).score
+
+    path = tmp_path / "model.joblib"
+    model.save(path)
+    reloaded = GradientBoostedStressModel.load(path)
+
+    assert reloaded.feature_keys == model.feature_keys
+    assert reloaded.predict(features).score == before
+
+
+def test_gbm_save_before_fit_raises(tmp_path) -> None:
+    with pytest.raises(ModelNotFittedError):
+        GradientBoostedStressModel(feature_keys=_KEYS).save(tmp_path / "model.joblib")

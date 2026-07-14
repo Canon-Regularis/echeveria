@@ -11,7 +11,8 @@ baseline-substitution attribution (no SHAP required).
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Self
+from pathlib import Path
+from typing import Any, Self
 
 import numpy as np
 
@@ -78,6 +79,29 @@ class GradientBoostedStressModel(StressModel):
     def feature_label(self, key: str) -> str:
         return key
 
+    # --- persistence ---
+    def save(self, path: str | Path) -> None:
+        """Persist the fitted model (estimator, feature_keys, baseline) to ``path`` via joblib."""
+        self._ensure_fitted()
+        _joblib().dump(
+            {
+                "feature_keys": self.feature_keys,
+                "positive_label": self.positive_label,
+                "estimator": self._model,
+                "background": self._background,
+            },
+            path,
+        )
+
+    @classmethod
+    def load(cls, path: str | Path) -> GradientBoostedStressModel:
+        """Load a model saved by :meth:`save`. The file is unpickled, so only load trusted files."""
+        data = _joblib().load(path)
+        model = cls(feature_keys=data["feature_keys"], positive_label=data["positive_label"])
+        model._model = data["estimator"]
+        model._background = data["background"]
+        return model
+
     # --- internals ---
     def _ensure_fitted(self) -> object:
         if self._model is None:
@@ -97,6 +121,16 @@ class GradientBoostedStressModel(StressModel):
 
 def _as_float(value: object) -> float:
     return float("nan") if value is None else float(value)  # type: ignore[arg-type]
+
+
+def _joblib() -> Any:
+    try:
+        import joblib
+    except ImportError as exc:  # pragma: no cover - depends on optional extra
+        raise ImportError(
+            "model persistence needs the 'ml' extra: pip install -e \".[ml]\""
+        ) from exc
+    return joblib
 
 
 def feature_keys_from(features: PlantFeatures) -> list[str]:

@@ -125,3 +125,12 @@ def test_cli_evaluate_runs(dataset_dir, capsys) -> None:
     out = capsys.readouterr().out
     assert "accuracy" in out
     assert "confusion" in out
+
+
+def test_cli_serve_without_uvicorn_reports_clean_error(monkeypatch, capsys) -> None:
+    import sys
+
+    monkeypatch.setitem(sys.modules, "uvicorn", None)  # force `import uvicorn` to raise ImportError
+    rc = main(["serve"])
+    assert rc == 2
+    assert "api" in capsys.readouterr().err

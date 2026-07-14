@@ -64,9 +64,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--healthy-label", default="healthy", help="label treated as the healthy class"
     )
 
+    serve = sub.add_parser("serve", help="run the HTTP API (needs the 'api' extra)")
+    serve.add_argument("--host", default="127.0.0.1", help="bind host")
+    serve.add_argument("--port", type=int, default=8000, help="bind port")
+
     args = parser.parse_args(argv)
     _configure_logging(args.verbose)
-    handlers = {"analyze": _analyze, "batch": _batch, "train": _train, "evaluate": _evaluate}
+    handlers = {
+        "analyze": _analyze,
+        "batch": _batch,
+        "train": _train,
+        "evaluate": _evaluate,
+        "serve": _serve,
+    }
     return handlers[args.command](args)
 
 
@@ -241,6 +251,16 @@ def _evaluate(args: argparse.Namespace) -> int:
     print(f"  true healthy   {metrics.tn:>7}   {metrics.fp:>8}")
     print(f"  true stressed  {metrics.fn:>7}   {metrics.tp:>8}")
     return 0
+
+
+def _serve(args: argparse.Namespace) -> int:
+    try:
+        import uvicorn
+    except ImportError:
+        print('error: serving needs the "api" extra: pip install -e ".[api]"', file=sys.stderr)
+        return 2
+    uvicorn.run("phytovision.api:app", host=args.host, port=args.port)  # pragma: no cover
+    return 0  # pragma: no cover
 
 
 if __name__ == "__main__":

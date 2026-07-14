@@ -31,6 +31,7 @@ from phytovision.regions.whole_plant import WholePlantRegionProvider
 from phytovision.registry import Registry
 from phytovision.segmentation.base import PlantSegmenter
 from phytovision.segmentation.plant.exg_threshold import ExGThresholdSegmenter
+from phytovision.segmentation.plant.lab_threshold import LabChromaSegmenter
 
 PREPROCESSORS: Registry[Preprocessor] = Registry("preprocessor")
 SEGMENTERS: Registry[PlantSegmenter] = Registry("segmenter")
@@ -43,6 +44,7 @@ EXPLAINERS: Registry[Explainer] = Registry("explainer")
 PREPROCESSORS.register("resize-normalize")(ResizeNormalizePreprocessor)
 
 SEGMENTERS.register("exg-otsu")(ExGThresholdSegmenter)
+SEGMENTERS.register("lab-chroma")(LabChromaSegmenter)
 
 REGION_PROVIDERS.register("whole-plant")(WholePlantRegionProvider)
 REGION_PROVIDERS.register("leaf-instance")(LeafInstanceRegionProvider)

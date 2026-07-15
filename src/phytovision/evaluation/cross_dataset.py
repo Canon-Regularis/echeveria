@@ -15,7 +15,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from phytovision.analysis import AnalysisRow
-from phytovision.evaluation._common import feature_keys_of, fit_predict_labels
+from phytovision.evaluation._common import feature_keys_of, fit_predict_labels, model_factory
 from phytovision.evaluation.metrics import BinaryMetrics, binary_metrics
 from phytovision.exceptions import ConfigError
 
@@ -47,15 +47,17 @@ def leave_one_dataset_out(
     rows: Iterable[AnalysisRow],
     *,
     healthy_label: str = "healthy",
-    positive_label: int = 1,
+    model: str = "gradient-boosted",
 ) -> TransferMatrix:
     """Hold out each dataset in turn, training on the rest, and score the held-out dataset.
 
     Folds whose training data would carry only one class are skipped with a warning.
 
-    :raises ConfigError: if fewer than two datasets (sources) are present.
+    :param model: which trainable model to fit (``gradient-boosted`` or ``ensemble``).
+    :raises ConfigError: if fewer than two datasets are present, or the model cannot train.
     :raises ImportError: if the ``ml`` extra (scikit-learn) is not installed.
     """
+    factory = model_factory(model)  # resolve early so an untrainable model fails before any work
     rows = [row for row in rows if row.source is not None]
     sources = sorted({row.source for row in rows if row.source is not None})
     if len(sources) < 2:
@@ -75,7 +77,7 @@ def leave_one_dataset_out(
             train_labels,
             [row.features for row in test_rows],
             keys,
-            positive_label,
+            factory,
         )
         test_labels = [_label(row, healthy_label) for row in test_rows]
         entries.append((held, binary_metrics(test_labels, predictions)))

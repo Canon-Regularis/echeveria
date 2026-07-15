@@ -16,7 +16,7 @@ from typing import Any
 import numpy as np
 
 from phytovision.analysis import AnalysisRow
-from phytovision.evaluation._common import feature_keys_of, fit_predict_labels
+from phytovision.evaluation._common import feature_keys_of, fit_predict_labels, model_factory
 from phytovision.evaluation.metrics import binary_metrics
 from phytovision.exceptions import ConfigError
 
@@ -61,15 +61,17 @@ def grouped_stratified_cv(
     *,
     healthy_label: str = "healthy",
     n_splits: int = 5,
-    positive_label: int = 1,
+    model: str = "gradient-boosted",
 ) -> CrossValResult:
-    """Cross-validate a gradient-boosted model over labelled rows, grouped by ``source``.
+    """Cross-validate a trainable model over labelled rows, grouped by ``source``.
 
-    :raises ConfigError: if there are too few samples or classes to make at least two folds.
+    :param model: which trainable model to fit per fold (``gradient-boosted`` or ``ensemble``).
+    :raises ConfigError: if there are too few samples or classes, or the model cannot train.
     :raises ImportError: if the ``ml`` extra (scikit-learn) is not installed.
     """
     if n_splits < 2:
         raise ConfigError("cross-validation needs at least two folds")
+    factory = model_factory(model)  # resolve early so an untrainable model fails before any work
     rows = list(rows)
     labels = [0 if row.label == healthy_label else 1 for row in rows]
     if len(set(labels)) < 2:
@@ -92,7 +94,7 @@ def grouped_stratified_cv(
             train_labels,
             [feature_dicts[i] for i in test_idx],
             keys,
-            positive_label,
+            factory,
         )
         metrics = binary_metrics([labels[i] for i in test_idx], predictions)
         accuracies.append(metrics.accuracy)

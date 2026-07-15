@@ -25,9 +25,12 @@ from phytovision.explainability.shap_explainer import ShapExplainer
 from phytovision.models.base import StressModel
 from phytovision.models.disease.base import DiseaseModel
 from phytovision.models.disease.heuristic import HeuristicDiseaseModel
+from phytovision.models.drought.base import DroughtStageModel
+from phytovision.models.drought.rule_based import RuleBasedDroughtStage
 from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
 from phytovision.models.stress.heuristic import HeuristicStressModel
+from phytovision.models.temporal.leaf_death import LeafDeathPredictor, TrendLeafDeathPredictor
 from phytovision.phenotyping.aggregation.base import FeatureAggregator
 from phytovision.phenotyping.aggregation.plant_level import PlantLevelAggregator
 from phytovision.phenotyping.base import FeatureExtractor
@@ -103,6 +106,14 @@ EXPLAINERS.register("shap")(ShapExplainer)
 # Optional secondary heads. The shipped disease model is an unvalidated placeholder (see its docs).
 DISEASE_MODELS: Registry[DiseaseModel] = Registry("disease_model")
 DISEASE_MODELS.register("heuristic")(HeuristicDiseaseModel)
+
+# Drought-stage models. The shipped rule set is a literature-motivated prior, not a fitted model.
+DROUGHT_STAGE_MODELS: Registry[DroughtStageModel] = Registry("drought_stage_model")
+DROUGHT_STAGE_MODELS.register("rule-based")(RuleBasedDroughtStage)
+
+# Leaf-death / decline forecasters. The shipped one is a trend extrapolation, not a fitted model.
+LEAF_DEATH_PREDICTORS: Registry[LeafDeathPredictor] = Registry("leaf_death_predictor")
+LEAF_DEATH_PREDICTORS.register("trend")(TrendLeafDeathPredictor)
 
 # Dataset loaders are selectable by name too. Their first constructor argument is the path (dataset
 # root, annotations file, or manifest), so callers pass it as the loader's own keyword.

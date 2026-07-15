@@ -27,7 +27,7 @@ from phytovision.exceptions import InvalidImageError, PhytoVisionError
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.pipeline import Pipeline
 from phytovision.serving import attach_heads, engine_from_env
-from phytovision.temporal import Observation
+from phytovision.temporal import Forecast, Observation
 from phytovision.types import AnalysisReport, Image
 
 
@@ -70,6 +70,18 @@ def disease_series(report: AnalysisReport) -> tuple[list[str], list[float]]:
     return labels, [float(output[label]) for label in labels]
 
 
+def drought_markers(report: AnalysisReport) -> tuple[list[str], list[float]]:
+    """Drought-stage marker names and scores, empty if the drought-stage head did not run."""
+    output = report.head_outputs.get("drought_stage")
+    if not isinstance(output, dict):
+        return [], []
+    markers = output.get("markers")
+    if not isinstance(markers, dict):
+        return [], []
+    names = [str(name) for name in markers]
+    return names, [float(markers[name]) for name in names]
+
+
 def observation_table(observations: Sequence[Observation]) -> list[dict[str, object]]:
     """Time-ordered rows for a plant's observation series."""
     return [
@@ -81,6 +93,12 @@ def observation_table(observations: Sequence[Observation]) -> list[dict[str, obj
 def timing_rows(report: AnalysisReport) -> list[dict[str, object]]:
     """Per-stage wall-clock timing rows in pipeline order."""
     return [{"stage": stage, "ms": round(ms, 1)} for stage, ms in report.timing_ms.items()]
+
+
+def forecast_points(forecast: Forecast) -> tuple[list[int], list[float]]:
+    """Horizon steps and projected scores for the forecast line, in ascending horizon order."""
+    horizons = sorted(forecast.projected_scores)
+    return horizons, [forecast.projected_scores[horizon] for horizon in horizons]
 
 
 _TERMINAL_CSS = """
@@ -132,7 +150,8 @@ def _render_analyze_tab(
         st.info("Waiting for an image.")
         return
 
-    engine = attach_heads(engine, disease=True)  # the terminal always shows the disease panel
+    # The terminal always shows the disease and drought-stage panels.
+    engine = attach_heads(engine, disease=True, drought_stage=True)
     try:
         image = decode_image(upload.getvalue())
         report = engine.analyze(image)
@@ -153,6 +172,20 @@ def _render_analyze_tab(
         coverage = round((1.0 - label_set.alpha) * 100)
         members = ", ".join(label_set.labels) or "(empty)"
         st.caption(f"Conformal set ({coverage}% coverage): {members}")
+
+    stage = report.head_outputs.get("drought_stage")
+    if isinstance(stage, dict):
+        with st.container(border=True):
+            st.markdown("**DROUGHT STAGE** - literature-motivated rule set, not a diagnosis")
+            st.metric("stage", str(stage.get("stage", "?")).upper())
+            st.caption(f"basis: {stage.get('basis', '')}")
+            names, scores = drought_markers(report)
+            if names:
+                figure = go.Figure(go.Bar(x=scores, y=names, orientation="h"))
+                figure.update_layout(
+                    xaxis={"range": [0, 1]}, height=32 * len(names) + 120, **_DARK_LAYOUT
+                )
+                st.plotly_chart(figure, use_container_width=True)
 
     left, right = st.columns(2)
     with left.container(border=True):
@@ -198,7 +231,12 @@ def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover - Stream
     import streamlit as st
 
     from phytovision.datasets.manifest import CsvManifestLoader
-    from phytovision.temporal import build_history, stress_trend
+    from phytovision.temporal import (
+        build_history,
+        pigment_early_warning,
+        stress_forecast,
+        stress_trend,
+    )
 
     st.caption(
         "Point at a CSV manifest with plant_id and timestamp columns to chart stress trends."
@@ -230,6 +268,13 @@ def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover - Stream
     slope.metric("slope / step", f"{trend.slope:+.3f}")
     count.metric("observations", trend.n)
 
+    warning = pigment_early_warning(plant_id, series)
+    if warning.flagged:
+        st.warning(
+            f"EARLY WARNING (RGB pigment proxy, not a measurement): {warning.note} "
+            f"(pigment slope {warning.pigment_slope:+.3f})."
+        )
+
     figure = go.Figure(
         go.Scatter(
             x=[obs.timestamp for obs in series],
@@ -239,6 +284,31 @@ def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover - Stream
     )
     figure.update_layout(yaxis={"title": "stress score", "range": [0, 1]}, **_DARK_LAYOUT)
     st.plotly_chart(figure, use_container_width=True)
+
+    forecast = stress_forecast(plant_id, series)
+    to_stressed = forecast.steps_to_stressed
+    steps_col, confidence_col = st.columns(2)
+    steps_col.metric("steps to stressed", to_stressed if to_stressed is not None else "n/a")
+    confidence_col.metric("forecast confidence", f"{forecast.confidence:.2f}")
+    st.caption("Forecast is a trend extrapolation of the stress score, not a validated prediction.")
+    steps, projected = forecast_points(forecast)
+    if steps:
+        # Anchor at the fitted trend level, not the raw last reading, so the line stays on-trend.
+        projection = go.Figure(
+            go.Scatter(
+                x=[0, *steps],
+                y=[forecast.current_level, *projected],
+                mode="lines+markers",
+                line={"dash": "dash"},
+            )
+        )
+        projection.update_layout(
+            yaxis={"title": "projected stress", "range": [0, 1]},
+            xaxis={"title": "steps ahead"},
+            **_DARK_LAYOUT,
+        )
+        st.plotly_chart(projection, use_container_width=True)
+
     st.dataframe(observation_table(series), use_container_width=True, hide_index=True)
 
 

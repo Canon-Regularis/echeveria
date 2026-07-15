@@ -22,7 +22,12 @@ from phytovision.exceptions import PhytoVisionError
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.pipeline import Pipeline
 from phytovision.serving import attach_heads, engine_from_env
-from phytovision.temporal import FeatureHistory, plant_trends
+from phytovision.temporal import (
+    FeatureHistory,
+    plant_early_warnings,
+    plant_forecasts,
+    plant_trends,
+)
 from phytovision.types import AnalysisReport, Image
 from phytovision.visualize import render_overlay
 
@@ -39,18 +44,27 @@ def create_app(
         return {"status": "ok"}
 
     @app.post("/analyze")
-    async def analyze(file: UploadFile, disease: bool = False) -> dict[str, object]:
-        """Analyze one image. ``disease=true`` attaches the disease head, an unvalidated placeholder
-        (not a diagnostic); its probabilities carry a ``disclaimer`` in the response."""
-        report = _run(attach_heads(engine, disease=disease), await file.read())
+    async def analyze(
+        file: UploadFile, disease: bool = False, drought_stage: bool = False
+    ) -> dict[str, object]:
+        """Analyze one image. ``disease=true`` and ``drought_stage=true`` attach optional heads that
+        are unvalidated placeholders, not diagnostics; their outputs carry a ``disclaimer``."""
+        report = _run(
+            attach_heads(engine, disease=disease, drought_stage=drought_stage), await file.read()
+        )
         payload = report.summary()
         if conformal is not None:
             label_set = conformal.predict_set(report.plant_features)
             payload["conformal"] = {"labels": list(label_set.labels), "alpha": label_set.alpha}
         if report.head_outputs:  # summary() lists head names only; expose the values here
             payload["head_outputs"] = report.head_outputs
+            notes = []
             if "disease" in report.head_outputs:
-                payload["disclaimer"] = "disease is an unvalidated placeholder, not a diagnostic"
+                notes.append("disease is an unvalidated placeholder, not a diagnostic")
+            if "drought_stage" in report.head_outputs:
+                notes.append("drought_stage is a literature-motivated rule set, not a diagnosis")
+            if notes:
+                payload["disclaimer"] = "; ".join(notes)
         return payload
 
     @app.post("/overlay")
@@ -96,21 +110,41 @@ def _decode(data: bytes) -> Image:
 
 
 def _trend_payload(history: FeatureHistory) -> dict[str, object]:
-    """Serialize per-plant stress trends and their time-ordered score series to plain JSON."""
+    """Serialize per-plant trends, series, the pigment early warning, and the forecast to JSON."""
+    warnings = plant_early_warnings(history)
+    forecasts = plant_forecasts(history)
     plants: dict[str, object] = {}
     for plant_id, trend in plant_trends(history).items():
+        warning = warnings[plant_id]
+        forecast = forecasts[plant_id]
         plants[plant_id] = {
             "direction": trend.direction,
             "slope": round(trend.slope, 6),
             "n": trend.n,
             "start_score": round(trend.start_score, 4),
             "end_score": round(trend.end_score, 4),
+            "early_warning": {
+                "flagged": warning.flagged,
+                "pigment_slope": round(warning.pigment_slope, 6),
+                "note": warning.note,
+            },
+            "forecast": {
+                "projected_scores": {
+                    str(horizon): round(score, 4)
+                    for horizon, score in forecast.projected_scores.items()
+                },
+                "steps_to_stressed": forecast.steps_to_stressed,
+                "confidence": round(forecast.confidence, 4),
+            },
             "series": [
                 {"timestamp": obs.timestamp, "score": round(obs.stress_score, 4)}
                 for obs in history.series_for(plant_id)
             ],
         }
-    return {"plants": plants}
+    return {
+        "plants": plants,
+        "disclaimer": "early_warning and forecast are RGB-proxy extrapolations, not predictions",
+    }
 
 
 app = create_app()

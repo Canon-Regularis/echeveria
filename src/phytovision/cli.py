@@ -15,6 +15,7 @@ from pathlib import Path
 from phytovision.analysis import AnalysisRow, analyze_dataset, feature_table
 from phytovision.datasets.directory import ImageDirectoryLoader
 from phytovision.datasets.folder import FolderClassificationLoader
+from phytovision.datasets.manifest import CsvManifestLoader
 from phytovision.evaluation._common import to_plant_features
 from phytovision.evaluation.cross_dataset import leave_one_dataset_out
 from phytovision.evaluation.crossval import grouped_stratified_cv
@@ -25,6 +26,7 @@ from phytovision.explainability.counterfactual import counterfactuals
 from phytovision.io import load_image
 from phytovision.models.base import StressModel
 from phytovision.models.conformal import SplitConformalClassifier
+from phytovision.models.drought.rule_based import stage_from_values
 from phytovision.models.persistence import build_manifest, load_saved, save_model
 from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
@@ -32,6 +34,13 @@ from phytovision.models.stress.heuristic import HeuristicStressModel
 from phytovision.pipeline import Pipeline
 from phytovision.registries import EXPLAINERS, SEGMENTERS, STRESS_MODELS
 from phytovision.serving import attach_heads
+from phytovision.temporal import (
+    DEFAULT_HORIZONS,
+    build_history,
+    plant_early_warnings,
+    plant_forecasts,
+    plant_trends,
+)
 from phytovision.visualize import render_overlay
 
 _TRAINABLE_MODELS = ("gradient-boosted", "ensemble")
@@ -58,6 +67,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--disease",
         action="store_true",
         help="attach the placeholder disease-appearance head (not a validated diagnostic)",
+    )
+    analyze.add_argument(
+        "--drought-stage",
+        action="store_true",
+        help="attach the drought-stage head (a literature-motivated rule set, not a diagnosis)",
     )
     analyze.add_argument(
         "--counterfactual",
@@ -155,6 +169,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--model-path", metavar="FILE", help="trained or calibrated .joblib model to analyze with"
     )
 
+    phenotype = sub.add_parser(
+        "phenotype", help="high-throughput trajectory phenotyping over a timestamped manifest"
+    )
+    phenotype.add_argument("manifest", help="CSV/TSV manifest with plant_id and timestamp columns")
+    phenotype.add_argument(
+        "--images-root", metavar="DIR", help="image folder (defaults to the manifest folder)"
+    )
+    phenotype.add_argument(
+        "--out", required=True, metavar="FILE", help="output path, .csv or .json"
+    )
+    phenotype.add_argument(
+        "--horizons", default="1,3,7", help="comma-separated forecast horizons in observation steps"
+    )
+    _add_pipeline_args(phenotype)
+
     args = parser.parse_args(argv)
     _configure_logging(args.verbose)
     handlers = {
@@ -164,6 +193,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "evaluate": _evaluate,
         "serve": _serve,
         "dashboard": _dashboard,
+        "phenotype": _phenotype,
     }
     return handlers[args.command](args)
 
@@ -262,7 +292,7 @@ def _analyze(args: argparse.Namespace) -> int:
             print("error: --conformal needs a model saved with train --calibrate", file=sys.stderr)
             return 2
         pipeline = _build_pipeline(args, model=override)
-        pipeline = attach_heads(pipeline, disease=args.disease)
+        pipeline = attach_heads(pipeline, disease=args.disease, drought_stage=args.drought_stage)
         report = pipeline.analyze(args.image)
         changes = (
             counterfactuals(pipeline.model, report.plant_features) if args.counterfactual else []
@@ -364,6 +394,81 @@ def _batch(args: argparse.Namespace) -> int:
             writer.writerows(records)
     print(f"wrote {len(records)} row(s) to {out}")
     return 0
+
+
+def _phenotype(args: argparse.Namespace) -> int:
+    horizons = _parse_horizons(args.horizons)
+    try:
+        pipeline = _build_pipeline(args)
+        loader = CsvManifestLoader(args.manifest, args.images_root or None)
+    except (OSError, ImportError, PhytoVisionError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    history = build_history(pipeline, loader)
+    if not history.plant_ids:
+        print(f"error: no plant-tagged, timestamped samples in {args.manifest}", file=sys.stderr)
+        return 2
+
+    trends = plant_trends(history)
+    warnings = plant_early_warnings(history)
+    forecasts = plant_forecasts(history, horizons)
+
+    fieldnames = [
+        "plant_id",
+        "n",
+        "first_timestamp",
+        "last_timestamp",
+        "latest_score",
+        "latest_stage",
+        "trend_direction",
+        "trend_slope",
+        "early_warning_flagged",
+        "steps_to_stressed",
+        *[f"forecast_h{h}" for h in horizons],
+        "forecast_confidence",
+    ]
+    records: list[dict[str, object]] = []
+    for plant_id in history.plant_ids:
+        series = history.series_for(plant_id)
+        latest = series[-1]
+        forecast = forecasts[plant_id]
+        row: dict[str, object] = {
+            "plant_id": plant_id,
+            "n": len(series),
+            "first_timestamp": series[0].timestamp,
+            "last_timestamp": latest.timestamp,
+            "latest_score": round(latest.stress_score, 4),
+            "latest_stage": stage_from_values(latest.features)["stage"],
+            "trend_direction": trends[plant_id].direction,
+            "trend_slope": round(trends[plant_id].slope, 6),
+            "early_warning_flagged": warnings[plant_id].flagged,
+            "steps_to_stressed": forecast.steps_to_stressed,
+            "forecast_confidence": round(forecast.confidence, 4),
+        }
+        for h in horizons:
+            row[f"forecast_h{h}"] = round(forecast.projected_scores.get(h, 0.0), 4)
+        records.append(row)
+
+    out = Path(args.out)
+    if out.suffix.lower() == ".json":
+        out.write_text(json.dumps(records, indent=2), encoding="utf-8")
+    else:
+        with out.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames, restval="")
+            writer.writeheader()
+            writer.writerows(records)
+    print(f"wrote {len(records)} plant trajectory row(s) to {out}")
+    return 0
+
+
+def _parse_horizons(text: str) -> tuple[int, ...]:
+    """Parse a comma-separated horizon list, falling back to the defaults on empty or bad input."""
+    try:
+        horizons = tuple(int(part) for part in text.split(",") if part.strip())
+    except ValueError:
+        return DEFAULT_HORIZONS
+    return tuple(h for h in horizons if h > 0) or DEFAULT_HORIZONS
 
 
 def _train(args: argparse.Namespace) -> int:

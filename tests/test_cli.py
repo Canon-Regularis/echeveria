@@ -84,6 +84,57 @@ def test_cli_batch_empty_dir_errors(tmp_path, capsys) -> None:
     assert capsys.readouterr().err.startswith("error:")
 
 
+def _save_image(path, image) -> None:
+    from PIL import Image as PILImage
+
+    PILImage.fromarray((image * 255).astype(np.uint8)).save(path)
+
+
+def test_cli_phenotype_writes_a_trajectory_table(tmp_path, healthy_image, stressed_image) -> None:
+    _save_image(tmp_path / "p1_t1.png", healthy_image)
+    _save_image(tmp_path / "p1_t2.png", stressed_image)
+    _save_image(tmp_path / "p2_t1.png", healthy_image)
+    _save_image(tmp_path / "p2_t2.png", healthy_image)
+    manifest = tmp_path / "m.csv"
+    manifest.write_text(
+        "image_path,plant_id,timestamp\n"
+        "p1_t1.png,p1,2026-03-01\n"
+        "p1_t2.png,p1,2026-03-02\n"
+        "p2_t1.png,p2,2026-03-01\n"
+        "p2_t2.png,p2,2026-03-02\n"
+    )
+    out = tmp_path / "traj.csv"
+    assert main(["phenotype", str(manifest), "--out", str(out), "--horizons", "1,3"]) == 0
+
+    rows = list(csv.DictReader(out.open()))
+    assert {row["plant_id"] for row in rows} == {"p1", "p2"}
+    p1 = next(row for row in rows if row["plant_id"] == "p1")
+    assert p1["latest_stage"] in {"well-watered", "early-stress", "moderate", "severe"}
+    assert {"forecast_h1", "forecast_h3", "forecast_confidence"} <= set(p1)
+    assert p1["trend_direction"] == "rising"  # healthy then stressed
+
+
+def test_cli_phenotype_json_uses_default_horizons(tmp_path, healthy_image, stressed_image) -> None:
+    _save_image(tmp_path / "a.png", healthy_image)
+    _save_image(tmp_path / "b.png", stressed_image)
+    manifest = tmp_path / "m.csv"
+    manifest.write_text("image_path,plant_id,timestamp\na.png,p1,2026-03-01\nb.png,p1,2026-03-02\n")
+    out = tmp_path / "traj.json"
+    assert main(["phenotype", str(manifest), "--out", str(out)]) == 0
+    records = json.loads(out.read_text())
+    assert len(records) == 1
+    assert "forecast_h7" in records[0]  # default horizons are 1,3,7
+
+
+def test_cli_phenotype_no_tagged_rows_errors(tmp_path, healthy_image, capsys) -> None:
+    _save_image(tmp_path / "a.png", healthy_image)
+    manifest = tmp_path / "m.csv"
+    manifest.write_text("image_path,plant_id,timestamp\na.png,,\n")  # no plant_id/timestamp
+    rc = main(["phenotype", str(manifest), "--out", str(tmp_path / "x.csv")])
+    assert rc == 2
+    assert capsys.readouterr().err.startswith("error:")
+
+
 def test_cli_config_toml_runs(image_path, tmp_path) -> None:
     cfg = tmp_path / "pipeline.toml"
     cfg.write_text(
@@ -290,6 +341,14 @@ def test_cli_analyze_disease_head(image_path, capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     # The head must attach AND emit its two-class distribution, not just an empty slot.
     assert set(payload["head_outputs"]["disease"]) == {"healthy", "lesion-like"}
+
+
+def test_cli_analyze_drought_stage_head(image_path, capsys) -> None:
+    assert main(["analyze", str(image_path), "--drought-stage", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    stage = payload["head_outputs"]["drought_stage"]
+    assert stage["stage"] in {"well-watered", "early-stress", "moderate", "severe"}
+    assert set(stage["markers"]) == {"pigment", "turgor_loss", "necrosis"}
 
 
 def test_cli_analyze_counterfactual(image_path, capsys) -> None:

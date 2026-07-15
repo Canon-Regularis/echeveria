@@ -32,8 +32,10 @@ class ColourFeatures(FeatureExtractor):
         gcc = g / total  # green chromatic coordinate
 
         # Colour-band fractions (hue is 0..1). Yellow ~0.11-0.20; brown = dark, low-sat orange.
+        # Red covers the wraparound red plus purple/magenta, where drought anthocyanins show up.
         yellow = (hue >= 0.10) & (hue <= 0.20) & (sat > 0.25) & (val > 0.25)
         brown = (hue >= 0.03) & (hue <= 0.13) & (sat > 0.15) & (val < 0.55)
+        red = ((hue <= 0.05) | (hue >= 0.80)) & (sat > 0.25) & (val > 0.20)
         n = float(rgb.shape[0])
 
         return {
@@ -52,4 +54,5 @@ class ColourFeatures(FeatureExtractor):
             "lab_b_mean": float(lab[:, 2].mean()),  # +b = yellow, -b = blue
             "yellow_fraction": float(yellow.sum()) / (n + _EPS),
             "brown_fraction": float(brown.sum()) / (n + _EPS),
+            "red_fraction": float(red.sum()) / (n + _EPS),  # anthocyanin reddening (pigment stress)
         }

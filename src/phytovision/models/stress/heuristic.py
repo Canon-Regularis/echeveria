@@ -38,6 +38,8 @@ _TERMS: tuple[_Term, ...] = (
     _Term("geometry.solidity", 0.40, 0.95, -0.8, "shape solidity (turgor)"),
     _Term("colour.yellow_fraction", 0.02, 0.50, 1.6, "yellowing"),
     _Term("colour.brown_fraction", 0.02, 0.50, 1.4, "browning / necrosis"),
+    # Reddening is a weaker prior: many succulents redden under light stress or are naturally red.
+    _Term("colour.red_fraction", 0.02, 0.50, 0.7, "reddening / anthocyanin (pigment stress)"),
     _Term("texture.entropy", 2.0, 5.0, 0.8, "surface texture entropy"),
     _Term("texture.glcm_contrast", 0.0, 5.0, 0.5, "surface contrast"),
     _Term("morphology.concavity", 0.0, 0.50, 0.6, "outline concavity (curling)"),

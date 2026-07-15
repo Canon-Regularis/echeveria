@@ -18,6 +18,7 @@ FEATURE_BOUNDS: dict[str, tuple[float, float]] = {
     "colour.greenness_ratio": (0.0, 1.0),
     "colour.yellow_fraction": (0.0, 1.0),
     "colour.brown_fraction": (0.0, 1.0),
+    "colour.red_fraction": (0.0, 1.0),
     "colour.saturation_mean": (0.0, 1.0),
     "colour.value_mean": (0.0, 1.0),
     "geometry.solidity": (0.0, 1.0),

@@ -1,8 +1,8 @@
-"""Central component registries — the concrete wiring behind the Open/Closed "select by name" story.
+"""Central component registries: the concrete wiring behind the "select by name" story.
 
 Each built-in stage is registered here under a stable name. New implementations register themselves
 the same way (``SEGMENTERS.register("my-seg")(MySegmenter)``) and become selectable via
-``Pipeline.from_config`` / ``Pipeline.from_names`` and the CLI — with no edit to the orchestrator.
+``Pipeline.from_config`` / ``Pipeline.from_names`` and the CLI, with no edit to the orchestrator.
 
 Registration is centralized (rather than scattered as decorators on each class) so the
 stage modules stay independent of the registry, and importing any single stage does not drag in the

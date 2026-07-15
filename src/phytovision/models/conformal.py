@@ -16,8 +16,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Self
 
-import numpy as np
-
 from phytovision.exceptions import ConfigError, ModelNotFittedError
 from phytovision.models.base import StressModel
 from phytovision.types import PlantFeatures
@@ -86,13 +84,18 @@ class SplitConformalClassifier:
 
 
 def conformal_quantile(scores: Sequence[float], alpha: float) -> float:
-    """The finite-sample-adjusted (1 - alpha) quantile of calibration nonconformity scores.
+    """The split-conformal nonconformity threshold for a target coverage of ``1 - alpha``.
 
-    Uses the conformal level ``ceil((n + 1)(1 - alpha)) / n``, clamped to 1, so a small calibration
-    set stays conservative (a wider set) rather than under-covering.
+    The threshold is the k-th smallest calibration score, where ``k = ceil((n + 1)(1 - alpha))``.
+    When ``k`` exceeds ``n`` the calibration set is too small to reach that level, so the threshold
+    is infinite and every label is kept: conservative, never under-covering.
     """
+    if not 0.0 < alpha < 1.0:
+        raise ConfigError(f"alpha must be in (0, 1), got {alpha}")
     n = len(scores)
     if n == 0:
         raise ConfigError("cannot take a conformal quantile of an empty set")
-    level = min(1.0, math.ceil((n + 1) * (1.0 - alpha)) / n)
-    return float(np.quantile(scores, level, method="higher"))
+    k = math.ceil((n + 1) * (1.0 - alpha))
+    if k > n:
+        return float("inf")
+    return float(sorted(scores)[k - 1])

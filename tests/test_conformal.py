@@ -29,9 +29,10 @@ def _feat(score: float) -> PlantFeatures:
 
 
 def test_conformal_quantile_known_values() -> None:
-    assert conformal_quantile([0.2, 0.4, 0.6, 0.8], 0.5) == pytest.approx(0.8)
-    # Small n with tiny alpha clamps the level to 1, so the threshold is the max score.
-    assert conformal_quantile([0.1, 0.9], 0.01) == pytest.approx(0.9)
+    # k = ceil((4 + 1) * 0.5) = 3, so the threshold is the 3rd smallest score.
+    assert conformal_quantile([0.2, 0.4, 0.6, 0.8], 0.5) == pytest.approx(0.6)
+    # k = ceil((2 + 1) * 0.99) = 3 > 2 scores, so the set is too small; the threshold is infinite.
+    assert conformal_quantile([0.1, 0.9], 0.01) == float("inf")
 
 
 def test_conformal_quantile_is_wider_for_smaller_alpha() -> None:
@@ -42,6 +43,12 @@ def test_conformal_quantile_is_wider_for_smaller_alpha() -> None:
 def test_conformal_quantile_rejects_empty() -> None:
     with pytest.raises(ConfigError, match="empty"):
         conformal_quantile([], 0.1)
+
+
+@pytest.mark.parametrize("alpha", [0.0, 1.0, 1.5])
+def test_conformal_quantile_rejects_bad_alpha(alpha) -> None:
+    with pytest.raises(ConfigError, match="alpha"):
+        conformal_quantile([0.1, 0.2], alpha)
 
 
 @pytest.mark.parametrize("alpha", [0.0, 1.0, -0.1, 1.5])
@@ -65,18 +72,28 @@ def test_calibrate_rejects_empty_and_mismatched() -> None:
 
 
 def test_prediction_sets_are_calibrated() -> None:
-    # Calibration: all healthy (label 0), so nonconformity == score. With these scores the threshold
-    # qhat is 0.4, giving clean singleton and empty regions to check.
-    features = [_feat(v) for v in (0.0, 0.1, 0.2, 0.3, 0.4)]
+    # Calibration: all healthy (label 0), so nonconformity == score. With alpha=0.5 and five scores,
+    # k = ceil(6 * 0.5) = 3, so qhat is the 3rd smallest (0.3): clean singleton and empty regions.
+    features = [_feat(v) for v in (0.1, 0.2, 0.3, 0.4, 0.5)]
     labels = [0, 0, 0, 0, 0]
-    clf = SplitConformalClassifier(_ScoreModel(), alpha=0.1).calibrate(features, labels)
-    assert clf.qhat == pytest.approx(0.4)
+    clf = SplitConformalClassifier(_ScoreModel(), alpha=0.5).calibrate(features, labels)
+    assert clf.qhat == pytest.approx(0.3)
 
-    assert clf.predict_set(_feat(0.4)).labels == ("healthy",)  # score <= qhat only
-    assert clf.predict_set(_feat(0.6)).labels == ("stressed",)  # 1 - score <= qhat only
+    assert clf.predict_set(_feat(0.3)).labels == ("healthy",)  # score <= qhat only
+    assert clf.predict_set(_feat(0.7)).labels == ("stressed",)  # 1 - score <= qhat only
     empty = clf.predict_set(_feat(0.5))  # neither label is within the threshold
     assert empty.labels == ()
     assert not empty.is_confident
+
+
+def test_small_calibration_set_keeps_every_label() -> None:
+    # k = ceil(6 * 0.9) = 6 > 5 scores, so the threshold is infinite and both labels are always kept
+    # (coverage 1). This is the conservative small-sample behaviour, not under-coverage.
+    features = [_feat(v) for v in (0.1, 0.2, 0.3, 0.4, 0.5)]
+    clf = SplitConformalClassifier(_ScoreModel(), alpha=0.1).calibrate(features, [0] * 5)
+    assert clf.qhat == float("inf")
+    assert set(clf.predict_set(_feat(0.9)).labels) == {"healthy", "stressed"}
+    assert set(clf.predict_set(_feat(0.1)).labels) == {"healthy", "stressed"}
 
 
 def test_confident_set_reports_single_label() -> None:

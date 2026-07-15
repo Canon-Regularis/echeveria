@@ -1,4 +1,4 @@
-"""Command-line surface: ``phytovision [-v] {analyze,batch,train,evaluate} ...``."""
+"""Command-line surface: ``phytovision [-v] {analyze,batch,train,evaluate,serve} ...``."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from pathlib import Path
 from phytovision.analysis import AnalysisRow, analyze_dataset, feature_table
 from phytovision.datasets.directory import ImageDirectoryLoader
 from phytovision.datasets.folder import FolderClassificationLoader
+from phytovision.evaluation.cross_dataset import leave_one_dataset_out
 from phytovision.evaluation.crossval import grouped_stratified_cv
 from phytovision.evaluation.metrics import binary_metrics
 from phytovision.exceptions import ConfigError, PhytoVisionError
@@ -58,17 +59,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--healthy-label", default="healthy", help="label treated as the healthy class"
     )
 
-    evaluate = sub.add_parser("evaluate", help="score a model on a labelled folder")
-    evaluate.add_argument("directory", help="labelled folder: root/<label>/<image>")
+    evaluate = sub.add_parser("evaluate", help="score a model on labelled folders")
+    evaluate.add_argument(
+        "directory",
+        nargs="+",
+        help="labelled folder(s): root/<label>/<image>; several enable --transfer or grouped --cv",
+    )
     _add_pipeline_args(evaluate)
     evaluate.add_argument(
         "--healthy-label", default="healthy", help="label treated as the healthy class"
     )
-    evaluate.add_argument(
+    mode = evaluate.add_mutually_exclusive_group()
+    mode.add_argument(
         "--cv",
         type=int,
         metavar="N",
         help="run N-fold grouped stratified cross-validation instead of a single pass",
+    )
+    mode.add_argument(
+        "--transfer",
+        action="store_true",
+        help="leave-one-dataset-out across the folders (each folder is one dataset)",
     )
 
     serve = sub.add_parser("serve", help="run the HTTP API (needs the 'api' extra)")
@@ -232,21 +243,40 @@ def _train(args: argparse.Namespace) -> int:
 
 
 def _evaluate(args: argparse.Namespace) -> int:
+    if args.transfer and len(args.directory) < 2:
+        print("error: --transfer needs at least two folders", file=sys.stderr)
+        return 2
     try:
         pipeline = _build_pipeline(args)
-        loader = FolderClassificationLoader(args.directory)
+        rows = _load_labelled_rows(pipeline, args.directory)
     except (OSError, ImportError, PhytoVisionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    rows = list(analyze_dataset(pipeline, loader))
     if not rows:
-        print(f"error: no images found in {args.directory}", file=sys.stderr)
+        print(f"error: no images found in {', '.join(args.directory)}", file=sys.stderr)
         return 2
 
+    if args.transfer:
+        return _evaluate_transfer(rows, args)
     if args.cv is not None:
         return _evaluate_cv(rows, args)
+    return _evaluate_single(rows, args)
 
+
+def _load_labelled_rows(pipeline: Pipeline, directories: list[str]) -> list[AnalysisRow]:
+    """Analyze every folder; each row's ``source`` is set so datasets can be told apart."""
+    sources = [Path(directory).name for directory in directories]
+    if len(set(sources)) != len(sources):
+        raise ConfigError("dataset folders must have distinct names to identify each dataset")
+    rows: list[AnalysisRow] = []
+    for directory, source in zip(directories, sources, strict=True):
+        loader = FolderClassificationLoader(directory, source=source)
+        rows.extend(analyze_dataset(pipeline, loader))
+    return rows
+
+
+def _evaluate_single(rows: list[AnalysisRow], args: argparse.Namespace) -> int:
     y_true = [0 if row.label == args.healthy_label else 1 for row in rows]
     y_pred = [
         0 if row.stress_label == "healthy" else 1 for row in rows
@@ -260,6 +290,21 @@ def _evaluate(args: argparse.Namespace) -> int:
     print("                 healthy   stressed")
     print(f"  true healthy   {metrics.tn:>7}   {metrics.fp:>8}")
     print(f"  true stressed  {metrics.fn:>7}   {metrics.tp:>8}")
+    return 0
+
+
+def _evaluate_transfer(rows: list[AnalysisRow], args: argparse.Namespace) -> int:
+    try:
+        matrix = leave_one_dataset_out(rows, healthy_label=args.healthy_label)
+    except (ImportError, PhytoVisionError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    print("leave-one-dataset-out (train on the rest, test on each held-out dataset):")
+    for name in matrix.datasets:
+        metrics = matrix.metrics_for(name)
+        print(f"  {name:<24} n={metrics.n:<4} accuracy={metrics.accuracy:.3f}  f1={metrics.f1:.3f}")
+    print(f"  mean held-out accuracy: {matrix.mean_accuracy:.3f}")
     return 0
 
 

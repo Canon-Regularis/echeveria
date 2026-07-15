@@ -103,19 +103,33 @@ def dataset_dir(tmp_path, healthy_image, stressed_image):
     return root
 
 
-@pytest.fixture
-def training_dir(tmp_path):
-    """A labelled folder with several images per class, big enough to fit a small model."""
+def _write_dataset(root, base_seed: int) -> None:
+    """Write a two-class ``root/<label>/<image>`` dataset with several images per class."""
     from PIL import Image as PILImage
 
-    root = tmp_path / "train"
-    for label, color, base_seed in (
+    for label, color, offset in (
         ("healthy", (0.15, 0.60, 0.15), 0),
         ("wilted", (0.62, 0.50, 0.12), 100),
     ):
         class_dir = root / label
         class_dir.mkdir(parents=True)
         for i in range(6):
-            img = _blob_image(color, seed=base_seed + i, noise=0.03)
+            img = _blob_image(color, seed=base_seed + offset + i, noise=0.03)
             PILImage.fromarray((img * 255).astype(np.uint8)).save(class_dir / f"{i}.png")
+
+
+@pytest.fixture
+def training_dir(tmp_path):
+    """A labelled folder with several images per class, big enough to fit a small model."""
+    root = tmp_path / "train"
+    _write_dataset(root, base_seed=0)
     return root
+
+
+@pytest.fixture
+def transfer_dirs(tmp_path):
+    """Two labelled dataset roots with distinct names, for leave-one-dataset-out CLI tests."""
+    roots = [tmp_path / "datasetA", tmp_path / "datasetB"]
+    for offset, root in enumerate(roots):
+        _write_dataset(root, base_seed=200 * offset)
+    return roots

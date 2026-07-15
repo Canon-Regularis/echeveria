@@ -8,6 +8,7 @@ import pytest
 pytest.importorskip("sklearn")
 
 from phytovision.analysis import AnalysisRow  # noqa: E402
+from phytovision.cli import main  # noqa: E402
 from phytovision.evaluation.cross_dataset import (  # noqa: E402
     TransferMatrix,
     leave_one_dataset_out,
@@ -62,3 +63,18 @@ def test_none_sources_are_ignored() -> None:
     rows = [_row("healthy", None, i) for i in range(4)]
     with pytest.raises(ConfigError, match="at least two datasets"):
         leave_one_dataset_out(rows)
+
+
+def test_cli_transfer_across_folders(transfer_dirs, capsys) -> None:
+    rc = main(["evaluate", str(transfer_dirs[0]), str(transfer_dirs[1]), "--transfer"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "leave-one-dataset-out" in out
+    assert "mean held-out accuracy" in out
+    assert "datasetA" in out and "datasetB" in out
+
+
+def test_cli_transfer_needs_two_folders(transfer_dirs, capsys) -> None:
+    rc = main(["evaluate", str(transfer_dirs[0]), "--transfer"])
+    assert rc == 2
+    assert "at least two folders" in capsys.readouterr().err

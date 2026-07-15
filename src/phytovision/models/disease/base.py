@@ -1,8 +1,8 @@
-"""Disease detection — reserved (future) head.
+"""Disease detection: an optional secondary head.
 
-Secondary objective. A ``DiseaseModel`` consumes the SAME ``PlantFeatures`` as the stress model, so
-adding disease detection is: implement this interface and register it — nothing upstream changes.
-See docs/OBJECTIVES.md.
+A ``DiseaseModel`` consumes the same ``PlantFeatures`` as the stress model, so adding disease
+detection is: implement this interface, wrap it in a ``DiseaseHead``, and register it. Nothing
+upstream changes. See docs/OBJECTIVES.md.
 """
 
 from __future__ import annotations

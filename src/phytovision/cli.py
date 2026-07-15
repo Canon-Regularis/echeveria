@@ -25,12 +25,13 @@ from phytovision.explainability.counterfactual import counterfactuals
 from phytovision.io import load_image
 from phytovision.models.base import StressModel
 from phytovision.models.conformal import SplitConformalClassifier
+from phytovision.models.disease.head import DiseaseHead
 from phytovision.models.persistence import build_manifest, load_saved, save_model
 from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
 from phytovision.models.stress.heuristic import HeuristicStressModel
 from phytovision.pipeline import Pipeline
-from phytovision.registries import EXPLAINERS, SEGMENTERS, STRESS_MODELS
+from phytovision.registries import DISEASE_MODELS, EXPLAINERS, SEGMENTERS, STRESS_MODELS
 from phytovision.visualize import render_overlay
 
 _TRAINABLE_MODELS = ("gradient-boosted", "ensemble")
@@ -53,6 +54,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     analyze.add_argument("--features", action="store_true", help="include the full feature vector")
     analyze.add_argument("--save-overlay", metavar="PNG", help="write an annotated overlay image")
     analyze.add_argument("--timing", action="store_true", help="show per-stage wall-clock timing")
+    analyze.add_argument(
+        "--disease",
+        action="store_true",
+        help="attach the placeholder disease-appearance head (not a validated diagnostic)",
+    )
     analyze.add_argument(
         "--counterfactual",
         action="store_true",
@@ -137,6 +143,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--model-path", metavar="FILE", help="trained or calibrated .joblib model to serve"
     )
 
+    dashboard = sub.add_parser(
+        "dashboard", help="run the Streamlit dashboard (needs the 'dashboard' extra)"
+    )
+    dashboard.add_argument("--host", default="127.0.0.1", help="bind host")
+    dashboard.add_argument("--port", type=int, default=8501, help="bind port")
+    dashboard.add_argument(
+        "--config", metavar="FILE", help="pipeline config (.toml/.json) for the dashboard"
+    )
+    dashboard.add_argument(
+        "--model-path", metavar="FILE", help="trained or calibrated .joblib model to analyze with"
+    )
+
     args = parser.parse_args(argv)
     _configure_logging(args.verbose)
     handlers = {
@@ -145,6 +163,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "train": _train,
         "evaluate": _evaluate,
         "serve": _serve,
+        "dashboard": _dashboard,
     }
     return handlers[args.command](args)
 
@@ -243,6 +262,8 @@ def _analyze(args: argparse.Namespace) -> int:
             print("error: --conformal needs a model saved with train --calibrate", file=sys.stderr)
             return 2
         pipeline = _build_pipeline(args, model=override)
+        if args.disease:
+            pipeline = pipeline.add_head(DiseaseHead(DISEASE_MODELS.create("heuristic")))
         report = pipeline.analyze(args.image)
         changes = (
             counterfactuals(pipeline.model, report.plant_features) if args.counterfactual else []
@@ -274,6 +295,8 @@ def _analyze(args: argparse.Namespace) -> int:
                 }
                 for cf in changes
             ]
+        if report.head_outputs:
+            payload["head_outputs"] = report.head_outputs
         print(json.dumps(payload, indent=2))
         return 0
 
@@ -288,6 +311,8 @@ def _analyze(args: argparse.Namespace) -> int:
         members = " or ".join(conformal_set.labels) if conformal_set.labels else "(empty)"
         print(f"Conformal set ({coverage}% coverage): {{{members}}}")
     print(f"Regions analysed: {len(report.regions)} ({report.regions.kind})")
+    for head_name, output in report.head_outputs.items():
+        print(f"Head '{head_name}': {output}")
     if args.timing and report.timing_ms:
         print("Timing (ms):")
         for stage, elapsed in report.timing_ms.items():
@@ -588,6 +613,50 @@ def _serve(args: argparse.Namespace) -> int:
         os.environ["PHYTOVISION_MODEL_PATH"] = str(Path(args.model_path))
     uvicorn.run("phytovision.api:app", host=args.host, port=args.port)  # pragma: no cover
     return 0  # pragma: no cover
+
+
+def _dashboard(args: argparse.Namespace) -> int:
+    try:
+        import streamlit  # noqa: F401  (import only to confirm the 'dashboard' extra is present)
+    except ImportError:
+        print(
+            'error: the dashboard needs the "dashboard" extra: pip install -e ".[dashboard]"',
+            file=sys.stderr,
+        )
+        return 2
+
+    # Validate the pipeline choice here so a bad path is a clean error, not a traceback surfacing
+    # from inside the launched Streamlit subprocess.
+    try:
+        if args.config:
+            _load_config(args.config)
+        if args.model_path:
+            load_saved(args.model_path)
+    except (OSError, ImportError, PhytoVisionError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    import os
+    import subprocess
+
+    env = dict(os.environ)
+    if args.config:
+        env["PHYTOVISION_CONFIG"] = str(Path(args.config))
+    if args.model_path:
+        env["PHYTOVISION_MODEL_PATH"] = str(Path(args.model_path))
+    script = str(Path(__file__).with_name("dashboard.py"))
+    command = [  # pragma: no cover - launches the external Streamlit server
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        script,
+        "--server.address",
+        args.host,
+        "--server.port",
+        str(args.port),
+    ]
+    return subprocess.call(command, env=env)  # pragma: no cover
 
 
 if __name__ == "__main__":

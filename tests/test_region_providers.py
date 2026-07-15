@@ -1,13 +1,31 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
+from phytovision.exceptions import SegmentationError
 from phytovision.pipeline import Pipeline
 from phytovision.regions.leaf_instance import LeafInstanceRegionProvider
 from phytovision.regions.whole_plant import WholePlantRegionProvider
+from phytovision.segmentation.leaves.instance import LeafInstanceSegmenter
 
 # The registry-driven substitutability contract lives in tests/contracts/test_provider_contract.py.
 # This file keeps the provider-specific behaviour (region counts, downstream substitution).
+
+
+class _EmptyLeafSegmenter(LeafInstanceSegmenter):
+    def segment_leaves(self, image, plant_mask):
+        return []
+
+
+def test_whole_plant_empty_mask_raises_segmentation_error(healthy_image, plant_mask) -> None:
+    with pytest.raises(SegmentationError, match="empty"):
+        WholePlantRegionProvider().regions(healthy_image, np.zeros_like(plant_mask))
+
+
+def test_leaf_provider_no_masks_raises_segmentation_error(healthy_image, plant_mask) -> None:
+    with pytest.raises(SegmentationError, match="no non-empty leaf masks"):
+        LeafInstanceRegionProvider(_EmptyLeafSegmenter()).regions(healthy_image, plant_mask)
 
 
 def test_whole_plant_yields_single_region(healthy_image, plant_mask) -> None:

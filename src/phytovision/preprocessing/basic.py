@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 from skimage.transform import resize
 
+from phytovision.exceptions import ConfigError
 from phytovision.preprocessing.base import Preprocessor
 from phytovision.types import Image
 from phytovision.validation import validate_rgb_image
@@ -19,7 +20,7 @@ class ResizeNormalizePreprocessor(Preprocessor):
 
     def __init__(self, max_size: int = 1024) -> None:
         if max_size < 16:
-            raise ValueError("max_size must be at least 16")
+            raise ConfigError("max_size must be at least 16")
         self.max_size = max_size
 
     def process(self, image: Image) -> Image:

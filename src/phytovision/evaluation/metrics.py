@@ -9,6 +9,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from phytovision.exceptions import ContractViolationError
+
 
 @dataclass(frozen=True, slots=True)
 class BinaryMetrics:
@@ -46,7 +48,7 @@ class BinaryMetrics:
 def binary_metrics(y_true: Sequence[int], y_pred: Sequence[int]) -> BinaryMetrics:
     """Confusion-matrix metrics for two equal-length 0/1 sequences (1 = stressed = positive)."""
     if len(y_true) != len(y_pred):
-        raise ValueError("y_true and y_pred must be the same length")
+        raise ContractViolationError("y_true and y_pred must be the same length")
     tp = fp = fn = tn = 0
     for true, pred in zip(y_true, y_pred, strict=True):
         if pred == 1 and true == 1:

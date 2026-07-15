@@ -9,6 +9,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Generic, TypeVar
 
+from phytovision.exceptions import ConfigError
+
 T = TypeVar("T")
 
 
@@ -22,7 +24,7 @@ class Registry(Generic[T]):
 
         def decorator(factory: Callable[..., T]) -> Callable[..., T]:
             if name in self._factories:
-                raise ValueError(f"{self._kind} {name!r} is already registered")
+                raise ConfigError(f"{self._kind} {name!r} is already registered")
             self._factories[name] = factory
             return factory
 

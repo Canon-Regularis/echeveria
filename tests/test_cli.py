@@ -139,6 +139,16 @@ def test_cli_serve_without_uvicorn_reports_clean_error(monkeypatch, capsys) -> N
     assert "api" in capsys.readouterr().err
 
 
+def test_cli_serve_bad_model_path_reports_clean_error(monkeypatch, tmp_path, capsys) -> None:
+    import sys
+    import types
+
+    monkeypatch.setitem(sys.modules, "uvicorn", types.ModuleType("uvicorn"))  # importable stub
+    rc = main(["serve", "--model-path", str(tmp_path / "missing.joblib")])
+    assert rc == 2
+    assert capsys.readouterr().err.startswith("error:")
+
+
 def test_cli_train_ensemble_saves_and_loads(training_dir, image_path, tmp_path, capsys) -> None:
     pytest.importorskip("sklearn")
     out = tmp_path / "ensemble.joblib"
@@ -190,6 +200,14 @@ def test_cli_evaluate_cv_uses_the_selected_model(training_dir, capsys) -> None:
     pytest.importorskip("sklearn")
     assert main(["evaluate", str(training_dir), "--model", "ensemble", "--cv", "3"]) == 0
     assert "cross-validation (ensemble)" in capsys.readouterr().out
+
+
+def test_cli_evaluate_cv_explicit_gradient_boosted(training_dir, capsys) -> None:
+    # --model gradient-boosted must not crash while building the feature-extraction pipeline: cv
+    # retrains a model per fold, so the extraction model stays a buildable default.
+    pytest.importorskip("sklearn")
+    assert main(["evaluate", str(training_dir), "--model", "gradient-boosted", "--cv", "3"]) == 0
+    assert "cross-validation (gradient-boosted)" in capsys.readouterr().out
 
 
 def test_cli_evaluate_transfer_uses_the_selected_model(transfer_dirs, capsys) -> None:

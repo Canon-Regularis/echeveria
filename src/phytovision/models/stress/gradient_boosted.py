@@ -3,7 +3,7 @@
 Wraps scikit-learn's ``HistGradientBoostingClassifier`` (handles NaN features natively).
 Requires the ``ml`` extra and labelled training data. It implements the ``StressModel`` contract
 plus ``Trainable`` and ``ContributionModel``, so once fitted it substitutes for the heuristic. The
-caller supplies ``feature_keys`` to train on — use :func:`feature_keys_from` to derive them from the
+caller supplies ``feature_keys`` to train on. Use :func:`feature_keys_from` to derive them from the
 extractor stack's output so the schemas cannot drift. Contributions use a model-agnostic
 baseline-substitution attribution (no SHAP required).
 """

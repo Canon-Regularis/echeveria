@@ -155,3 +155,10 @@ def test_unrecognized_file_raises(tmp_path) -> None:
     joblib.dump({"nonsense": 1}, path)
     with pytest.raises(ConfigError, match="unrecognized model file"):
         read_envelope(path)
+
+
+def test_corrupt_file_raises_clean_error(tmp_path) -> None:
+    path = tmp_path / "corrupt.joblib"
+    path.write_bytes(b"this is not a joblib file at all")
+    with pytest.raises(ConfigError, match="could not read model file"):
+        read_envelope(path)

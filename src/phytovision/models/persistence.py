@@ -75,7 +75,12 @@ def write_envelope(
 
 def read_envelope(path: str | Path) -> dict[str, Any]:
     """Read a joblib envelope, normalizing a legacy gradient-boosted dict into the new shape."""
-    data = _joblib().load(path)
+    try:
+        data = _joblib().load(path)
+    except (OSError, ImportError):
+        raise  # missing file, or the ml extra is absent: callers handle these
+    except Exception as exc:  # a corrupt or non-joblib file: give a clean domain error
+        raise ConfigError(f"could not read model file {path}: {exc}") from exc
     if isinstance(data, Mapping) and "model_type" in data:
         return {
             "model_type": str(data["model_type"]),

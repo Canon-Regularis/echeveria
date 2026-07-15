@@ -379,7 +379,7 @@ def _evaluate(args: argparse.Namespace) -> int:
         print("error: --transfer needs at least two folders", file=sys.stderr)
         return 2
     try:
-        pipeline = _build_pipeline(args)
+        pipeline = _extraction_pipeline(args)
         rows = _load_labelled_rows(pipeline, args.directory)
     except (OSError, ImportError, PhytoVisionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -394,6 +394,22 @@ def _evaluate(args: argparse.Namespace) -> int:
     if args.cv is not None:
         return _evaluate_cv(rows, args)
     return _evaluate_single(rows, args)
+
+
+def _extraction_pipeline(args: argparse.Namespace) -> Pipeline:
+    """Build the pipeline that extracts features for ``evaluate``.
+
+    Single-pass evaluation compares the pipeline model's own prediction, so it honors ``--model``
+    and ``--model-path``. Cross-validation and transfer retrain a model per fold, so the extraction
+    model is irrelevant; force a buildable default rather than construct an untrained model by name.
+    """
+    if args.cv is None and not args.transfer:
+        return _build_pipeline(args)
+    if args.config:
+        config = dict(_load_config(args.config))
+        config.pop("model", None)  # the evaluated model comes from --model, not this pipeline
+        return Pipeline.from_config(config)
+    return Pipeline.from_names(segmenter=args.segmenter)
 
 
 def _load_labelled_rows(pipeline: Pipeline, directories: list[str]) -> list[AnalysisRow]:
@@ -472,9 +488,20 @@ def _serve(args: argparse.Namespace) -> int:
     except ImportError:
         print('error: serving needs the "api" extra: pip install -e ".[api]"', file=sys.stderr)
         return 2
+
+    # Validate the chosen pipeline here so a bad path is a clean error, not a traceback when the
+    # app is imported by string below (create_app runs at import and reads these files).
+    try:
+        if args.config:
+            _load_config(args.config)
+        if args.model_path:
+            load_saved(args.model_path)
+    except (OSError, ImportError, PhytoVisionError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
     import os
 
-    # The app is imported by string, so pass the chosen pipeline through the environment.
     if args.config:
         os.environ["PHYTOVISION_CONFIG"] = str(Path(args.config))
     if args.model_path:

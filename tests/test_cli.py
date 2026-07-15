@@ -149,6 +149,27 @@ def test_cli_serve_bad_model_path_reports_clean_error(monkeypatch, tmp_path, cap
     assert capsys.readouterr().err.startswith("error:")
 
 
+def test_cli_dashboard_without_streamlit_reports_clean_error(monkeypatch, capsys) -> None:
+    import sys
+
+    monkeypatch.setitem(sys.modules, "streamlit", None)  # force `import streamlit` to raise
+    rc = main(["dashboard"])
+    assert rc == 2
+    assert "dashboard" in capsys.readouterr().err
+
+
+def test_cli_dashboard_bad_model_path_reports_clean_error(monkeypatch, tmp_path, capsys) -> None:
+    import sys
+    import types
+
+    monkeypatch.setitem(sys.modules, "streamlit", types.ModuleType("streamlit"))  # importable stub
+    rc = main(["dashboard", "--model-path", str(tmp_path / "missing.joblib")])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:")
+    assert "missing.joblib" in err  # confirms we reached model-path validation, not an earlier exit
+
+
 def test_cli_train_ensemble_saves_and_loads(training_dir, image_path, tmp_path, capsys) -> None:
     pytest.importorskip("sklearn")
     out = tmp_path / "ensemble.joblib"
@@ -262,6 +283,13 @@ def test_cli_shap_explainer_degrades_without_a_shap_model(image_path, capsys) ->
 def test_cli_analyze_timing(image_path, capsys) -> None:
     assert main(["analyze", str(image_path), "--timing"]) == 0
     assert "Timing (ms):" in capsys.readouterr().out
+
+
+def test_cli_analyze_disease_head(image_path, capsys) -> None:
+    assert main(["analyze", str(image_path), "--disease", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    # The head must attach AND emit its two-class distribution, not just an empty slot.
+    assert set(payload["head_outputs"]["disease"]) == {"healthy", "lesion-like"}
 
 
 def test_cli_analyze_counterfactual(image_path, capsys) -> None:

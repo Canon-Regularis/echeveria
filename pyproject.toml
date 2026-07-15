@@ -108,6 +108,10 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI uses these as argument defaults by design, so they are not the B008 mutable-default trap.
+extend-immutable-calls = ["fastapi.Form", "fastapi.File", "fastapi.Query", "fastapi.Depends"]
+
 [tool.mutmut]
 # Mutation testing on a high-value subset (pure logic where exact-value assertions matter most).
 # Runs on Linux or WSL only. See CONTRIBUTING.md for how to run it (disable coverage first).

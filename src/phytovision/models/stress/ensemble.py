@@ -8,7 +8,8 @@ This class takes ready-built members; name-based construction lives in the regis
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any, ClassVar
 
 from phytovision.exceptions import ConfigError
 from phytovision.models.base import ContributionModel, StressModel, bucket_label
@@ -17,6 +18,7 @@ from phytovision.types import PlantFeatures, StressAssessment
 
 class EnsembleStressModel(StressModel):
     name = "ensemble-v1"
+    MODEL_TYPE: ClassVar[str] = "ensemble"
 
     def __init__(
         self, members: Sequence[StressModel], weights: Sequence[float] | None = None
@@ -71,6 +73,24 @@ class EnsembleStressModel(StressModel):
                 if label != key:
                     return label
         return key
+
+    def state(self) -> dict[str, object]:
+        """Persist each member under its own type tag, plus the normalized weights."""
+        from phytovision.models.persistence import Persistable
+
+        members: list[dict[str, object]] = []
+        for model in self.members:
+            if not isinstance(model, Persistable):
+                raise ConfigError(f"ensemble member {type(model).__name__} cannot be saved")
+            members.append({"model_type": model.MODEL_TYPE, "state": model.state()})
+        return {"members": members, "weights": self.weights}
+
+    @classmethod
+    def from_state(cls, state: Mapping[str, Any]) -> EnsembleStressModel:
+        from phytovision.models.persistence import model_from_state
+
+        members = [model_from_state(m["model_type"], m["state"]) for m in state["members"]]
+        return cls(members, weights=state["weights"])
 
 
 def _clamp01(value: float) -> float:

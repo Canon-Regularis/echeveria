@@ -12,9 +12,10 @@ This is composition, like the explainer: it never changes the wrapped model, onl
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Self
+from pathlib import Path
+from typing import Any, Self
 
 from phytovision.exceptions import ConfigError, ModelNotFittedError
 from phytovision.models.base import StressModel
@@ -81,6 +82,46 @@ class SplitConformalClassifier:
         """1 minus the model's probability of the true class."""
         prob_true = score if label == 1 else (1.0 - score)
         return 1.0 - prob_true
+
+    # --- persistence ---
+    def state(self) -> dict[str, object]:
+        """The calibrated threshold, the miscoverage rate, and the wrapped model's own state."""
+        from phytovision.models.persistence import Persistable
+
+        if self.qhat is None:
+            raise ModelNotFittedError("calibrate() before saving")
+        if not isinstance(self.model, Persistable):
+            raise ConfigError(f"wrapped model {type(self.model).__name__} cannot be saved")
+        return {
+            "alpha": self.alpha,
+            "qhat": self.qhat,
+            "model_type": self.model.MODEL_TYPE,
+            "model_state": self.model.state(),
+        }
+
+    @classmethod
+    def from_state(cls, state: Mapping[str, Any]) -> SplitConformalClassifier:
+        from phytovision.models.persistence import model_from_state
+
+        model = model_from_state(state["model_type"], state["model_state"])
+        classifier = cls(model, alpha=state["alpha"])
+        classifier.qhat = float(state["qhat"])
+        return classifier
+
+    def save(self, path: str | Path, manifest: Mapping[str, object] | None = None) -> None:
+        """Persist the calibrated wrapper. Load only from trusted files (it unpickles)."""
+        from phytovision.models.persistence import write_envelope
+
+        write_envelope("conformal", self.state(), path, manifest)
+
+    @classmethod
+    def load(cls, path: str | Path) -> SplitConformalClassifier:
+        from phytovision.models.persistence import read_envelope
+
+        envelope = read_envelope(path)
+        if envelope["model_type"] != "conformal":
+            raise ConfigError(f"{path} is not a calibrated conformal model")
+        return cls.from_state(envelope["state"])
 
 
 def conformal_quantile(scores: Sequence[float], alpha: float) -> float:

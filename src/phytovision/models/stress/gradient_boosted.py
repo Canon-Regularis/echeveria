@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, ClassVar, Self
 
 import numpy as np
 
@@ -23,6 +23,7 @@ from phytovision.types import PlantFeatures, StressAssessment
 
 class GradientBoostedStressModel(StressModel):
     name = "gradient-boosted-v1"
+    MODEL_TYPE: ClassVar[str] = "gradient-boosted"
 
     def __init__(self, feature_keys: Sequence[str], positive_label: int = 1) -> None:
         if not feature_keys:
@@ -80,26 +81,37 @@ class GradientBoostedStressModel(StressModel):
         return key
 
     # --- persistence ---
-    def save(self, path: str | Path) -> None:
-        """Persist the fitted model (estimator, feature_keys, baseline) to ``path`` via joblib."""
+    def state(self) -> dict[str, object]:
+        """The fitted state: schema, positive label, estimator, and baseline."""
         self._ensure_fitted()
-        _joblib().dump(
-            {
-                "feature_keys": self.feature_keys,
-                "positive_label": self.positive_label,
-                "estimator": self._model,
-                "background": self._background,
-            },
-            path,
-        )
+        return {
+            "feature_keys": self.feature_keys,
+            "positive_label": self.positive_label,
+            "estimator": self._model,
+            "background": self._background,
+        }
+
+    @classmethod
+    def from_state(cls, state: Mapping[str, Any]) -> GradientBoostedStressModel:
+        model = cls(feature_keys=state["feature_keys"], positive_label=state["positive_label"])
+        model._model = state["estimator"]
+        model._background = state["background"]
+        return model
+
+    def save(self, path: str | Path) -> None:
+        """Persist the fitted model to ``path`` via the shared type-tagged envelope."""
+        from phytovision.models.persistence import save_model
+
+        save_model(self, path)
 
     @classmethod
     def load(cls, path: str | Path) -> GradientBoostedStressModel:
         """Load a model saved by :meth:`save`. The file is unpickled, so only load trusted files."""
-        data = _joblib().load(path)
-        model = cls(feature_keys=data["feature_keys"], positive_label=data["positive_label"])
-        model._model = data["estimator"]
-        model._background = data["background"]
+        from phytovision.models.persistence import load_model
+
+        model = load_model(path)
+        if not isinstance(model, cls):
+            raise ConfigError(f"{path} is not a {cls.__name__}")
         return model
 
     # --- internals ---
@@ -121,16 +133,6 @@ class GradientBoostedStressModel(StressModel):
 
 def _as_float(value: object) -> float:
     return float("nan") if value is None else float(value)  # type: ignore[arg-type]
-
-
-def _joblib() -> Any:
-    try:
-        import joblib
-    except ImportError as exc:  # pragma: no cover - depends on optional extra
-        raise ImportError(
-            "model persistence needs the 'ml' extra: pip install -e \".[ml]\""
-        ) from exc
-    return joblib
 
 
 def feature_keys_from(features: PlantFeatures) -> list[str]:

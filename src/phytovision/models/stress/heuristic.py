@@ -9,7 +9,9 @@ downstream. Thresholds here are documented *priors* to be replaced by a calibrat
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any, ClassVar
 
 from phytovision.models.base import StressModel, bucket_label
 from phytovision.types import PlantFeatures, StressAssessment
@@ -44,6 +46,7 @@ _TERMS: tuple[_Term, ...] = (
 
 class HeuristicStressModel(StressModel):
     name = "heuristic-v1"
+    MODEL_TYPE: ClassVar[str] = "heuristic"
 
     def __init__(
         self,
@@ -55,6 +58,22 @@ class HeuristicStressModel(StressModel):
         self.healthy_threshold = healthy_threshold
         self.stressed_threshold = stressed_threshold
         self._labels = {t.key: t.label for t in _TERMS}
+
+    def state(self) -> dict[str, object]:
+        """The heuristic has no fitted weights, only its bias and bucket thresholds."""
+        return {
+            "bias": self.bias,
+            "healthy_threshold": self.healthy_threshold,
+            "stressed_threshold": self.stressed_threshold,
+        }
+
+    @classmethod
+    def from_state(cls, state: Mapping[str, Any]) -> HeuristicStressModel:
+        return cls(
+            bias=state["bias"],
+            healthy_threshold=state["healthy_threshold"],
+            stressed_threshold=state["stressed_threshold"],
+        )
 
     def predict(self, features: PlantFeatures) -> StressAssessment:
         contributions = self.contributions(features)

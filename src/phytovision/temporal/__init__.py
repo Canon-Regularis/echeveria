@@ -8,6 +8,14 @@ build on the single-image pipeline, so nothing upstream changes.
 from __future__ import annotations
 
 from phytovision.temporal.history import FeatureHistory, Observation
+from phytovision.temporal.ingest import build_history, plant_trends
 from phytovision.temporal.trend import StressTrend, stress_trend
 
-__all__ = ["FeatureHistory", "Observation", "StressTrend", "stress_trend"]
+__all__ = [
+    "FeatureHistory",
+    "Observation",
+    "StressTrend",
+    "build_history",
+    "plant_trends",
+    "stress_trend",
+]

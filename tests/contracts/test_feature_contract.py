@@ -41,3 +41,17 @@ def test_leaf_features_stay_within_declared_bounds(healthy_image, leaf_segmenter
     features = pipeline.analyze(healthy_image).plant_features
     assert features.values["plant.wilted_leaf_ratio"] is not None
     assert range_violations(features.values) == {}
+
+
+def test_canopy_coverage_uses_union_not_sum(healthy_image) -> None:
+    # Overlapping leaf masks must not push canopy coverage above 1: it is the union, not the sum.
+    from phytovision.segmentation.leaves.instance import LeafInstanceSegmenter
+
+    class _Overlapping(LeafInstanceSegmenter):
+        def segment_leaves(self, image, plant_mask):
+            return [plant_mask.copy() for _ in range(4)]  # four copies of the whole plant
+
+    pipeline = Pipeline.default().with_region_provider(LeafInstanceRegionProvider(_Overlapping()))
+    features = pipeline.analyze(healthy_image).plant_features
+    assert features.values["plant.canopy_coverage"] <= 1.0
+    assert range_violations(features.values) == {}

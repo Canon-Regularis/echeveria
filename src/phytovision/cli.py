@@ -302,7 +302,7 @@ def _analyze(args: argparse.Namespace) -> int:
                     f"{cf.target_value:.3f} -> {cf.target_label.upper()}"
                 )
         else:
-            print("No single feature change within plausible ranges flips the verdict.")
+            print("No single change to an interpretable bounded feature flips the verdict.")
     if args.features:
         print("Features:")
         for key, value in sorted(report.plant_features.defined().items()):

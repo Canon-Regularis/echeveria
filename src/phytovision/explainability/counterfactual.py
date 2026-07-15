@@ -31,7 +31,10 @@ def counterfactuals(
 ) -> list[Counterfactual]:
     """The smallest single-feature changes (within declared bounds) that flip the predicted bucket.
 
-    Ranked by the change size relative to the feature's range, so the easiest change comes first.
+    Only the declared-bounded features are searched, since unbounded ones have no plausible range.
+    Ranked by change size relative to the feature's range, so the easiest change comes first. The
+    search is a fixed grid, so it can miss a flip band narrower than the grid spacing; a returned
+    change is always a real flip, but not necessarily the tightest one.
     """
     current_label = model.predict(features).label
     ranked: list[tuple[float, Counterfactual]] = []

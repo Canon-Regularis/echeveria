@@ -46,6 +46,8 @@ Every stage is behind an interface (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE
 - Property-based tests (Hypothesis) fuzz the same invariants over generated images and feature vectors.
 - Metamorphic tests ([`tests/test_metamorphic.py`](tests/test_metamorphic.py)) assert that flips,
   rotation, and uniform brightness do not change the verdict.
+- Benchmarks live in [`tests/benchmarks/`](tests/benchmarks/) and are disabled by default. Measure the
+  classical pipeline with `pytest tests/benchmarks --benchmark-enable --no-cov`.
 
 ## Mutation testing
 

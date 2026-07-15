@@ -1,0 +1,24 @@
+site_name: echeveria
+site_description: An explainable computer-vision framework for plant water-stress detection.
+repo_url: https://github.com/Matthew-Miezaniec/echeveria
+docs_dir: docs
+
+theme:
+  name: material
+
+nav:
+  - Home: index.md
+  - Architecture: ARCHITECTURE.md
+  - Datasets: DATASETS.md
+  - Objectives: OBJECTIVES.md
+  - API reference: reference.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_root_heading: true
+            show_source: false

@@ -1,37 +1,13 @@
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
 from phytovision.pipeline import Pipeline
-from phytovision.regions.base import RegionProvider
 from phytovision.regions.leaf_instance import LeafInstanceRegionProvider
 from phytovision.regions.whole_plant import WholePlantRegionProvider
-from phytovision.types import RegionSet
 
-
-def _providers(leaf_segmenter):
-    return [
-        WholePlantRegionProvider(),
-        LeafInstanceRegionProvider(leaf_segmenter),
-    ]
-
-
-@pytest.mark.parametrize("provider_index", [0, 1])
-def test_provider_contract_holds_for_all_subtypes(
-    provider_index, healthy_image, plant_mask, leaf_segmenter
-) -> None:
-    """Every RegionProvider returns a non-empty RegionSet of image-sized boolean masks."""
-    provider: RegionProvider = _providers(leaf_segmenter)[provider_index]
-
-    result = provider.regions(healthy_image, plant_mask)
-
-    assert isinstance(result, RegionSet)
-    assert len(result) >= 1
-    for region in result:
-        assert region.mask.dtype == np.bool_
-        assert region.mask.shape == plant_mask.shape
-        assert region.mask.any()
+# The registry-driven substitutability contract lives in tests/contracts/test_provider_contract.py.
+# This file keeps the provider-specific behaviour (region counts, downstream substitution).
 
 
 def test_whole_plant_yields_single_region(healthy_image, plant_mask) -> None:

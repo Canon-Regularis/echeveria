@@ -14,6 +14,7 @@ from phytovision.dashboard import (
     contribution_series,
     decode_image,
     disease_series,
+    forecast_points,
     observation_table,
     reason_rows,
     timing_rows,
@@ -21,7 +22,7 @@ from phytovision.dashboard import (
 from phytovision.exceptions import InvalidImageError
 from phytovision.pipeline import Pipeline
 from phytovision.serving import attach_heads
-from phytovision.temporal import Observation
+from phytovision.temporal import Forecast, Observation
 
 
 @pytest.fixture
@@ -108,6 +109,13 @@ def test_observation_table_rows(report) -> None:
         {"timestamp": "2026-03-01", "stress_score": 0.1235},
         {"timestamp": "2026-03-02", "stress_score": 0.7},
     ]
+
+
+def test_forecast_points_are_ascending_by_horizon() -> None:
+    forecast = Forecast("p", 0.1, 0.5, {3: 0.8, 1: 0.6, 7: 1.0}, 2, 0.5, "note")
+    steps, scores = forecast_points(forecast)
+    assert steps == [1, 3, 7]
+    assert scores == [0.6, 0.8, 1.0]
 
 
 def test_timing_rows_from_a_timed_report(report) -> None:

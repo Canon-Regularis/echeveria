@@ -112,6 +112,16 @@ def test_analyze_omits_head_outputs_by_default(healthy_image) -> None:
     assert "disclaimer" not in payload
 
 
+def test_analyze_drought_stage_exposes_the_head(healthy_image) -> None:
+    client = TestClient(create_app())
+    files = {"file": ("plant.png", _png_bytes(healthy_image), "image/png")}
+    payload = client.post("/analyze", files=files, params={"drought_stage": "true"}).json()
+    stage = payload["head_outputs"]["drought_stage"]
+    assert stage["stage"] in {"well-watered", "early-stress", "moderate", "severe"}
+    assert set(stage["markers"]) == {"pigment", "turgor_loss", "necrosis"}
+    assert "disclaimer" in payload  # the placeholder is labelled for API clients
+
+
 def test_trend_sorts_by_timestamp_not_upload_order(healthy_image, stressed_image) -> None:
     client = TestClient(create_app())
     # Upload in reverse chronological order, so a correct response proves the timestamp sort rather
@@ -129,6 +139,10 @@ def test_trend_sorts_by_timestamp_not_upload_order(healthy_image, stressed_image
     assert [point["timestamp"] for point in series] == ["2026-03-01", "2026-03-02"]  # chronological
     assert series[0]["score"] < series[1]["score"]  # healthy (earlier) below stressed (later)
     assert plant["direction"] == "rising"
+    assert set(plant["early_warning"]) == {"flagged", "pigment_slope", "note"}
+    assert isinstance(plant["early_warning"]["flagged"], bool)
+    assert set(plant["forecast"]) == {"projected_scores", "steps_to_stressed", "confidence"}
+    assert "disclaimer" in response.json()  # early_warning and forecast are labelled RGB proxies
 
 
 def test_trend_rejects_mismatched_lengths(healthy_image) -> None:

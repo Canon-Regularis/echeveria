@@ -26,11 +26,14 @@ All notable changes to this project are documented here. The format is based on
   provider) that unlocks per-leaf traits with no training.
 - More dataset loaders: CSV/TSV manifest and YOLO detection loaders, all selectable through a
   `DATASET_LOADERS` registry.
-- Optional disease-appearance head (`analyze --disease`), a documented placeholder that is not a
-  validated diagnostic pending labelled disease data.
-- Interactive Streamlit dashboard (`dashboard` extra, `phytovision dashboard`).
-- Temporal tracking scaffold: a per-plant `FeatureHistory` store and a stress-trend fit, with
-  `Sample` carrying optional `plant_id` and `timestamp`.
+- Optional disease-appearance head, a documented placeholder that is not a validated diagnostic,
+  reachable from the CLI (`analyze --disease`), the API (`/analyze?disease=true`), and the dashboard.
+- Temporal tracking: a per-plant `FeatureHistory` store and a stress-trend fit, with `Sample` carrying
+  optional `plant_id`/`timestamp`, a `build_history` ingest from any tagged loader, a stateless
+  `/trend` batch endpoint, and a dashboard time-series view.
+- Interactive Streamlit dashboard (`dashboard` extra, `phytovision dashboard`): a neutral-dark tabbed
+  terminal with an ANALYZE tab (verdict, overlay, drivers, disease, timing, features) and a TEMPORAL
+  tab (stress-over-time trend from a CSV manifest).
 - Observability: per-stage timing on `AnalysisReport` (`analyze --timing`), a pytest-benchmark harness,
   and a `MODEL_CARD.md`.
 - Verification: a registry-driven substitutability contract suite, Hypothesis property tests,

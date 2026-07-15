@@ -1,15 +1,21 @@
-"""Temporal leaf-death / senescence prediction — reserved (future) module.
+"""Temporal leaf-death / decline forecasting.
 
-The future module (docs/OBJECTIVES.md) consumes per-leaf ``PlantFeatures`` histories (produced
-once a leaf ``RegionProvider`` and cross-time tracking exist) and predicts whether a given leaf
-dies within a horizon. Defined here so the seam is explicit; no implementation ships in v1.
+A ``LeafDeathPredictor`` consumes a plant's ``PlantFeatures`` history and projects how stressed it
+will be at future horizons. The shipped ``TrendLeafDeathPredictor`` is a linear trend extrapolation
+of the stress score, not a fitted or validated prognostic, and it treats each observation as one
+time step (so horizons are days under daily sampling). Per-leaf tracking is future work
+(docs/OBJECTIVES).
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from typing import ClassVar
 
+from phytovision.models.base import StressModel
+from phytovision.models.stress.heuristic import HeuristicStressModel
+from phytovision.temporal.forecast import project_scores
 from phytovision.types import PlantFeatures
 
 
@@ -18,4 +24,19 @@ class LeafDeathPredictor(ABC):
     def predict_leaf_death(
         self, feature_history: Sequence[PlantFeatures], horizons_days: Sequence[int]
     ) -> dict[int, float]:
-        """Map each horizon (days) to P(leaf dies within that horizon)."""
+        """Map each horizon (days) to a projected-stress risk in [0, 1]."""
+
+
+class TrendLeafDeathPredictor(LeafDeathPredictor):
+    """Score each observation with a stress model, then extrapolate the trajectory linearly."""
+
+    name: ClassVar[str] = "trend-leaf-death-v0"
+
+    def __init__(self, model: StressModel | None = None) -> None:
+        self.model = model or HeuristicStressModel()
+
+    def predict_leaf_death(
+        self, feature_history: Sequence[PlantFeatures], horizons_days: Sequence[int]
+    ) -> dict[int, float]:
+        scores = [self.model.predict(features).score for features in feature_history]
+        return project_scores(scores, horizons_days)

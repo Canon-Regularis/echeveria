@@ -176,7 +176,16 @@ to anchor the features on real succulents.
 **Water-stress labels are coarse and noisy.** "Wilt" mixes drought with over-watering, root rot, and
 disease. There is no severity scale and no link to measured water status. The aloe detection sets also
 put stress and disease in the same boxes, so their labels can leak into each other. Mitigation: define
-one clear water-stress labelling scheme up front and keep it separate from disease.
+one clear water-stress labelling scheme up front and keep it separate from disease. A first, indicative
+severity scale now ships as the rule-based drought-stage head (well-watered, early-stress, moderate,
+severe), grounded in the Sedum 2019 drought study but not yet fitted to labelled staged data (see
+MODEL_CARD.md, Physiological basis).
+
+**Species tolerance is not modelled (deferred).** The Sedum 2019 study shows tolerant and sensitive
+species carry different drought signatures, but there is no species-stress dataset to calibrate a
+species-aware model, and no species concept in the pipeline today. Deferred: a species tag can ride on
+`Sample.extra["species"]` now, and a species-conditioned model or per-species thresholds are future
+work once labelled per-species data exists.
 
 **Some "plant segmentation" data is the wrong kind.** Several sets tagged for plant segmentation are
 bounding boxes or background-removed images, not real masks. Do not train segmentation on them. Check
@@ -191,3 +200,15 @@ was dropped.
 which is fine for prototyping, but nothing succulent and nothing with graded leaf-death labels. This is
 fine for a later goal, but the camera rig for a controlled dry-down should be set up early so data
 starts accumulating while the first version is built.
+
+**Forecasting is a trend extrapolation, not a fitted model.** The high-throughput phenotyping work
+(arXiv 2402.18751, 2024) frames water stress as a trajectory ending in a prediction. echeveria now ships
+that seam: `phytovision phenotype`, the reserved `LeafDeathPredictor`, and a `/trend` + dashboard
+forecast. Because no labelled succulent time-series data exists, the shipped forecaster is a linear
+extrapolation of the stress trend, not a validated prognostic. A fitted forecaster is future work once
+the dry-down rig produces graded, timestamped sequences.
+
+**Multi-sensor fusion is deferred.** The same work fuses RGB with multispectral sensors. echeveria is
+RGB-only, so multispectral indices (NDVI and similar) are out of reach without new hardware and data. A
+`Sample.extra["modality"]` tag is the reserved carrier for a future sensor dimension; no multispectral
+plumbing exists today.

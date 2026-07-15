@@ -251,3 +251,21 @@ none of the goals, so it was removed from the README list.
 
 If echeveria ever ships as a product, keep the restricted datasets out of the training set for any
 shipped model, or get written permission.
+
+## Physiology references
+
+Not datasets, but the literature the feature and staging design rests on:
+
+- "Responses of Succulents to Drought: Comparative Analysis of Four Sedum Species" (Scientia
+  Horticulturae, 2019). Documents the progressive drought response (pigment change and oxidative stress
+  first, then tissue-water loss and turgor change, then collapse; pigment changes precede collapse;
+  tolerant species differ). It grounds the colour, texture, and deformation features, the rule-based
+  drought-stage head, and the pigment early warning. See MODEL_CARD.md, Physiological basis.
+- "Multi-Sensor and Multi-temporal High-Throughput Phenotyping for Water Stress" (arXiv 2402.18751,
+  2024). A crop study whose RGB -> multispectral -> time series -> ML -> stress-prediction methodology
+  transfers to succulents. It motivates the trajectory framing, the `phenotype` command, and the
+  forecast. echeveria uses the RGB and time-series parts; the multispectral fusion is out of scope.
+
+No in-domain succulent time-series dataset is catalogued above, so the drought-stage rules and the
+forecast are literature-motivated, not fitted to labelled staged data. A controlled dry-down capture
+(see the time-series risk in OBJECTIVES.md) would be the way to calibrate and validate them.

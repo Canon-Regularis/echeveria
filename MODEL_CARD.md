@@ -34,10 +34,70 @@ available:
 ## Data
 
 - The heuristic is not trained. Its weights encode agronomic priors (greenness and turgor lower stress;
-  yellowing, browning, textural irregularity, and outline concavity raise it).
+  yellowing, browning, reddening, textural irregularity, and outline concavity raise it).
 - The gradient-boosted and ensemble models train on user-provided labelled folders
   (`root/<label>/<image>`). Candidate datasets and their licenses are listed in
   [docs/DATASETS.md](docs/DATASETS.md); provenance and license travel with every sample.
+
+## Physiological basis
+
+The visible markers this project measures are grounded in succulent drought physiology, notably the
+study "Responses of Succulents to Drought: Comparative Analysis of Four Sedum Species" (Scientia
+Horticulturae, 2019). It documents a progressive drought response: pigment change (chlorophyll
+degradation and anthocyanin accumulation) and oxidative stress appear first, then tissue-water loss,
+turgor and anatomical change, and eventual collapse, with pigment changes preceding complete collapse
+and tolerant species carrying different signatures.
+
+The RGB features stand in for those mechanisms as proxies:
+
+| Drought mechanism | RGB proxy features |
+| --- | --- |
+| Chlorophyll degradation (greenness loss) | `colour.gcc_mean`, `colour.exg_mean`, `colour.greenness_ratio` |
+| Yellowing / browning (senescence, necrosis) | `colour.yellow_fraction`, `colour.brown_fraction` |
+| Anthocyanin accumulation (reddening) | `colour.red_fraction` |
+| Pigment saturation loss | `colour.saturation_mean`, `colour.value_mean` |
+| Turgor loss / leaf deformation | `geometry.solidity`, `morphology.concavity`, `morphology.radial_variation` |
+| Surface texture change | the `texture.*` family |
+
+Two optional heads build on this progression: `analyze --drought-stage` names an ordinal stage
+(`well-watered`, `early-stress`, `moderate`, `severe`) from the pattern of markers, and the temporal
+early warning flags a plant whose pigment stress is rising while its overall score is still below the
+stressed cut-off (the pigment-before-collapse signal). Explanations also cite the mechanism behind
+each driver (for example "yellowing raises the estimate (chlorophyll degradation)").
+
+Honesty caveats:
+
+- These are RGB proxies, not measurements. The paper measures chlorophyll content, oxidative markers,
+  and relative water content with destructive laboratory assays; none are observable from a photo. A
+  high `red_fraction` is reddening in the image, not a measured anthocyanin concentration.
+- The drought-stage rules and thresholds are literature-motivated priors, not fitted to labelled staged
+  data. No Sedum drought dataset is catalogued in [docs/DATASETS.md](docs/DATASETS.md), so the stage is
+  indicative, not validated.
+- Reddening is confounded: many succulents redden under light stress or are naturally red or purple, so
+  `red_fraction` carries a deliberately modest weight.
+- Species differ. Tolerant and sensitive species show different signatures, which this single model
+  does not yet account for (see the deferred species objective in [docs/OBJECTIVES.md](docs/OBJECTIVES.md)).
+
+## High-throughput phenotyping and forecasting
+
+Following the multi-sensor, multi-temporal high-throughput phenotyping literature (for example
+"Multi-Sensor and Multi-temporal High-Throughput Phenotyping for Water Stress", arXiv 2402.18751,
+2024), water stress is treated as a trajectory, not a single snapshot. echeveria's pipeline is:
+
+    RGB image -> segmentation -> shape + colour + texture -> water-stress score -> forecast
+
+Over a `plant_id`/`timestamp` manifest, `phytovision phenotype` builds a per-plant trajectory and the
+API `/trend` and dashboard TEMPORAL tab surface it: the trend, the pigment early warning, and a
+forecast (a projected stress score per horizon, an estimated steps-to-stressed, and a confidence).
+
+Honesty caveats:
+
+- The forecast is a linear extrapolation of the recent stress trend, not a fitted or validated
+  prognostic. There is no labelled succulent time-series dataset to train or verify one, so treat it as
+  indicative. Confidence decays the further ahead it projects and grows with trajectory length.
+- Each observation is treated as one time step, so horizons are days only under daily sampling.
+- Inputs are RGB. The cited work fuses RGB with multispectral sensors; multispectral fusion is out of
+  scope here (no hardware or data). A `Sample.extra["modality"]` tag is reserved for that future work.
 
 ## Evaluation
 

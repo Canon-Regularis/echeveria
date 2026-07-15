@@ -34,6 +34,17 @@ All notable changes to this project are documented here. The format is based on
 - Interactive Streamlit dashboard (`dashboard` extra, `phytovision dashboard`): a neutral-dark tabbed
   terminal with an ANALYZE tab (verdict, overlay, drivers, disease, timing, features) and a TEMPORAL
   tab (stress-over-time trend from a CSV manifest).
+- Drought-physiology grounding (Sedum 2019 study): a `colour.red_fraction` anthocyanin/reddening
+  feature, physiology-grounded explanations (drivers cite their mechanism), a rule-based drought-stage
+  head (`analyze --drought-stage`, `/analyze?drought_stage=true`, and the dashboard) naming an ordinal
+  stage from the marker pattern, and a pigment-before-collapse temporal early warning (in `/trend` and
+  the dashboard TEMPORAL tab). All are RGB proxies and literature-motivated priors; see MODEL_CARD.md.
+- High-throughput phenotyping and forecasting (2024 HTP study, arXiv 2402.18751): a trend-extrapolation
+  forecaster implementing the reserved `LeafDeathPredictor` (projected stress per horizon,
+  steps-to-stressed, confidence), a `phytovision phenotype` command exporting a per-plant trajectory
+  table over a manifest, and a `forecast` field on `/trend` plus a projection in the dashboard TEMPORAL
+  tab. The forecast is a labelled trend extrapolation, not a validated prognostic; RGB-only (the study's
+  multispectral fusion is deferred).
 - Observability: per-stage timing on `AnalysisReport` (`analyze --timing`), a pytest-benchmark harness,
   and a `MODEL_CARD.md`.
 - Verification: a registry-driven substitutability contract suite, Hypothesis property tests,

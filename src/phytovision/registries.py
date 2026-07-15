@@ -13,10 +13,18 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from phytovision.datasets.base import DatasetLoader
+from phytovision.datasets.coco import CocoDetectionLoader
+from phytovision.datasets.directory import ImageDirectoryLoader
+from phytovision.datasets.folder import FolderClassificationLoader
+from phytovision.datasets.manifest import CsvManifestLoader
+from phytovision.datasets.yolo import YoloDetectionLoader
 from phytovision.explainability.base import Explainer
 from phytovision.explainability.feature_reasons import FeatureContributionExplainer
 from phytovision.explainability.shap_explainer import ShapExplainer
 from phytovision.models.base import StressModel
+from phytovision.models.disease.base import DiseaseModel
+from phytovision.models.disease.heuristic import HeuristicDiseaseModel
 from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
 from phytovision.models.stress.heuristic import HeuristicStressModel
@@ -34,11 +42,17 @@ from phytovision.regions.leaf_instance import LeafInstanceRegionProvider
 from phytovision.regions.whole_plant import WholePlantRegionProvider
 from phytovision.registry import Registry
 from phytovision.segmentation.base import PlantSegmenter
+from phytovision.segmentation.leaves.instance import (
+    LeafInstanceSegmenter,
+    NotYetTrainedLeafSegmenter,
+)
+from phytovision.segmentation.leaves.watershed import WatershedLeafSegmenter
 from phytovision.segmentation.plant.exg_threshold import ExGThresholdSegmenter
 from phytovision.segmentation.plant.lab_threshold import LabChromaSegmenter
 
 PREPROCESSORS: Registry[Preprocessor] = Registry("preprocessor")
 SEGMENTERS: Registry[PlantSegmenter] = Registry("segmenter")
+LEAF_SEGMENTERS: Registry[LeafInstanceSegmenter] = Registry("leaf_segmenter")
 REGION_PROVIDERS: Registry[RegionProvider] = Registry("region_provider")
 FEATURE_EXTRACTORS: Registry[FeatureExtractor] = Registry("feature_extractor")
 AGGREGATORS: Registry[FeatureAggregator] = Registry("aggregator")
@@ -50,8 +64,17 @@ PREPROCESSORS.register("resize-normalize")(ResizeNormalizePreprocessor)
 SEGMENTERS.register("exg-otsu")(ExGThresholdSegmenter)
 SEGMENTERS.register("lab-chroma")(LabChromaSegmenter)
 
+LEAF_SEGMENTERS.register("watershed")(WatershedLeafSegmenter)
+LEAF_SEGMENTERS.register("not-trained")(NotYetTrainedLeafSegmenter)
+
+
+def _build_leaf_provider(leaf_segmenter: str = "watershed") -> LeafInstanceRegionProvider:
+    """Build the leaf-instance provider with a named leaf segmenter (watershed is training-free)."""
+    return LeafInstanceRegionProvider(LEAF_SEGMENTERS.create(leaf_segmenter))
+
+
 REGION_PROVIDERS.register("whole-plant")(WholePlantRegionProvider)
-REGION_PROVIDERS.register("leaf-instance")(LeafInstanceRegionProvider)
+REGION_PROVIDERS.register("leaf-instance")(_build_leaf_provider)
 
 FEATURE_EXTRACTORS.register("geometry")(GeometryFeatures)
 FEATURE_EXTRACTORS.register("colour")(ColourFeatures)
@@ -76,6 +99,19 @@ STRESS_MODELS.register("ensemble")(_build_ensemble)
 
 EXPLAINERS.register("feature-contribution")(FeatureContributionExplainer)
 EXPLAINERS.register("shap")(ShapExplainer)
+
+# Optional secondary heads. The shipped disease model is an unvalidated placeholder (see its docs).
+DISEASE_MODELS: Registry[DiseaseModel] = Registry("disease_model")
+DISEASE_MODELS.register("heuristic")(HeuristicDiseaseModel)
+
+# Dataset loaders are selectable by name too. Their first constructor argument is the path (dataset
+# root, annotations file, or manifest), so callers pass it as the loader's own keyword.
+DATASET_LOADERS: Registry[DatasetLoader] = Registry("dataset_loader")
+DATASET_LOADERS.register("folder")(FolderClassificationLoader)
+DATASET_LOADERS.register("directory")(ImageDirectoryLoader)
+DATASET_LOADERS.register("coco")(CocoDetectionLoader)
+DATASET_LOADERS.register("csv")(CsvManifestLoader)
+DATASET_LOADERS.register("yolo")(YoloDetectionLoader)
 
 # Default component names used by Pipeline.default() / from_config() when a slot is unspecified.
 DEFAULTS = {

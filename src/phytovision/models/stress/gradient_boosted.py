@@ -115,18 +115,23 @@ class GradientBoostedStressModel(StressModel):
 
     # --- persistence ---
     def state(self) -> dict[str, object]:
-        """The fitted state: schema, positive label, estimator, and baseline."""
+        """The fitted state: schema, positive label, estimator, baseline, and drift policy."""
         self._ensure_fitted()
         return {
             "feature_keys": self.feature_keys,
             "positive_label": self.positive_label,
             "estimator": self._model,
             "background": self._background,
+            "strict_schema": self.strict_schema,
         }
 
     @classmethod
     def from_state(cls, state: Mapping[str, Any]) -> GradientBoostedStressModel:
-        model = cls(feature_keys=state["feature_keys"], positive_label=state["positive_label"])
+        model = cls(
+            feature_keys=state["feature_keys"],
+            positive_label=state["positive_label"],
+            strict_schema=state.get("strict_schema", False),  # .get for pre-Q5 saved files
+        )
         model._model = state["estimator"]
         model._background = state["background"]
         return model

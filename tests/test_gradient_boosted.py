@@ -153,3 +153,11 @@ def test_gbm_full_schema_does_not_warn(caplog) -> None:
     with caplog.at_level(logging.WARNING, logger="phytovision.models.stress.gradient_boosted"):
         model.predict(full)
     assert not any("schema mismatch" in r.getMessage() for r in caplog.records)
+
+
+def test_gbm_strict_schema_survives_round_trip(tmp_path) -> None:
+    model = _fitted()
+    model.strict_schema = True
+    path = tmp_path / "strict.joblib"
+    model.save(path)
+    assert GradientBoostedStressModel.load(path).strict_schema is True

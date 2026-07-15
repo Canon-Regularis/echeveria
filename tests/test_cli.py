@@ -9,6 +9,9 @@ import numpy as np
 import pytest
 
 from phytovision.cli import main
+from phytovision.models.conformal import SplitConformalClassifier
+from phytovision.models.persistence import load_saved
+from phytovision.models.stress.ensemble import EnsembleStressModel
 
 
 def test_cli_analyze_succeeds(image_path) -> None:
@@ -134,3 +137,70 @@ def test_cli_serve_without_uvicorn_reports_clean_error(monkeypatch, capsys) -> N
     rc = main(["serve"])
     assert rc == 2
     assert "api" in capsys.readouterr().err
+
+
+def test_cli_train_ensemble_saves_and_loads(training_dir, image_path, tmp_path, capsys) -> None:
+    pytest.importorskip("sklearn")
+    out = tmp_path / "ensemble.joblib"
+    assert main(["train", str(training_dir), "--model", "ensemble", "--out", str(out)]) == 0
+    assert isinstance(load_saved(out), EnsembleStressModel)
+
+    capsys.readouterr()
+    assert main(["analyze", str(image_path), "--model-path", str(out), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["stress"]["model"] == "ensemble-v1"
+
+
+def test_cli_train_calibrate_then_analyze_conformal(
+    training_dir, image_path, tmp_path, capsys
+) -> None:
+    pytest.importorskip("sklearn")
+    out = tmp_path / "calibrated.joblib"
+    assert (
+        main(
+            ["train", str(training_dir), "--calibrate", "0.3", "--alpha", "0.1", "--out", str(out)]
+        )
+        == 0
+    )
+    assert isinstance(load_saved(out), SplitConformalClassifier)
+
+    capsys.readouterr()
+    assert main(["analyze", str(image_path), "--model-path", str(out), "--conformal"]) == 0
+    assert "Conformal set" in capsys.readouterr().out
+
+    assert (
+        main(["analyze", str(image_path), "--model-path", str(out), "--conformal", "--json"]) == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert "labels" in payload["conformal"] and "alpha" in payload["conformal"]
+
+
+def test_cli_analyze_conformal_without_calibrated_model_errors(image_path, capsys) -> None:
+    assert main(["analyze", str(image_path), "--conformal"]) == 2
+    assert "train --calibrate" in capsys.readouterr().err
+
+
+def test_cli_train_calibrate_rejects_bad_fraction(training_dir, tmp_path, capsys) -> None:
+    out = tmp_path / "x.joblib"
+    assert main(["train", str(training_dir), "--calibrate", "1.5", "--out", str(out)]) == 2
+    assert "fraction in (0, 1)" in capsys.readouterr().err
+
+
+def test_cli_evaluate_cv_uses_the_selected_model(training_dir, capsys) -> None:
+    pytest.importorskip("sklearn")
+    assert main(["evaluate", str(training_dir), "--model", "ensemble", "--cv", "3"]) == 0
+    assert "cross-validation (ensemble)" in capsys.readouterr().out
+
+
+def test_cli_evaluate_transfer_uses_the_selected_model(transfer_dirs, capsys) -> None:
+    pytest.importorskip("sklearn")
+    argv = [
+        "evaluate",
+        str(transfer_dirs[0]),
+        str(transfer_dirs[1]),
+        "--model",
+        "ensemble",
+        "--transfer",
+    ]
+    assert main(argv) == 0
+    assert "leave-one-dataset-out (ensemble" in capsys.readouterr().out

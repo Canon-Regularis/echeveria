@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Mapping, Sequence
 
 import numpy as np
@@ -66,7 +67,29 @@ class PlantLevelAggregator(FeatureAggregator):
             values["plant.leaf_count"] = None
             values["plant.wilted_leaf_ratio"] = None
 
-        return PlantFeatures(values=values, region_count=len(regions), per_region=tuple(features))
+        clean = self._coerce_finite(values)
+        return PlantFeatures(values=clean, region_count=len(regions), per_region=tuple(features))
+
+    @staticmethod
+    def _coerce_finite(values: dict[str, float | None]) -> dict[str, float | None]:
+        """Coerce non-finite plant-level values to 0.0 so nothing degenerate reaches a model.
+
+        Per-region features are already coerced in ``FeatureExtractor.extract``; the derived keys
+        (canopy coverage, mean region area) bypass that, so they are coerced too.
+        """
+        clean: dict[str, float | None] = {}
+        coerced: list[str] = []
+        for key, value in values.items():
+            if value is None:
+                clean[key] = None
+            elif math.isfinite(value):
+                clean[key] = float(value)
+            else:
+                clean[key] = 0.0
+                coerced.append(key)
+        if coerced:
+            logger.warning("aggregation coerced non-finite feature(s) to 0.0: %s", coerced)
+        return clean
 
     def _reduce(
         self, key: str, vals: list[float], weights: list[float], policy: Mapping[str, str]

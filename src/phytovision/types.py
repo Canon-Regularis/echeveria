@@ -7,6 +7,7 @@ shapes correctly, the rest of the pipeline neither knows nor cares which impleme
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
@@ -56,7 +57,7 @@ class Region:
 
     def __post_init__(self) -> None:
         if self.mask.dtype != np.bool_:
-            raise TypeError(f"Region.mask must be boolean, got {self.mask.dtype}")
+            raise ContractViolationError(f"Region.mask must be boolean, got {self.mask.dtype}")
         if self.mask.ndim != 2:
             raise ContractViolationError(f"Region.mask must be 2-D, got shape {self.mask.shape}")
         if not self.mask.any():
@@ -122,12 +123,20 @@ class PlantFeatures:
     """Plant-level feature vector after aggregation.
 
     ``values`` may contain ``None`` for instance-only traits (e.g. ``leaf_count``) when the regions
-    were not per-leaf — those slots populate automatically once a leaf provider is used.
+    were not per-leaf. Those slots populate automatically once a leaf provider is used.
+
+    Every non-null value must be finite. Extractors coerce their own output, so this invariant only
+    fires on a genuine bug in a construction path that skips that coercion.
     """
 
     values: dict[str, float | None]
     region_count: int
     per_region: tuple[FeatureVector, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        for key, value in self.values.items():
+            if value is not None and not math.isfinite(value):
+                raise ContractViolationError(f"feature {key!r} is not finite: {value}")
 
     def defined(self) -> dict[str, float]:
         """Only the non-null features, e.g. for feeding a model."""

@@ -10,7 +10,11 @@ import pytest
 
 pytest.importorskip("sklearn")
 
-from phytovision.exceptions import ConfigError, ModelNotFittedError  # noqa: E402
+from phytovision.exceptions import (  # noqa: E402
+    ConfigError,
+    ModelNotFittedError,
+    ModelSchemaError,
+)
 from phytovision.models.base import ContributionModel, StressModel  # noqa: E402
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel  # noqa: E402
 from phytovision.types import PlantFeatures  # noqa: E402
@@ -113,3 +117,39 @@ def test_gbm_save_load_roundtrip(tmp_path) -> None:
 def test_gbm_save_before_fit_raises(tmp_path) -> None:
     with pytest.raises(ModelNotFittedError):
         GradientBoostedStressModel(feature_keys=_KEYS).save(tmp_path / "model.joblib")
+
+
+def _fitted():
+    dicts, labels = _training_data()
+    return GradientBoostedStressModel(feature_keys=_KEYS).fit(dicts, labels)
+
+
+def test_gbm_strict_schema_raises_on_drift() -> None:
+    model = _fitted()
+    model.strict_schema = True
+    partial = PlantFeatures(values={"colour.gcc_mean": 0.3}, region_count=1)  # missing 2 of 3 keys
+    with pytest.raises(ModelSchemaError, match="missing"):
+        model.predict(partial)
+
+
+def test_gbm_tolerant_schema_warns_once_and_predicts(caplog) -> None:
+    import logging
+
+    model = _fitted()  # strict_schema defaults False
+    partial = PlantFeatures(values={"colour.gcc_mean": 0.3}, region_count=1)
+    with caplog.at_level(logging.WARNING, logger="phytovision.models.stress.gradient_boosted"):
+        first = model.predict(partial)
+        model.predict(partial)  # a second drifting predict must not warn again
+    assert 0.0 <= first.score <= 1.0  # still produces a (NaN-tolerant) prediction
+    warnings = [r for r in caplog.records if "schema mismatch" in r.getMessage()]
+    assert len(warnings) == 1
+
+
+def test_gbm_full_schema_does_not_warn(caplog) -> None:
+    import logging
+
+    model = _fitted()
+    full = PlantFeatures(values=dict.fromkeys(_KEYS, 0.3), region_count=1)
+    with caplog.at_level(logging.WARNING, logger="phytovision.models.stress.gradient_boosted"):
+        model.predict(full)
+    assert not any("schema mismatch" in r.getMessage() for r in caplog.records)

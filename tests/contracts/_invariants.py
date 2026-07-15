@@ -24,10 +24,12 @@ def assert_valid_mask(mask: Mask, image: Image) -> None:
 
 
 def assert_valid_assessment(assessment: StressAssessment) -> None:
-    """A stress model must return bounded scores and a known bucket label."""
+    """A stress model must return a StressAssessment with a known bucket label.
+
+    ``StressAssessment`` enforces the score and confidence bounds, so ``predict`` raises before
+    returning if they are violated. The bucket label is not type-enforced, so it is checked here.
+    """
     assert isinstance(assessment, StressAssessment)
-    assert 0.0 <= assessment.score <= 1.0, assessment.score
-    assert 0.0 <= assessment.confidence <= 1.0, assessment.confidence
     assert assessment.label in _BUCKETS, assessment.label
 
 

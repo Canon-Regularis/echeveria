@@ -222,3 +222,20 @@ def test_cli_evaluate_transfer_uses_the_selected_model(transfer_dirs, capsys) ->
     ]
     assert main(argv) == 0
     assert "leave-one-dataset-out (ensemble" in capsys.readouterr().out
+
+
+def test_cli_strict_schema_flags_extractor_drift(
+    training_dir, image_path, tmp_path, capsys
+) -> None:
+    pytest.importorskip("sklearn")
+    model_path = tmp_path / "gb.joblib"
+    assert main(["train", str(training_dir), "--out", str(model_path)]) == 0  # full extractor stack
+
+    # Fewer extractors produce fewer features than the model was trained on.
+    cfg = tmp_path / "fewer.json"
+    cfg.write_text(json.dumps({"feature_extractors": ["geometry", "colour"]}))
+    base = ["analyze", str(image_path), "--model-path", str(model_path), "--config", str(cfg)]
+
+    assert main([*base, "--strict-schema"]) == 2
+    assert "schema mismatch" in capsys.readouterr().err
+    assert main(base) == 0  # tolerant mode warns but still analyzes

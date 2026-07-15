@@ -12,10 +12,10 @@ from phytovision.registries import SEGMENTERS
 _NAMES = SEGMENTERS.names()
 
 
-def test_contract_covers_every_registered_segmenter() -> None:
-    # Guards against the parametrize source drifting away from the registry.
-    assert set(_NAMES) == set(SEGMENTERS.names())
-    assert _NAMES, "no segmenters registered"
+def test_expected_segmenters_are_registered() -> None:
+    # Registry-driven parametrize auto-enrolls a new segmenter. This guards the other direction: the
+    # known built-ins must stay registered (catch an accidental de-registration).
+    assert {"exg-otsu", "lab-chroma"} <= set(_NAMES)
 
 
 @pytest.mark.parametrize("name", _NAMES)

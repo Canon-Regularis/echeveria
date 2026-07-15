@@ -22,9 +22,9 @@ def _build(name: str, leaf_segmenter) -> RegionProvider:
     return REGION_PROVIDERS.create(name)
 
 
-def test_contract_covers_every_registered_provider() -> None:
-    assert set(_NAMES) == set(REGION_PROVIDERS.names())
-    assert _NAMES, "no region providers registered"
+def test_expected_providers_are_registered() -> None:
+    # Registry-driven parametrize auto-enrolls new providers; this guards against losing a built-in.
+    assert {"whole-plant", "leaf-instance"} <= set(_NAMES)
 
 
 @pytest.mark.parametrize("name", _NAMES)

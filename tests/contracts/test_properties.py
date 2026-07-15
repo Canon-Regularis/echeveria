@@ -74,10 +74,16 @@ class _Constant(StressModel):
     weights=st.lists(st.floats(0.0, 10.0, allow_nan=False), min_size=1, max_size=6),
 )
 @settings(max_examples=50, deadline=None)
-def test_ensemble_score_stays_in_unit_interval(scores, weights) -> None:
+def test_ensemble_score_is_the_normalized_weighted_mean(scores, weights) -> None:
+    # Asserting the [0, 1] bound would be tautological (predict clamps), so check the actual
+    # normalization and weighting. A convex combination of [0, 1] scores is already in range, so the
+    # clamp is a no-op here and cannot hide a broken weighted mean.
     count = min(len(scores), len(weights))
     scores, weights = scores[:count], weights[:count]
     assume(sum(weights) > 0.0)  # the ensemble requires a positive weight sum
     ensemble = EnsembleStressModel([_Constant(s) for s in scores], weights=weights)
     result = ensemble.predict(PlantFeatures(values={}, region_count=1)).score
-    assert 0.0 <= result <= 1.0
+
+    total = sum(weights)
+    expected = sum((weight / total) * score for weight, score in zip(weights, scores, strict=True))
+    assert result == pytest.approx(expected, abs=1e-9)

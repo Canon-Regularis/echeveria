@@ -23,9 +23,9 @@ def _build(name: str):
         pytest.skip(f"{name} cannot be built by name: {exc}")
 
 
-def test_contract_covers_every_registered_model() -> None:
-    assert set(_NAMES) == set(STRESS_MODELS.names())
-    assert _NAMES, "no stress models registered"
+def test_expected_models_are_registered() -> None:
+    # Registry-driven parametrize auto-enrolls new models; this guards against losing a built-in.
+    assert {"heuristic", "ensemble", "gradient-boosted"} <= set(_NAMES)
 
 
 @pytest.mark.parametrize("name", _NAMES)

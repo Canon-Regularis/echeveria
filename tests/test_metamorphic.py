@@ -13,7 +13,10 @@ import pytest
 
 from phytovision.pipeline import Pipeline
 
-_SCORE_TOL = 0.1
+# These transforms are exact pixel permutations (or add only background), so the score is invariant
+# up to float rounding (measured <= 1.5e-7). A tight tolerance still catches equivariance bugs, such
+# as a texture feature that uses one GLCM angle instead of the rotation-averaged four.
+_SCORE_TOL = 1e-4
 
 _GEOMETRIC = {
     "fliplr": np.fliplr,

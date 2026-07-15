@@ -85,3 +85,51 @@ def image_path(tmp_path, healthy_image):
     path = tmp_path / "plant.png"
     PILImage.fromarray((healthy_image * 255).astype(np.uint8)).save(path)
     return path
+
+
+@pytest.fixture
+def dataset_dir(tmp_path, healthy_image, stressed_image):
+    """A ``root/<label>/<image>`` folder with one healthy and one wilted plant, for dataset tests.
+
+    Returns the root path; it holds 2 images across 2 label subfolders.
+    """
+    from PIL import Image as PILImage
+
+    root = tmp_path / "dataset"
+    for label, img in (("healthy", healthy_image), ("wilted", stressed_image)):
+        class_dir = root / label
+        class_dir.mkdir(parents=True)
+        PILImage.fromarray((img * 255).astype(np.uint8)).save(class_dir / f"{label}.png")
+    return root
+
+
+def _write_dataset(root, base_seed: int) -> None:
+    """Write a two-class ``root/<label>/<image>`` dataset with several images per class."""
+    from PIL import Image as PILImage
+
+    for label, color, offset in (
+        ("healthy", (0.15, 0.60, 0.15), 0),
+        ("wilted", (0.62, 0.50, 0.12), 100),
+    ):
+        class_dir = root / label
+        class_dir.mkdir(parents=True)
+        for i in range(6):
+            img = _blob_image(color, seed=base_seed + offset + i, noise=0.03)
+            PILImage.fromarray((img * 255).astype(np.uint8)).save(class_dir / f"{i}.png")
+
+
+@pytest.fixture
+def training_dir(tmp_path):
+    """A labelled folder with several images per class, big enough to fit a small model."""
+    root = tmp_path / "train"
+    _write_dataset(root, base_seed=0)
+    return root
+
+
+@pytest.fixture
+def transfer_dirs(tmp_path):
+    """Two labelled dataset roots with distinct names, for leave-one-dataset-out CLI tests."""
+    roots = [tmp_path / "datasetA", tmp_path / "datasetB"]
+    for offset, root in enumerate(roots):
+        _write_dataset(root, base_seed=200 * offset)
+    return roots

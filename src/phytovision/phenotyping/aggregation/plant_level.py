@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Mapping, Sequence
 
 import numpy as np
@@ -42,6 +43,9 @@ class PlantLevelAggregator(FeatureAggregator):
         area_by_id = {region.id: float(region.area_px) for region in regions}
         total_area = sum(area_by_id.values())
         image_area = float(regions.image_shape[0] * regions.image_shape[1])
+        # Coverage is the union of the regions, not the sum of their areas: overlapping leaf masks
+        # would otherwise double-count shared pixels and push coverage above 1.
+        union_area = float(np.logical_or.reduce([region.mask for region in regions]).sum())
 
         values: dict[str, float | None] = {}
         for key in sorted({k for fv in features for k in fv.values}):
@@ -55,7 +59,7 @@ class PlantLevelAggregator(FeatureAggregator):
         # Plant-level traits that exist regardless of region count.
         values["plant.region_count"] = float(len(regions))
         values["plant.total_area_px"] = total_area
-        values["plant.canopy_coverage"] = total_area / (image_area + _EPS)
+        values["plant.canopy_coverage"] = union_area / (image_area + _EPS)
         values["plant.mean_region_area"] = total_area / (len(regions) + _EPS)
 
         # Instance-only traits: defined only when regions are per-leaf.
@@ -66,7 +70,29 @@ class PlantLevelAggregator(FeatureAggregator):
             values["plant.leaf_count"] = None
             values["plant.wilted_leaf_ratio"] = None
 
-        return PlantFeatures(values=values, region_count=len(regions), per_region=tuple(features))
+        clean = self._coerce_finite(values)
+        return PlantFeatures(values=clean, region_count=len(regions), per_region=tuple(features))
+
+    @staticmethod
+    def _coerce_finite(values: dict[str, float | None]) -> dict[str, float | None]:
+        """Coerce non-finite plant-level values to 0.0 so nothing degenerate reaches a model.
+
+        Per-region features are already coerced in ``FeatureExtractor.extract``; the derived keys
+        (canopy coverage, mean region area) bypass that, so they are coerced too.
+        """
+        clean: dict[str, float | None] = {}
+        coerced: list[str] = []
+        for key, value in values.items():
+            if value is None:
+                clean[key] = None
+            elif math.isfinite(value):
+                clean[key] = float(value)
+            else:
+                clean[key] = 0.0
+                coerced.append(key)
+        if coerced:
+            logger.warning("aggregation coerced non-finite feature(s) to 0.0: %s", coerced)
+        return clean
 
     def _reduce(
         self, key: str, vals: list[float], weights: list[float], policy: Mapping[str, str]

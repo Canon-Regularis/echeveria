@@ -1,4 +1,4 @@
-"""Interpretable heuristic water-stress model — the v1 default.
+"""Interpretable heuristic water-stress model, the v1 default.
 
 A transparent, monotonic weighted model over engineered features. It needs no training, runs out of
 the box, and is fully explainable (every contribution is inspectable). It is deliberately the same
@@ -9,9 +9,11 @@ downstream. Thresholds here are documented *priors* to be replaced by a calibrat
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any, ClassVar
 
-from phytovision.models.base import StressModel
+from phytovision.models.base import StressModel, bucket_label
 from phytovision.types import PlantFeatures, StressAssessment
 
 
@@ -44,6 +46,7 @@ _TERMS: tuple[_Term, ...] = (
 
 class HeuristicStressModel(StressModel):
     name = "heuristic-v1"
+    MODEL_TYPE: ClassVar[str] = "heuristic"
 
     def __init__(
         self,
@@ -55,6 +58,22 @@ class HeuristicStressModel(StressModel):
         self.healthy_threshold = healthy_threshold
         self.stressed_threshold = stressed_threshold
         self._labels = {t.key: t.label for t in _TERMS}
+
+    def state(self) -> dict[str, object]:
+        """The heuristic has no fitted weights, only its bias and bucket thresholds."""
+        return {
+            "bias": self.bias,
+            "healthy_threshold": self.healthy_threshold,
+            "stressed_threshold": self.stressed_threshold,
+        }
+
+    @classmethod
+    def from_state(cls, state: Mapping[str, Any]) -> HeuristicStressModel:
+        return cls(
+            bias=state["bias"],
+            healthy_threshold=state["healthy_threshold"],
+            stressed_threshold=state["stressed_threshold"],
+        )
 
     def predict(self, features: PlantFeatures) -> StressAssessment:
         contributions = self.contributions(features)
@@ -68,7 +87,7 @@ class HeuristicStressModel(StressModel):
         return StressAssessment(
             score=score,
             confidence=confidence,
-            label=self._bucket(score),
+            label=bucket_label(score, self.healthy_threshold, self.stressed_threshold),
             model_name=self.name,
         )
 
@@ -85,13 +104,6 @@ class HeuristicStressModel(StressModel):
 
     def feature_label(self, key: str) -> str:
         return self._labels.get(key, key)
-
-    def _bucket(self, score: float) -> str:
-        if score < self.healthy_threshold:
-            return "healthy"
-        if score < self.stressed_threshold:
-            return "mild"
-        return "stressed"
 
 
 def _sigmoid(x: float) -> float:

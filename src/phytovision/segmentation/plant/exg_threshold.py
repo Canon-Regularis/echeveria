@@ -1,8 +1,8 @@
-"""Excess-Green + Otsu foreground segmentation — the v1 default (no training required).
+"""Excess-Green plus Otsu foreground segmentation, the default that needs no training.
 
-Excess Green (ExG = 2g - r - b on chromatic coordinates) is a classic vegetation index. It is a
-sensible, dependency-light baseline; it is *not* ideal for red/blue succulents, which is exactly why
-segmentation is an injectable stage — swap this for a learned segmenter without touching anything.
+Excess Green (2g - r - b on chromatic coordinates) is a classic vegetation index. It is a light,
+no-fit baseline. It is weak on red or blue succulents, so segmentation is a swappable stage.
+See LabChromaSegmenter for a colour-agnostic alternative.
 """
 
 from __future__ import annotations
@@ -11,15 +11,9 @@ import logging
 
 import numpy as np
 from skimage.filters import threshold_otsu
-from skimage.measure import label, regionprops
-from skimage.morphology import (
-    closing,
-    disk,
-    remove_small_holes,
-    remove_small_objects,
-)
 
 from phytovision.segmentation.base import PlantSegmenter
+from phytovision.segmentation.cleanup import clean_mask
 from phytovision.types import Image, Mask
 from phytovision.validation import validate_rgb_image
 
@@ -41,12 +35,15 @@ class ExGThresholdSegmenter(PlantSegmenter):
 
     def segment(self, image: Image) -> Mask:
         validate_rgb_image(image)
-
-        exg = self._excess_green(image)
-        mask = self._threshold(exg)
-        mask = self._clean(mask, image.shape[:2])
-
-        if not mask.any():  # fallback keeps the contract: never hand downstream an empty frame
+        mask = self._threshold(self._excess_green(image))
+        mask = clean_mask(
+            mask,
+            image.shape[:2],
+            min_object_fraction=self.min_object_fraction,
+            closing_radius=self.closing_radius,
+            keep_largest=self.keep_largest,
+        )
+        if not mask.any():  # never hand downstream an empty frame
             logger.warning("Excess-Green found no foreground; falling back to HSV saturation")
             mask = self._saturation_fallback(image)
         return mask
@@ -63,36 +60,15 @@ class ExGThresholdSegmenter(PlantSegmenter):
         finite = exg[np.isfinite(exg)]
         if finite.size == 0 or np.allclose(finite, finite.flat[0]):
             return np.zeros(exg.shape, dtype=bool)
-        thresh = threshold_otsu(finite)
-        return exg > thresh
-
-    def _clean(self, mask: Mask, shape: tuple[int, int]) -> Mask:
-        min_size = max(1, int(self.min_object_fraction * shape[0] * shape[1]))
-        # scikit-image >=0.26: `max_size` removes objects/holes up to that size (replaces min_size).
-        mask = remove_small_objects(mask, max_size=min_size)
-        mask = remove_small_holes(mask, max_size=min_size)
-        if self.closing_radius > 0 and mask.any():
-            mask = closing(mask, disk(self.closing_radius))
-        if self.keep_largest and mask.any():
-            mask = self._largest_component(mask)
-        return mask
-
-    @staticmethod
-    def _largest_component(mask: Mask) -> Mask:
-        labelled = label(mask)
-        props = regionprops(labelled)
-        if not props:
-            return mask
-        biggest = max(props, key=lambda p: p.area)
-        return labelled == biggest.label
+        return exg > threshold_otsu(finite)
 
     @staticmethod
     def _saturation_fallback(image: Image) -> Mask:
-        """When ExG finds nothing (e.g. a non-green succulent), fall back to HSV saturation."""
+        """Fall back to HSV saturation when Excess-Green finds nothing."""
         from skimage.color import rgb2hsv
 
         sat = rgb2hsv(image)[..., 1]
         if np.allclose(sat, sat.flat[0]):
             logger.warning("saturation is uniform; treating the entire frame as foreground")
-            return np.ones(image.shape[:2], dtype=bool)  # last resort: treat all as foreground
+            return np.ones(image.shape[:2], dtype=bool)
         return sat > threshold_otsu(sat)

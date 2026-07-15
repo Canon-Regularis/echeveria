@@ -3,35 +3,29 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from phytovision.exceptions import SegmentationError
 from phytovision.pipeline import Pipeline
-from phytovision.regions.base import RegionProvider
 from phytovision.regions.leaf_instance import LeafInstanceRegionProvider
 from phytovision.regions.whole_plant import WholePlantRegionProvider
-from phytovision.types import RegionSet
+from phytovision.segmentation.leaves.instance import LeafInstanceSegmenter
+
+# The registry-driven substitutability contract lives in tests/contracts/test_provider_contract.py.
+# This file keeps the provider-specific behaviour (region counts, downstream substitution).
 
 
-def _providers(leaf_segmenter):
-    return [
-        WholePlantRegionProvider(),
-        LeafInstanceRegionProvider(leaf_segmenter),
-    ]
+class _EmptyLeafSegmenter(LeafInstanceSegmenter):
+    def segment_leaves(self, image, plant_mask):
+        return []
 
 
-@pytest.mark.parametrize("provider_index", [0, 1])
-def test_provider_contract_holds_for_all_subtypes(
-    provider_index, healthy_image, plant_mask, leaf_segmenter
-) -> None:
-    """Every RegionProvider returns a non-empty RegionSet of image-sized boolean masks."""
-    provider: RegionProvider = _providers(leaf_segmenter)[provider_index]
+def test_whole_plant_empty_mask_raises_segmentation_error(healthy_image, plant_mask) -> None:
+    with pytest.raises(SegmentationError, match="empty"):
+        WholePlantRegionProvider().regions(healthy_image, np.zeros_like(plant_mask))
 
-    result = provider.regions(healthy_image, plant_mask)
 
-    assert isinstance(result, RegionSet)
-    assert len(result) >= 1
-    for region in result:
-        assert region.mask.dtype == np.bool_
-        assert region.mask.shape == plant_mask.shape
-        assert region.mask.any()
+def test_leaf_provider_no_masks_raises_segmentation_error(healthy_image, plant_mask) -> None:
+    with pytest.raises(SegmentationError, match="no non-empty leaf masks"):
+        LeafInstanceRegionProvider(_EmptyLeafSegmenter()).regions(healthy_image, plant_mask)
 
 
 def test_whole_plant_yields_single_region(healthy_image, plant_mask) -> None:

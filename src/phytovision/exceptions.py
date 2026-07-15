@@ -29,5 +29,9 @@ class ModelNotFittedError(PhytoVisionError, RuntimeError):
     """A trainable model was used for inference before ``fit`` was called."""
 
 
+class ModelSchemaError(PhytoVisionError, ValueError):
+    """The live feature schema does not match the schema a model was trained on."""
+
+
 class ConfigError(PhytoVisionError, ValueError):
     """A pipeline configuration referenced an unknown component or bad parameters."""

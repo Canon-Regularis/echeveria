@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from phytovision.exceptions import ContractViolationError
 from phytovision.types import FeatureVector, Region, RegionSet, StressAssessment
 
 
@@ -14,7 +15,7 @@ def test_region_rejects_empty_mask() -> None:
 
 
 def test_region_rejects_non_boolean_mask() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(ContractViolationError, match="must be boolean"):
         Region(id=0, label="plant", mask=np.ones((8, 8), dtype=np.uint8), bbox=_dummy_bbox())
 
 

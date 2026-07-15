@@ -16,11 +16,13 @@ import logging
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from functools import lru_cache
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
 import numpy as np
 from skimage.measure import regionprops
 
+from phytovision.exceptions import ConfigError, ContractViolationError
 from phytovision.types import FeatureVector, Image, Region
 
 logger = logging.getLogger(__name__)
@@ -37,15 +39,18 @@ class FeatureExtraction(Protocol):
         ...
 
 
-def finite(value: object) -> float:
-    """Coerce to a finite float; NaN/inf (from degenerate regions) become 0.0."""
-    f = float(value)  # type: ignore[arg-type]
-    return f if math.isfinite(f) else 0.0
+@lru_cache(maxsize=4)
+def _region_props_cached(mask_bytes: bytes, shape: tuple[int, ...]) -> Any:
+    mask = np.frombuffer(mask_bytes, dtype=bool).reshape(shape)
+    return regionprops(mask.astype(np.int32))[0]
 
 
 def single_region_props(region: Region) -> Any:
-    """regionprops for the whole region as ONE labelled object (even if disconnected)."""
-    return regionprops(region.mask.astype(np.int32))[0]
+    """regionprops for the whole region as ONE labelled object (even if disconnected).
+
+    Cached by mask content so geometry and morphology extractors share one computation per region.
+    """
+    return _region_props_cached(region.mask.tobytes(), region.mask.shape)
 
 
 def prop(props: object, *names: str) -> float:
@@ -68,7 +73,9 @@ class FeatureExtractor(ABC):
 
     def extract(self, image: Image, region: Region) -> FeatureVector:
         if not self.namespace:
-            raise TypeError(f"{type(self).__name__} must set a class-level `namespace`")
+            raise ContractViolationError(
+                f"{type(self).__name__} must set a class-level `namespace`"
+            )
         raw = self._compute(image, region)
         values: dict[str, float] = {}
         coerced = 0
@@ -97,7 +104,7 @@ class CompositeFeatureExtractor:
 
     def __init__(self, extractors: Sequence[FeatureExtraction]) -> None:
         if not extractors:
-            raise ValueError("CompositeFeatureExtractor needs at least one extractor")
+            raise ConfigError("CompositeFeatureExtractor needs at least one extractor")
         self.extractors: tuple[FeatureExtraction, ...] = tuple(extractors)
 
     def extract(self, image: Image, region: Region) -> FeatureVector:

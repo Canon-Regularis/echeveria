@@ -6,6 +6,9 @@ raises texture entropy / contrast and lowers homogeneity.
 
 from __future__ import annotations
 
+from functools import lru_cache
+from typing import Any
+
 import numpy as np
 from skimage.color import rgb2gray
 from skimage.feature import graycomatrix, graycoprops, local_binary_pattern
@@ -18,17 +21,30 @@ _EPS = 1e-9
 _GLCM_LEVELS = 32
 
 
+@lru_cache(maxsize=2)
+def _gray_maps(image_bytes: bytes, shape: tuple[int, ...], dtype: str) -> Any:
+    image = np.frombuffer(image_bytes, dtype=dtype).reshape(shape)
+    gray = rgb2gray(image)
+    return gray, sobel(gray)
+
+
+def _texture_maps(image: Image) -> Any:
+    """Grayscale and Sobel edges, cached by image content so per-leaf regions reuse the work."""
+    contiguous = np.ascontiguousarray(image)
+    return _gray_maps(contiguous.tobytes(), contiguous.shape, str(contiguous.dtype))
+
+
 class TextureFeatures(FeatureExtractor):
     namespace = "texture"
 
     def _compute(self, image: Image, region: Region) -> dict[str, float]:
-        gray = rgb2gray(image)
+        gray, edges = _texture_maps(image)
         mask = region.mask
         fg = gray[mask]
 
         # --- entropy + edge density over the foreground pixels directly ---
         entropy = _shannon_entropy(fg)
-        edge_density = float(sobel(gray)[mask].mean())
+        edge_density = float(edges[mask].mean())
 
         # --- GLCM / LBP need a 2-D patch; use the bbox crop with background flattened ---
         bb = region.bbox

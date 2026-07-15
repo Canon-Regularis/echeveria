@@ -31,6 +31,14 @@ def test_healthy_scores_lower_than_stressed(healthy_image, stressed_image) -> No
     assert healthy < stressed
 
 
+def test_analyze_records_per_stage_timing(healthy_image) -> None:
+    report = Pipeline.default().analyze(healthy_image)
+    for stage in ("preprocess", "segment", "regions", "extract", "model", "explain", "total"):
+        assert stage in report.timing_ms
+        assert report.timing_ms[stage] >= 0.0
+    assert "timing_ms" in report.summary()
+
+
 def test_accepts_ndarray_and_path(tmp_path, healthy_image) -> None:
     from PIL import Image as PILImage
 

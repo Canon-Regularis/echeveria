@@ -1,17 +1,18 @@
 """Feature-contribution explainer.
 
 Works with any model that satisfies the ``ContributionModel`` protocol (the heuristic and the
-gradient-boosted model both do). It depends only on that narrow interface — not on a concrete model
-class — which is the point of interface segregation + dependency inversion.
+gradient-boosted model both do). It depends only on that narrow interface, not on a concrete model
+class, which is the point of interface segregation and dependency inversion.
 """
 
 from __future__ import annotations
 
 import logging
 
+from phytovision.explainability._reasons import build_reasons
 from phytovision.explainability.base import Explainer
 from phytovision.models.base import ContributionModel, StressModel
-from phytovision.types import Explanation, PlantFeatures, Reason, StressAssessment
+from phytovision.types import Explanation, PlantFeatures, StressAssessment
 
 logger = logging.getLogger(__name__)
 
@@ -30,23 +31,5 @@ class FeatureContributionExplainer(Explainer):
             )
             return Explanation(reasons=(), method="unavailable")
 
-        contributions = model.contributions(features)
-        reasons = []
-        for key, contribution in contributions.items():
-            if contribution == 0.0:
-                continue
-            value = features.values.get(key)
-            increases = contribution > 0.0
-            label = model.feature_label(key)
-            reasons.append(
-                Reason(
-                    feature=key,
-                    direction="increases" if increases else "decreases",
-                    contribution=contribution,
-                    value=float(value) if value is not None else float("nan"),
-                    description=f"{label} {'raises' if increases else 'lowers'} the estimate",
-                )
-            )
-
-        reasons.sort(key=lambda r: abs(r.contribution), reverse=True)
-        return Explanation(reasons=tuple(reasons[: self.top_k]), method="feature-contribution")
+        reasons = build_reasons(model, features, model.contributions(features), self.top_k)
+        return Explanation(reasons=reasons, method="feature-contribution")

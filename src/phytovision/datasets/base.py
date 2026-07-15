@@ -11,6 +11,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
+# Image file extensions the folder loaders recognize.
+IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"})
+
 
 @dataclass(frozen=True, slots=True)
 class Sample:
@@ -19,6 +22,10 @@ class Sample:
     split: str | None = None  # "train" / "val" / "test"
     source: str | None = None  # dataset name / URL
     license: str | None = None
+    # Temporal-tracking metadata: which plant this is, and when the image was taken. A sortable
+    # timestamp (ISO-8601 works) lets the feature-history store order a plant's observations.
+    plant_id: str | None = None
+    timestamp: str | None = None
     extra: dict[str, object] = field(default_factory=dict)
 
 

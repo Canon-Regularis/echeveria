@@ -1,0 +1,28 @@
+name: Mutation testing
+
+# Mutation testing runs the whole suite once per mutant, so it is too slow for every push. It runs
+# weekly and on demand, and is informational until a baseline mutation score is agreed.
+on:
+  schedule:
+    - cron: "0 4 * * 1" # Mondays 04:00 UTC
+  workflow_dispatch:
+
+jobs:
+  mutmut:
+    name: mutmut (informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,ml]"
+      - name: Run mutmut on the high-value subset
+        continue-on-error: true # informational for now; tighten once a baseline exists
+        env:
+          PYTEST_ADDOPTS: "--no-cov" # the 85% gate would mark mutants killed for the wrong reason
+        run: |
+          mutmut run || true
+          mutmut results

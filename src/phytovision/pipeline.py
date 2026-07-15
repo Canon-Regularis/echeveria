@@ -76,7 +76,8 @@ class Pipeline:
 
         :param config: keys ``preprocessor``, ``segmenter``, ``region_provider``,
             ``feature_extractors``, ``aggregator``, ``model``, ``explainer``. Each value is a
-            registered name, or ``{"name": ..., "params": {...}}``.
+            registered name, or ``{"name": ..., "params": {...}}``. A spec with only ``params``
+            keeps the slot's default component and just overrides its parameters.
         :raises ConfigError: if a component name is unknown or a spec is malformed.
         """
         cfg = dict(config or {})
@@ -84,16 +85,19 @@ class Pipeline:
         if not isinstance(extractor_specs, Sequence) or isinstance(extractor_specs, str):
             raise ConfigError("`feature_extractors` must be a list of component specs")
         extractors = [_build(FEATURE_EXTRACTORS, s) for s in extractor_specs]
+
+        def slot(name: str, registry: Registry[_T]) -> _T:
+            default = DEFAULTS[name]
+            return _build(registry, cfg.get(name, default), default_name=default)
+
         return cls(
-            preprocessor=_build(PREPROCESSORS, cfg.get("preprocessor", DEFAULTS["preprocessor"])),
-            segmenter=_build(SEGMENTERS, cfg.get("segmenter", DEFAULTS["segmenter"])),
-            region_provider=_build(
-                REGION_PROVIDERS, cfg.get("region_provider", DEFAULTS["region_provider"])
-            ),
+            preprocessor=slot("preprocessor", PREPROCESSORS),
+            segmenter=slot("segmenter", SEGMENTERS),
+            region_provider=slot("region_provider", REGION_PROVIDERS),
             feature_extractor=CompositeFeatureExtractor(extractors),
-            aggregator=_build(AGGREGATORS, cfg.get("aggregator", DEFAULTS["aggregator"])),
-            model=_build(STRESS_MODELS, cfg.get("model", DEFAULTS["model"])),
-            explainer=_build(EXPLAINERS, cfg.get("explainer", DEFAULTS["explainer"])),
+            aggregator=slot("aggregator", AGGREGATORS),
+            model=slot("model", STRESS_MODELS),
+            explainer=slot("explainer", EXPLAINERS),
         )
 
     @classmethod
@@ -124,9 +128,21 @@ class Pipeline:
         validate_rgb_image(raw)
         logger.debug("analyze: input=%s shape=%s", image_path or "<ndarray>", raw.shape)
 
+        timing_ms: dict[str, float] = {}
+        mark = time.perf_counter()
+
+        def lap(stage: str) -> None:
+            nonlocal mark
+            now = time.perf_counter()
+            timing_ms[stage] = (now - mark) * 1000.0
+            mark = now
+
         prepared = self.preprocessor.process(raw)
+        lap("preprocess")
         plant_mask = self.segmenter.segment(prepared)
+        lap("segment")
         regions = self.region_provider.regions(prepared, plant_mask)
+        lap("regions")
         logger.debug(
             "analyze: %d region(s) kind=%s coverage=%.3f",
             len(regions),
@@ -138,18 +154,24 @@ class Pipeline:
         plant_features = self.aggregator.aggregate(
             regions, features, reduction_policy=self.feature_extractor.reduction_policy()
         )
+        lap("extract")
         assessment = self.model.predict(plant_features)
+        lap("model")
         explanation = self.explainer.explain(self.model, plant_features, assessment)
+        lap("explain")
 
         head_outputs: dict[str, object] = {}
         for head in self.heads:
             head_outputs[head.name] = head.run(plant_features)
+        if self.heads:
+            lap("heads")
 
+        timing_ms["total"] = (time.perf_counter() - started) * 1000.0
         logger.debug(
             "analyze: stress=%.3f (%s) in %.1f ms",
             assessment.score,
             assessment.label,
-            (time.perf_counter() - started) * 1000.0,
+            timing_ms["total"],
         )
         return AnalysisReport(
             image_path=image_path,
@@ -159,6 +181,7 @@ class Pipeline:
             stress=assessment,
             explanation=explanation,
             head_outputs=head_outputs,
+            timing_ms=timing_ms,
         )
 
     # --- builders (return a new Pipeline with one stage swapped / a head added) ---
@@ -195,12 +218,16 @@ class Pipeline:
         return replace(self, heads=(*self.heads, head))
 
 
-def _build(registry: Registry[_T], spec: object) -> _T:
-    """Instantiate a component from a name or ``{"name", "params"}`` spec via ``registry``."""
+def _build(registry: Registry[_T], spec: object, default_name: object = None) -> _T:
+    """Instantiate a component from a name or ``{"name", "params"}`` spec via ``registry``.
+
+    If a mapping spec omits ``name``, ``default_name`` is used, so a config can override just the
+    parameters of a slot's default component.
+    """
     if isinstance(spec, str):
         name, params = spec, {}
     elif isinstance(spec, Mapping):
-        raw_name = spec.get("name")
+        raw_name = spec.get("name", default_name)
         if not isinstance(raw_name, str):
             raise ConfigError(f"component spec needs a string 'name': {spec!r}")
         name = raw_name
@@ -212,3 +239,5 @@ def _build(registry: Registry[_T], spec: object) -> _T:
         return registry.create(name, **params)
     except KeyError as exc:
         raise ConfigError(str(exc)) from exc
+    except TypeError as exc:
+        raise ConfigError(f"could not construct {name!r}: {exc}") from exc

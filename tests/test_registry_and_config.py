@@ -67,3 +67,17 @@ def test_from_config_unknown_component_raises_configerror() -> None:
 def test_from_config_rejects_non_list_feature_extractors() -> None:
     with pytest.raises(ConfigError, match="feature_extractors"):
         Pipeline.from_config({"feature_extractors": "geometry"})
+
+
+def test_unbuildable_component_raises_configerror_not_typeerror() -> None:
+    # gradient-boosted requires feature_keys, so building it by name must surface as ConfigError
+    # (a PhytoVisionError), not a raw TypeError.
+    with pytest.raises(ConfigError):
+        Pipeline.from_names(model="gradient-boosted")
+
+
+def test_from_config_params_only_keeps_default_component() -> None:
+    # A spec with only params (no name) overrides the default component's parameters.
+    pipeline = Pipeline.from_config({"preprocessor": {"params": {"max_size": 256}}})
+    assert isinstance(pipeline.preprocessor, ResizeNormalizePreprocessor)
+    assert pipeline.preprocessor.max_size == 256

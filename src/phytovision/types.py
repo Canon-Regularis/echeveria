@@ -7,6 +7,7 @@ shapes correctly, the rest of the pipeline neither knows nor cares which impleme
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
@@ -56,7 +57,7 @@ class Region:
 
     def __post_init__(self) -> None:
         if self.mask.dtype != np.bool_:
-            raise TypeError(f"Region.mask must be boolean, got {self.mask.dtype}")
+            raise ContractViolationError(f"Region.mask must be boolean, got {self.mask.dtype}")
         if self.mask.ndim != 2:
             raise ContractViolationError(f"Region.mask must be 2-D, got shape {self.mask.shape}")
         if not self.mask.any():
@@ -122,12 +123,20 @@ class PlantFeatures:
     """Plant-level feature vector after aggregation.
 
     ``values`` may contain ``None`` for instance-only traits (e.g. ``leaf_count``) when the regions
-    were not per-leaf — those slots populate automatically once a leaf provider is used.
+    were not per-leaf. Those slots populate automatically once a leaf provider is used.
+
+    Every non-null value must be finite. Extractors coerce their own output, so this invariant only
+    fires on a genuine bug in a construction path that skips that coercion.
     """
 
     values: dict[str, float | None]
     region_count: int
     per_region: tuple[FeatureVector, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        for key, value in self.values.items():
+            if value is not None and not math.isfinite(value):
+                raise ContractViolationError(f"feature {key!r} is not finite: {value}")
 
     def defined(self) -> dict[str, float]:
         """Only the non-null features, e.g. for feeding a model."""
@@ -165,6 +174,9 @@ class Reason:
 class Explanation:
     reasons: tuple[Reason, ...]
     method: str  # e.g. "feature-contribution" | "shap"
+    # How far the attribution is from completeness (sum of contributions vs the model output).
+    # Set when the method has a well-defined completeness axiom (SHAP); None otherwise.
+    additivity_error: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,10 +191,12 @@ class AnalysisReport:
     explanation: Explanation
     # Outputs of optional post-model heads, keyed by head name.
     head_outputs: dict[str, object] = field(default_factory=dict)
+    # Per-stage wall-clock timing in milliseconds, populated by the pipeline.
+    timing_ms: dict[str, float] = field(default_factory=dict)
 
     def summary(self) -> dict[str, object]:
         """A compact, JSON-serializable digest for CLIs / APIs."""
-        return {
+        digest: dict[str, object] = {
             "image_path": self.image_path,
             "region_kind": self.regions.kind,
             "region_count": len(self.regions),
@@ -192,6 +206,7 @@ class AnalysisReport:
                 "label": self.stress.label,
                 "model": self.stress.model_name,
             },
+            "explanation_method": self.explanation.method,
             "top_reasons": [
                 {
                     "feature": r.feature,
@@ -204,3 +219,8 @@ class AnalysisReport:
             ],
             "heads": sorted(self.head_outputs),
         }
+        if self.explanation.additivity_error is not None:
+            digest["additivity_error"] = round(self.explanation.additivity_error, 5)
+        if self.timing_ms:
+            digest["timing_ms"] = {key: round(value, 2) for key, value in self.timing_ms.items()}
+        return digest

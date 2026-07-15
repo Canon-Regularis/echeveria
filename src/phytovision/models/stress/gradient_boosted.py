@@ -3,33 +3,46 @@
 Wraps scikit-learn's ``HistGradientBoostingClassifier`` (handles NaN features natively).
 Requires the ``ml`` extra and labelled training data. It implements the ``StressModel`` contract
 plus ``Trainable`` and ``ContributionModel``, so once fitted it substitutes for the heuristic. The
-caller supplies ``feature_keys`` to train on — use :func:`feature_keys_from` to derive them from the
+caller supplies ``feature_keys`` to train on. Use :func:`feature_keys_from` to derive them from the
 extractor stack's output so the schemas cannot drift. Contributions use a model-agnostic
 baseline-substitution attribution (no SHAP required).
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
-from typing import Self
+from pathlib import Path
+from typing import Any, ClassVar, Self
 
 import numpy as np
 
-from phytovision.exceptions import ConfigError, ModelNotFittedError
-from phytovision.models.base import StressModel
+from phytovision.exceptions import ConfigError, ModelNotFittedError, ModelSchemaError
+from phytovision.models.base import ShapResult, StressModel
 from phytovision.types import PlantFeatures, StressAssessment
+
+logger = logging.getLogger(__name__)
 
 
 class GradientBoostedStressModel(StressModel):
     name = "gradient-boosted-v1"
+    MODEL_TYPE: ClassVar[str] = "gradient-boosted"
 
-    def __init__(self, feature_keys: Sequence[str], positive_label: int = 1) -> None:
+    def __init__(
+        self,
+        feature_keys: Sequence[str],
+        positive_label: int = 1,
+        strict_schema: bool = False,
+    ) -> None:
         if not feature_keys:
             raise ConfigError("feature_keys must be non-empty and fixed at construction")
         self.feature_keys = list(feature_keys)
         self.positive_label = positive_label
+        # When True, predict raises on schema drift instead of vectorizing missing keys as NaN.
+        self.strict_schema = strict_schema
         self._model: object | None = None
         self._background: np.ndarray | None = None
+        self._schema_warned = False
 
     # --- Trainable ---
     def fit(self, feature_dicts: Sequence[dict[str, float]], labels: Sequence[int]) -> Self:
@@ -44,17 +57,44 @@ class GradientBoostedStressModel(StressModel):
         self._background = np.nanmean(matrix, axis=0)
         model = HistGradientBoostingClassifier()
         model.fit(matrix, list(labels))
+        if self.positive_label not in model.classes_:
+            raise ConfigError(
+                f"positive_label {self.positive_label!r} is not among the fitted classes "
+                f"{list(model.classes_)}"
+            )
         self._model = model
         return self
 
     # --- StressModel ---
     def predict(self, features: PlantFeatures) -> StressAssessment:
+        self._check_schema(features)
         x = self._vector(features.values)
         score = self._score(x)
         # Confidence: distance of the winning class probability from a coin flip.
         confidence = min(1.0, 2.0 * abs(score - 0.5))
         label = "stressed" if score >= 0.5 else "healthy"
         return StressAssessment(score, confidence, label, self.name)
+
+    def _check_schema(self, features: PlantFeatures) -> None:
+        """Guard against extractor-stack drift: trained keys absent from the live output become NaN.
+
+        In strict mode this raises; otherwise it warns once so the drift is visible instead of
+        silently producing a confident prediction from a mostly-NaN vector.
+        """
+        missing = set(self.feature_keys) - set(features.defined())
+        if not missing:
+            return
+        coverage = 1.0 - len(missing) / len(self.feature_keys)
+        message = (
+            f"feature schema mismatch: trained on {len(self.feature_keys)} features but "
+            f"{len(missing)} are missing from the live output (coverage {coverage:.0%}); "
+            f"first missing: {sorted(missing)[:5]}"
+        )
+        if self.strict_schema:
+            raise ModelSchemaError(message)
+        if not self._schema_warned:
+            logger.warning("%s", message)
+            self._schema_warned = True
 
     # --- ContributionModel ---
     def contributions(self, features: PlantFeatures) -> dict[str, float]:
@@ -73,6 +113,79 @@ class GradientBoostedStressModel(StressModel):
     def feature_label(self, key: str) -> str:
         return key
 
+    # --- ShapExplainable ---
+    def shap_attribution(self, features: PlantFeatures) -> ShapResult:
+        """Exact TreeSHAP attribution for one instance, in the model's margin space.
+
+        Needs the ``ml`` extra (shap). The values, the baseline, and the model output satisfy SHAP
+        completeness, so the explainer can report an additivity error close to zero.
+        """
+        estimator = self._ensure_fitted()
+        try:
+            import shap
+        except ImportError as exc:  # pragma: no cover - depends on optional extra
+            raise ImportError(
+                "SHAP explanations need the 'ml' extra: pip install -e \".[ml]\""
+            ) from exc
+
+        x = self._vector(features.values).reshape(1, -1)
+        classes = list(estimator.classes_)  # type: ignore[attr-defined]
+        idx = classes.index(self.positive_label)
+        explainer = shap.TreeExplainer(estimator)
+        raw = explainer.shap_values(x)
+        if isinstance(raw, list):  # older shap returns one array per class
+            row = np.asarray(raw[idx])[0]
+        else:
+            arr = np.asarray(raw)
+            row = arr[0, :, idx] if arr.ndim == 3 else arr[0]
+        base_values = np.ravel(explainer.expected_value)
+        base = float(base_values[idx] if base_values.size > 1 else base_values[0])
+        output = float(np.ravel(estimator.decision_function(x))[0])  # type: ignore[attr-defined]
+        return ShapResult(
+            values=dict(zip(self.feature_keys, (float(v) for v in row), strict=True)),
+            base_value=base,
+            model_output=output,
+        )
+
+    # --- persistence ---
+    def state(self) -> dict[str, object]:
+        """The fitted state: schema, positive label, estimator, baseline, and drift policy."""
+        self._ensure_fitted()
+        return {
+            "feature_keys": self.feature_keys,
+            "positive_label": self.positive_label,
+            "estimator": self._model,
+            "background": self._background,
+            "strict_schema": self.strict_schema,
+        }
+
+    @classmethod
+    def from_state(cls, state: Mapping[str, Any]) -> GradientBoostedStressModel:
+        model = cls(
+            feature_keys=state["feature_keys"],
+            positive_label=state["positive_label"],
+            strict_schema=state.get("strict_schema", False),  # .get for pre-Q5 saved files
+        )
+        model._model = state["estimator"]
+        model._background = state["background"]
+        return model
+
+    def save(self, path: str | Path) -> None:
+        """Persist the fitted model to ``path`` via the shared type-tagged envelope."""
+        from phytovision.models.persistence import save_model
+
+        save_model(self, path)
+
+    @classmethod
+    def load(cls, path: str | Path) -> GradientBoostedStressModel:
+        """Load a model saved by :meth:`save`. The file is unpickled, so only load trusted files."""
+        from phytovision.models.persistence import load_model
+
+        model = load_model(path)
+        if not isinstance(model, cls):
+            raise ConfigError(f"{path} is not a {cls.__name__}")
+        return model
+
     # --- internals ---
     def _ensure_fitted(self) -> object:
         if self._model is None:
@@ -86,7 +199,7 @@ class GradientBoostedStressModel(StressModel):
         model = self._ensure_fitted()
         proba = model.predict_proba(x.reshape(1, -1))[0]  # type: ignore[attr-defined]
         classes = list(model.classes_)  # type: ignore[attr-defined]
-        idx = classes.index(self.positive_label) if self.positive_label in classes else -1
+        idx = classes.index(self.positive_label)  # guaranteed present: fit() checks this
         return float(proba[idx])
 
 

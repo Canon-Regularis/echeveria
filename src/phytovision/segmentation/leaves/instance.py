@@ -1,9 +1,8 @@
-"""Leaf instance segmentation — the reserved (future) interface.
+"""Leaf instance segmentation: the interface every per-leaf segmenter implements.
 
-Descoped from v1 (see docs/OBJECTIVES.md): there is no in-domain Echeveria leaf-instance set
-yet. The interface is defined so the future module drops in behind ``LeafInstanceRegionProvider``
-without any downstream change. A concrete implementation would typically wrap a trained Mask R-CNN /
-YOLO-seg model.
+``WatershedLeafSegmenter`` is a no-training implementation. A trained one would wrap a Mask R-CNN or
+YOLO-seg model. Either drops in behind ``LeafInstanceRegionProvider`` with no downstream change (see
+docs/OBJECTIVES.md for the leaf-module scope).
 """
 
 from __future__ import annotations

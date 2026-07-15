@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from phytovision.explainability.physiology import physiology_note
 from phytovision.models.base import ContributionModel
 from phytovision.types import PlantFeatures, Reason
 
@@ -20,13 +21,18 @@ def build_reasons(
         value = features.values.get(key)
         increases = contribution > 0.0
         verb = "raises" if increases else "lowers"
+        # Cite the physiological mechanism when the feature has one, so the reason is grounded.
+        note = physiology_note(key)
+        description = f"{model.feature_label(key)} {verb} the estimate"
+        if note is not None:
+            description = f"{description} ({note})"
         reasons.append(
             Reason(
                 feature=key,
                 direction="increases" if increases else "decreases",
                 contribution=contribution,
                 value=float(value) if value is not None else float("nan"),
-                description=f"{model.feature_label(key)} {verb} the estimate",
+                description=description,
             )
         )
     reasons.sort(key=lambda r: abs(r.contribution), reverse=True)

@@ -151,6 +151,11 @@ def _add_pipeline_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--model-path", metavar="FILE", help="load a trained .joblib model (overrides --model)"
     )
+    parser.add_argument(
+        "--strict-schema",
+        action="store_true",
+        help="fail if a loaded model's feature schema differs from the live extractor output",
+    )
 
 
 def _configure_logging(verbose: bool) -> None:
@@ -165,11 +170,21 @@ def _build_pipeline(args: argparse.Namespace, model: StressModel | None = None) 
         pipeline = Pipeline.from_config(_load_config(args.config))
     else:
         pipeline = Pipeline.from_names(model=args.model, segmenter=args.segmenter)
-    if model is not None:
-        pipeline = pipeline.with_model(model)
-    elif args.model_path:
-        pipeline = pipeline.with_model(_stress_model_from_path(args.model_path))
+    chosen = model
+    if chosen is None and args.model_path:
+        chosen = _stress_model_from_path(args.model_path)
+    if chosen is not None:
+        _apply_strict_schema(chosen, getattr(args, "strict_schema", False))
+        pipeline = pipeline.with_model(chosen)
     return pipeline
+
+
+def _apply_strict_schema(model: StressModel, strict: bool) -> None:
+    """Set the schema-drift mode on a loaded model and, for an ensemble, on its members."""
+    if hasattr(model, "strict_schema"):
+        model.strict_schema = strict
+    for member in getattr(model, "members", ()):
+        _apply_strict_schema(member, strict)
 
 
 def _stress_model_from_path(path: str) -> StressModel:

@@ -1,4 +1,4 @@
-"""PhytoVision — an explainable computer-vision framework for plant phenotyping and water-stress
+"""PhytoVision, an explainable computer-vision framework for plant phenotyping and water-stress
 detection. See docs/ARCHITECTURE.md for the design.
 
 The stable public surface is re-exported here: the ``Pipeline`` orchestrator, the core data types
@@ -14,6 +14,7 @@ from phytovision.exceptions import (
     ContractViolationError,
     InvalidImageError,
     ModelNotFittedError,
+    ModelSchemaError,
     PhytoVisionError,
     SegmentationError,
 )
@@ -78,5 +79,6 @@ __all__ = [
     "ContractViolationError",
     "SegmentationError",
     "ModelNotFittedError",
+    "ModelSchemaError",
     "ConfigError",
 ]

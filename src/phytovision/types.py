@@ -191,6 +191,8 @@ class AnalysisReport:
     explanation: Explanation
     # Outputs of optional post-model heads, keyed by head name.
     head_outputs: dict[str, object] = field(default_factory=dict)
+    # Per-stage wall-clock timing in milliseconds, populated by the pipeline.
+    timing_ms: dict[str, float] = field(default_factory=dict)
 
     def summary(self) -> dict[str, object]:
         """A compact, JSON-serializable digest for CLIs / APIs."""
@@ -219,4 +221,6 @@ class AnalysisReport:
         }
         if self.explanation.additivity_error is not None:
             digest["additivity_error"] = round(self.explanation.additivity_error, 5)
+        if self.timing_ms:
+            digest["timing_ms"] = {key: round(value, 2) for key, value in self.timing_ms.items()}
         return digest

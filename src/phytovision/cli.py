@@ -52,6 +52,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     analyze.add_argument("--json", action="store_true", help="emit the JSON summary only")
     analyze.add_argument("--features", action="store_true", help="include the full feature vector")
     analyze.add_argument("--save-overlay", metavar="PNG", help="write an annotated overlay image")
+    analyze.add_argument("--timing", action="store_true", help="show per-stage wall-clock timing")
     analyze.add_argument(
         "--counterfactual",
         action="store_true",
@@ -287,6 +288,10 @@ def _analyze(args: argparse.Namespace) -> int:
         members = " or ".join(conformal_set.labels) if conformal_set.labels else "(empty)"
         print(f"Conformal set ({coverage}% coverage): {{{members}}}")
     print(f"Regions analysed: {len(report.regions)} ({report.regions.kind})")
+    if args.timing and report.timing_ms:
+        print("Timing (ms):")
+        for stage, elapsed in report.timing_ms.items():
+            print(f"  {stage:<12} {elapsed:.1f}")
     if report.explanation.reasons:
         print("Top reasons:")
         for reason in report.explanation.reasons:

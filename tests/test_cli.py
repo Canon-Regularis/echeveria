@@ -259,6 +259,11 @@ def test_cli_shap_explainer_degrades_without_a_shap_model(image_path, capsys) ->
     assert payload["explanation_method"] == "shap-unavailable"
 
 
+def test_cli_analyze_timing(image_path, capsys) -> None:
+    assert main(["analyze", str(image_path), "--timing"]) == 0
+    assert "Timing (ms):" in capsys.readouterr().out
+
+
 def test_cli_analyze_counterfactual(image_path, capsys) -> None:
     assert main(["analyze", str(image_path), "--counterfactual", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)

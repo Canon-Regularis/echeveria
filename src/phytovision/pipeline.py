@@ -128,9 +128,21 @@ class Pipeline:
         validate_rgb_image(raw)
         logger.debug("analyze: input=%s shape=%s", image_path or "<ndarray>", raw.shape)
 
+        timing_ms: dict[str, float] = {}
+        mark = time.perf_counter()
+
+        def lap(stage: str) -> None:
+            nonlocal mark
+            now = time.perf_counter()
+            timing_ms[stage] = (now - mark) * 1000.0
+            mark = now
+
         prepared = self.preprocessor.process(raw)
+        lap("preprocess")
         plant_mask = self.segmenter.segment(prepared)
+        lap("segment")
         regions = self.region_provider.regions(prepared, plant_mask)
+        lap("regions")
         logger.debug(
             "analyze: %d region(s) kind=%s coverage=%.3f",
             len(regions),
@@ -142,18 +154,24 @@ class Pipeline:
         plant_features = self.aggregator.aggregate(
             regions, features, reduction_policy=self.feature_extractor.reduction_policy()
         )
+        lap("extract")
         assessment = self.model.predict(plant_features)
+        lap("model")
         explanation = self.explainer.explain(self.model, plant_features, assessment)
+        lap("explain")
 
         head_outputs: dict[str, object] = {}
         for head in self.heads:
             head_outputs[head.name] = head.run(plant_features)
+        if self.heads:
+            lap("heads")
 
+        timing_ms["total"] = (time.perf_counter() - started) * 1000.0
         logger.debug(
             "analyze: stress=%.3f (%s) in %.1f ms",
             assessment.score,
             assessment.label,
-            (time.perf_counter() - started) * 1000.0,
+            timing_ms["total"],
         )
         return AnalysisReport(
             image_path=image_path,
@@ -163,6 +181,7 @@ class Pipeline:
             stress=assessment,
             explanation=explanation,
             head_outputs=head_outputs,
+            timing_ms=timing_ms,
         )
 
     # --- builders (return a new Pipeline with one stage swapped / a head added) ---

@@ -15,6 +15,7 @@ from collections.abc import Sequence
 
 from phytovision.explainability.base import Explainer
 from phytovision.explainability.feature_reasons import FeatureContributionExplainer
+from phytovision.explainability.shap_explainer import ShapExplainer
 from phytovision.models.base import StressModel
 from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
@@ -74,6 +75,7 @@ def _build_ensemble(
 STRESS_MODELS.register("ensemble")(_build_ensemble)
 
 EXPLAINERS.register("feature-contribution")(FeatureContributionExplainer)
+EXPLAINERS.register("shap")(ShapExplainer)
 
 # Default component names used by Pipeline.default() / from_config() when a slot is unspecified.
 DEFAULTS = {

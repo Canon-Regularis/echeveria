@@ -18,8 +18,10 @@ from phytovision.datasets.folder import FolderClassificationLoader
 from phytovision.evaluation._common import to_plant_features
 from phytovision.evaluation.cross_dataset import leave_one_dataset_out
 from phytovision.evaluation.crossval import grouped_stratified_cv
+from phytovision.evaluation.importance import permutation_importance
 from phytovision.evaluation.metrics import binary_metrics
 from phytovision.exceptions import ConfigError, PhytoVisionError
+from phytovision.explainability.counterfactual import counterfactuals
 from phytovision.io import load_image
 from phytovision.models.base import StressModel
 from phytovision.models.conformal import SplitConformalClassifier
@@ -28,7 +30,7 @@ from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
 from phytovision.models.stress.heuristic import HeuristicStressModel
 from phytovision.pipeline import Pipeline
-from phytovision.registries import SEGMENTERS, STRESS_MODELS
+from phytovision.registries import EXPLAINERS, SEGMENTERS, STRESS_MODELS
 from phytovision.visualize import render_overlay
 
 _TRAINABLE_MODELS = ("gradient-boosted", "ensemble")
@@ -50,6 +52,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     analyze.add_argument("--json", action="store_true", help="emit the JSON summary only")
     analyze.add_argument("--features", action="store_true", help="include the full feature vector")
     analyze.add_argument("--save-overlay", metavar="PNG", help="write an annotated overlay image")
+    analyze.add_argument(
+        "--counterfactual",
+        action="store_true",
+        help="report the smallest feature changes that would flip the verdict",
+    )
     analyze.add_argument(
         "--conformal",
         action="store_true",
@@ -113,6 +120,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="leave-one-dataset-out across the folders (each folder is one dataset)",
     )
+    mode.add_argument(
+        "--importance",
+        action="store_true",
+        help="report global permutation feature importance for a trained model",
+    )
 
     serve = sub.add_parser("serve", help="run the HTTP API (needs the 'api' extra)")
     serve.add_argument("--host", default="127.0.0.1", help="bind host")
@@ -144,6 +156,12 @@ def _add_pipeline_args(parser: argparse.ArgumentParser) -> None:
         "--segmenter", default="exg-otsu", choices=SEGMENTERS.names(), help="plant segmenter"
     )
     parser.add_argument(
+        "--explainer",
+        default="feature-contribution",
+        choices=EXPLAINERS.names(),
+        help="explanation method",
+    )
+    parser.add_argument(
         "--config",
         metavar="FILE",
         help="pipeline config (.toml/.json); overrides --model/--segmenter",
@@ -169,7 +187,9 @@ def _build_pipeline(args: argparse.Namespace, model: StressModel | None = None) 
     if args.config:
         pipeline = Pipeline.from_config(_load_config(args.config))
     else:
-        pipeline = Pipeline.from_names(model=args.model, segmenter=args.segmenter)
+        pipeline = Pipeline.from_names(
+            model=args.model, segmenter=args.segmenter, explainer=args.explainer
+        )
     chosen = model
     if chosen is None and args.model_path:
         chosen = _stress_model_from_path(args.model_path)
@@ -223,6 +243,9 @@ def _analyze(args: argparse.Namespace) -> int:
             return 2
         pipeline = _build_pipeline(args, model=override)
         report = pipeline.analyze(args.image)
+        changes = (
+            counterfactuals(pipeline.model, report.plant_features) if args.counterfactual else []
+        )
         if args.save_overlay:
             render_overlay(load_image(args.image), report).save(args.save_overlay)
     except (OSError, ImportError, PhytoVisionError) as exc:
@@ -240,6 +263,16 @@ def _analyze(args: argparse.Namespace) -> int:
                 "labels": list(conformal_set.labels),
                 "alpha": conformal_set.alpha,
             }
+        if args.counterfactual:
+            payload["counterfactuals"] = [
+                {
+                    "feature": cf.feature,
+                    "from": round(cf.current_value, 4),
+                    "to": round(cf.target_value, 4),
+                    "target_label": cf.target_label,
+                }
+                for cf in changes
+            ]
         print(json.dumps(payload, indent=2))
         return 0
 
@@ -259,6 +292,17 @@ def _analyze(args: argparse.Namespace) -> int:
         for reason in report.explanation.reasons:
             marker = "+" if reason.direction == "increases" else "-"
             print(f"  [{marker}] {reason.feature}={reason.value:.3f} - {reason.description}")
+    if args.counterfactual:
+        if changes:
+            print("To change the verdict:")
+            for cf in changes:
+                verb = "raise" if cf.target_value > cf.current_value else "lower"
+                print(
+                    f"  {verb} {cf.feature} from {cf.current_value:.3f} to "
+                    f"{cf.target_value:.3f} -> {cf.target_label.upper()}"
+                )
+        else:
+            print("No single feature change within plausible ranges flips the verdict.")
     if args.features:
         print("Features:")
         for key, value in sorted(report.plant_features.defined().items()):
@@ -408,6 +452,8 @@ def _evaluate(args: argparse.Namespace) -> int:
         return _evaluate_transfer(rows, args)
     if args.cv is not None:
         return _evaluate_cv(rows, args)
+    if args.importance:
+        return _evaluate_importance(rows, args)
     return _evaluate_single(rows, args)
 
 
@@ -415,10 +461,10 @@ def _extraction_pipeline(args: argparse.Namespace) -> Pipeline:
     """Build the pipeline that extracts features for ``evaluate``.
 
     Single-pass evaluation compares the pipeline model's own prediction, so it honors ``--model``
-    and ``--model-path``. Cross-validation and transfer retrain a model per fold, so the extraction
-    model is irrelevant; force a buildable default rather than construct an untrained model by name.
+    and ``--model-path``. The retraining modes (cross-validation, transfer, importance) fit a model
+    themselves, so the extraction model is irrelevant; force a buildable default there.
     """
-    if args.cv is None and not args.transfer:
+    if args.cv is None and not args.transfer and not args.importance:
         return _build_pipeline(args)
     if args.config:
         config = dict(_load_config(args.config))
@@ -494,6 +540,20 @@ def _evaluate_cv(rows: list[AnalysisRow], args: argparse.Namespace) -> int:
         f"(95% CI {lo:.3f}..{hi:.3f})"
     )
     print(f"  f1:       {result.mean_f1:.3f}")
+    return 0
+
+
+def _evaluate_importance(rows: list[AnalysisRow], args: argparse.Namespace) -> int:
+    model = _evaluation_model(args)
+    try:
+        ranked = permutation_importance(rows, healthy_label=args.healthy_label, model=model)
+    except (ImportError, PhytoVisionError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"permutation feature importance ({model}), top features:")
+    for key, importance in ranked[:10]:
+        print(f"  {key:<28} {importance:+.4f}")
     return 0
 
 

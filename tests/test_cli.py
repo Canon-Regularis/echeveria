@@ -202,6 +202,12 @@ def test_cli_evaluate_cv_uses_the_selected_model(training_dir, capsys) -> None:
     assert "cross-validation (ensemble)" in capsys.readouterr().out
 
 
+def test_cli_evaluate_importance(training_dir, capsys) -> None:
+    pytest.importorskip("sklearn")
+    assert main(["evaluate", str(training_dir), "--importance"]) == 0
+    assert "permutation feature importance" in capsys.readouterr().out
+
+
 def test_cli_evaluate_cv_explicit_gradient_boosted(training_dir, capsys) -> None:
     # --model gradient-boosted must not crash while building the feature-extraction pipeline: cv
     # retrains a model per fold, so the extraction model stays a buildable default.
@@ -222,6 +228,41 @@ def test_cli_evaluate_transfer_uses_the_selected_model(transfer_dirs, capsys) ->
     ]
     assert main(argv) == 0
     assert "leave-one-dataset-out (ensemble" in capsys.readouterr().out
+
+
+def test_cli_analyze_with_shap_explainer(training_dir, image_path, tmp_path, capsys) -> None:
+    pytest.importorskip("sklearn")
+    pytest.importorskip("shap")
+    model_path = tmp_path / "gb.joblib"
+    assert main(["train", str(training_dir), "--out", str(model_path)]) == 0
+
+    capsys.readouterr()
+    argv = [
+        "analyze",
+        str(image_path),
+        "--model-path",
+        str(model_path),
+        "--explainer",
+        "shap",
+        "--json",
+    ]
+    assert main(argv) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["explanation_method"] == "shap"
+    assert "additivity_error" in payload
+
+
+def test_cli_shap_explainer_degrades_without_a_shap_model(image_path, capsys) -> None:
+    # The heuristic is not SHAP-attributable, so --explainer shap must degrade, not crash.
+    assert main(["analyze", str(image_path), "--explainer", "shap", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["explanation_method"] == "shap-unavailable"
+
+
+def test_cli_analyze_counterfactual(image_path, capsys) -> None:
+    assert main(["analyze", str(image_path), "--counterfactual", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "counterfactuals" in payload  # a list (possibly empty for a clearly-healthy plant)
 
 
 def test_cli_strict_schema_flags_extractor_drift(

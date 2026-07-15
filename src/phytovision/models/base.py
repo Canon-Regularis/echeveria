@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import ClassVar, Protocol, Self, runtime_checkable
 
 from phytovision.types import PlantFeatures, StressAssessment
@@ -48,6 +49,26 @@ class ContributionModel(Protocol):
     def contributions(self, features: PlantFeatures) -> dict[str, float]: ...
 
     def feature_label(self, key: str) -> str: ...
+
+
+@dataclass(frozen=True)
+class ShapResult:
+    """A SHAP attribution: per-feature values, the explainer baseline, and the model output.
+
+    Completeness holds: ``base_value + sum(values.values())`` equals ``model_output`` up to solver
+    tolerance. The values live in the model's decision (margin) space, which is fine for ranking.
+    """
+
+    values: dict[str, float]
+    base_value: float
+    model_output: float
+
+
+@runtime_checkable
+class ShapExplainable(Protocol):
+    """A model that can attribute a prediction with SHAP. Needs the ``ml`` extra at call time."""
+
+    def shap_attribution(self, features: PlantFeatures) -> ShapResult: ...
 
 
 @runtime_checkable

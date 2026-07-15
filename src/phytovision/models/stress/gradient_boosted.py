@@ -18,7 +18,7 @@ from typing import Any, ClassVar, Self
 import numpy as np
 
 from phytovision.exceptions import ConfigError, ModelNotFittedError, ModelSchemaError
-from phytovision.models.base import StressModel
+from phytovision.models.base import ShapResult, StressModel
 from phytovision.types import PlantFeatures, StressAssessment
 
 logger = logging.getLogger(__name__)
@@ -112,6 +112,40 @@ class GradientBoostedStressModel(StressModel):
 
     def feature_label(self, key: str) -> str:
         return key
+
+    # --- ShapExplainable ---
+    def shap_attribution(self, features: PlantFeatures) -> ShapResult:
+        """Exact TreeSHAP attribution for one instance, in the model's margin space.
+
+        Needs the ``ml`` extra (shap). The values, the baseline, and the model output satisfy SHAP
+        completeness, so the explainer can report an additivity error close to zero.
+        """
+        estimator = self._ensure_fitted()
+        try:
+            import shap
+        except ImportError as exc:  # pragma: no cover - depends on optional extra
+            raise ImportError(
+                "SHAP explanations need the 'ml' extra: pip install -e \".[ml]\""
+            ) from exc
+
+        x = self._vector(features.values).reshape(1, -1)
+        classes = list(estimator.classes_)  # type: ignore[attr-defined]
+        idx = classes.index(self.positive_label)
+        explainer = shap.TreeExplainer(estimator)
+        raw = explainer.shap_values(x)
+        if isinstance(raw, list):  # older shap returns one array per class
+            row = np.asarray(raw[idx])[0]
+        else:
+            arr = np.asarray(raw)
+            row = arr[0, :, idx] if arr.ndim == 3 else arr[0]
+        base_values = np.ravel(explainer.expected_value)
+        base = float(base_values[idx] if base_values.size > 1 else base_values[0])
+        output = float(np.ravel(estimator.decision_function(x))[0])  # type: ignore[attr-defined]
+        return ShapResult(
+            values=dict(zip(self.feature_keys, (float(v) for v in row), strict=True)),
+            base_value=base,
+            model_output=output,
+        )
 
     # --- persistence ---
     def state(self) -> dict[str, object]:

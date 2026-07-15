@@ -174,6 +174,9 @@ class Reason:
 class Explanation:
     reasons: tuple[Reason, ...]
     method: str  # e.g. "feature-contribution" | "shap"
+    # How far the attribution is from completeness (sum of contributions vs the model output).
+    # Set when the method has a well-defined completeness axiom (SHAP); None otherwise.
+    additivity_error: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,7 +194,7 @@ class AnalysisReport:
 
     def summary(self) -> dict[str, object]:
         """A compact, JSON-serializable digest for CLIs / APIs."""
-        return {
+        digest: dict[str, object] = {
             "image_path": self.image_path,
             "region_kind": self.regions.kind,
             "region_count": len(self.regions),
@@ -201,6 +204,7 @@ class AnalysisReport:
                 "label": self.stress.label,
                 "model": self.stress.model_name,
             },
+            "explanation_method": self.explanation.method,
             "top_reasons": [
                 {
                     "feature": r.feature,
@@ -213,3 +217,6 @@ class AnalysisReport:
             ],
             "heads": sorted(self.head_outputs),
         }
+        if self.explanation.additivity_error is not None:
+            digest["additivity_error"] = round(self.explanation.additivity_error, 5)
+        return digest

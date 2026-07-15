@@ -1,4 +1,4 @@
-"""Interpretable heuristic water-stress model — the v1 default.
+"""Interpretable heuristic water-stress model, the v1 default.
 
 A transparent, monotonic weighted model over engineered features. It needs no training, runs out of
 the box, and is fully explainable (every contribution is inspectable). It is deliberately the same

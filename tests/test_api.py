@@ -45,6 +45,16 @@ def test_analyze_rejects_non_image() -> None:
     assert response.status_code == 400
 
 
+def test_analyze_rejects_a_decompression_bomb(healthy_image, monkeypatch) -> None:
+    import PIL.Image
+
+    # A decompression-bomb image must be a clean 400, not an uncaught 500.
+    monkeypatch.setattr(PIL.Image, "MAX_IMAGE_PIXELS", 4)
+    client = TestClient(create_app())
+    files = {"file": ("plant.png", _png_bytes(healthy_image), "image/png")}
+    assert client.post("/analyze", files=files).status_code == 400
+
+
 def test_overlay_endpoint_returns_png(healthy_image) -> None:
     client = TestClient(create_app())
     files = {"file": ("plant.png", _png_bytes(healthy_image), "image/png")}
@@ -81,3 +91,52 @@ def test_env_model_path_wires_the_served_model(healthy_image, tmp_path, monkeypa
     files = {"file": ("plant.png", _png_bytes(healthy_image), "image/png")}
     payload = client.post("/analyze", files=files).json()
     assert "conformal" in payload
+
+
+def test_analyze_disease_true_exposes_head_values(stressed_image) -> None:
+    client = TestClient(create_app())
+    files = {"file": ("plant.png", _png_bytes(stressed_image), "image/png")}
+    payload = client.post("/analyze", files=files, params={"disease": "true"}).json()
+    disease = payload["head_outputs"]["disease"]
+    assert set(disease) == {"healthy", "lesion-like"}
+    assert all(0.0 <= value <= 1.0 for value in disease.values())  # real probabilities, not labels
+    assert sum(disease.values()) == pytest.approx(1.0)
+    assert "disclaimer" in payload  # the placeholder is labelled for API clients
+
+
+def test_analyze_omits_head_outputs_by_default(healthy_image) -> None:
+    client = TestClient(create_app())
+    files = {"file": ("plant.png", _png_bytes(healthy_image), "image/png")}
+    payload = client.post("/analyze", files=files).json()
+    assert "head_outputs" not in payload
+    assert "disclaimer" not in payload
+
+
+def test_trend_sorts_by_timestamp_not_upload_order(healthy_image, stressed_image) -> None:
+    client = TestClient(create_app())
+    # Upload in reverse chronological order, so a correct response proves the timestamp sort rather
+    # than echoing upload order: the stressed image is tagged later, the healthy image earlier.
+    files = [
+        ("files", ("b.png", _png_bytes(stressed_image), "image/png")),
+        ("files", ("a.png", _png_bytes(healthy_image), "image/png")),
+    ]
+    data = {"plant_id": ["p1", "p1"], "timestamp": ["2026-03-02", "2026-03-01"]}
+    response = client.post("/trend", files=files, data=data)
+    assert response.status_code == 200
+    plant = response.json()["plants"]["p1"]
+    assert plant["n"] == 2
+    series = plant["series"]
+    assert [point["timestamp"] for point in series] == ["2026-03-01", "2026-03-02"]  # chronological
+    assert series[0]["score"] < series[1]["score"]  # healthy (earlier) below stressed (later)
+    assert plant["direction"] == "rising"
+
+
+def test_trend_rejects_mismatched_lengths(healthy_image) -> None:
+    client = TestClient(create_app())
+    files = [
+        ("files", ("a.png", _png_bytes(healthy_image), "image/png")),
+        ("files", ("b.png", _png_bytes(healthy_image), "image/png")),
+    ]
+    data = {"plant_id": ["p1"], "timestamp": ["2026-03-01"]}  # one tag for two files
+    response = client.post("/trend", files=files, data=data)
+    assert response.status_code == 400

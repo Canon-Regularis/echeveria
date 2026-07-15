@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image as _PILImage
 from PIL import UnidentifiedImageError
+from PIL.Image import DecompressionBombError
 
 from phytovision.exceptions import InvalidImageError
 from phytovision.types import Image
@@ -24,5 +25,6 @@ def load_image(path: str | Path) -> Image:
     try:
         with _PILImage.open(p) as im:
             return np.asarray(im.convert("RGB"))
-    except (UnidentifiedImageError, OSError) as exc:
+    except (UnidentifiedImageError, DecompressionBombError, OSError) as exc:
+        # DecompressionBombError is a bare Exception, not an OSError, so it must be listed.
         raise InvalidImageError(f"could not decode image: {p} ({exc})") from exc

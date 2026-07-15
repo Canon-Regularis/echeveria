@@ -14,8 +14,10 @@ from pathlib import Path
 
 from phytovision.exceptions import ConfigError
 from phytovision.models.conformal import SplitConformalClassifier
+from phytovision.models.disease.head import DiseaseHead
 from phytovision.models.persistence import load_saved
 from phytovision.pipeline import Pipeline
+from phytovision.registries import DISEASE_MODELS
 
 
 def read_config(path: str | os.PathLike[str]) -> dict[str, object]:
@@ -55,3 +57,14 @@ def engine_from_env(
             return engine.with_model(loaded.model), loaded
         return engine.with_model(loaded), conformal
     return engine, conformal
+
+
+def attach_heads(pipeline: Pipeline, *, disease: bool) -> Pipeline:
+    """Return a copy of ``pipeline`` with the requested optional heads attached.
+
+    One place for the CLI, API, and dashboard to opt into the disease head, so they cannot wire it
+    up three different ways. The disease model is an unvalidated placeholder, not a diagnostic.
+    """
+    if disease:
+        pipeline = pipeline.add_head(DiseaseHead(DISEASE_MODELS.create("heuristic")))
+    return pipeline

@@ -25,13 +25,13 @@ from phytovision.explainability.counterfactual import counterfactuals
 from phytovision.io import load_image
 from phytovision.models.base import StressModel
 from phytovision.models.conformal import SplitConformalClassifier
-from phytovision.models.disease.head import DiseaseHead
 from phytovision.models.persistence import build_manifest, load_saved, save_model
 from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
 from phytovision.models.stress.heuristic import HeuristicStressModel
 from phytovision.pipeline import Pipeline
-from phytovision.registries import DISEASE_MODELS, EXPLAINERS, SEGMENTERS, STRESS_MODELS
+from phytovision.registries import EXPLAINERS, SEGMENTERS, STRESS_MODELS
+from phytovision.serving import attach_heads
 from phytovision.visualize import render_overlay
 
 _TRAINABLE_MODELS = ("gradient-boosted", "ensemble")
@@ -262,8 +262,7 @@ def _analyze(args: argparse.Namespace) -> int:
             print("error: --conformal needs a model saved with train --calibrate", file=sys.stderr)
             return 2
         pipeline = _build_pipeline(args, model=override)
-        if args.disease:
-            pipeline = pipeline.add_head(DiseaseHead(DISEASE_MODELS.create("heuristic")))
+        pipeline = attach_heads(pipeline, disease=args.disease)
         report = pipeline.analyze(args.image)
         changes = (
             counterfactuals(pipeline.model, report.plant_features) if args.counterfactual else []
@@ -655,6 +654,19 @@ def _dashboard(args: argparse.Namespace) -> int:
         args.host,
         "--server.port",
         str(args.port),
+        # A neutral-dark terminal theme: near-black panels, light-gray monospace text, one accent.
+        "--theme.base",
+        "dark",
+        "--theme.backgroundColor",
+        "#0e1116",
+        "--theme.secondaryBackgroundColor",
+        "#161b22",
+        "--theme.textColor",
+        "#c9d1d9",
+        "--theme.primaryColor",
+        "#4c9aff",
+        "--theme.font",
+        "monospace",
     ]
     return subprocess.call(command, env=env)  # pragma: no cover
 

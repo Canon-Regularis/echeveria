@@ -21,7 +21,16 @@ All notable changes to this project are documented here. The format is based on
 - Correctness safeguards: a model schema-drift guard (`--strict-schema`, `ModelSchemaError`) and a
   runtime feature contract (`PlantFeatures` finiteness, declared ranges).
 - Reach: a Lab-chroma segmenter for coloured succulents, a FastAPI service (`api` extra, `serve`),
-  overlays, and RGB vegetation features.
+  and annotated overlays.
+- Leaf-instance segmentation: a classical watershed leaf segmenter (the `leaf-instance` region
+  provider) that unlocks per-leaf traits with no training.
+- More dataset loaders: CSV/TSV manifest and YOLO detection loaders, all selectable through a
+  `DATASET_LOADERS` registry.
+- Optional disease-appearance head (`analyze --disease`), a documented placeholder that is not a
+  validated diagnostic pending labelled disease data.
+- Interactive Streamlit dashboard (`dashboard` extra, `phytovision dashboard`).
+- Temporal tracking scaffold: a per-plant `FeatureHistory` store and a stress-trend fit, with
+  `Sample` carrying optional `plant_id` and `timestamp`.
 - Observability: per-stage timing on `AnalysisReport` (`analyze --timing`), a pytest-benchmark harness,
   and a `MODEL_CARD.md`.
 - Verification: a registry-driven substitutability contract suite, Hypothesis property tests,

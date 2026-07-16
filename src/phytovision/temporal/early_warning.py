@@ -12,8 +12,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from phytovision.models.drought.rule_based import pigment_marker
+from phytovision.temporal._fit import slope as fit_slope
 from phytovision.temporal.history import Observation
-from phytovision.temporal.trend import _least_squares_slope
 
 _STRESSED_THRESHOLD = 0.66  # matches bucket_label's stressed cut-off
 _RISING_TOLERANCE = 0.01  # pigment slope per step below this is treated as flat
@@ -42,7 +42,7 @@ def pigment_early_warning(plant_id: str, series: Sequence[Observation]) -> Early
             plant_id, False, 0.0, latest_score, len(pigment), "need two observations"
         )
 
-    slope = _least_squares_slope(pigment)
+    slope = fit_slope(pigment)
     already_stressed = latest_score >= _STRESSED_THRESHOLD
     flagged = slope > _RISING_TOLERANCE and not already_stressed
     if flagged:

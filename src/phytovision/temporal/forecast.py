@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from phytovision._num import clip01
+from phytovision.temporal._fit import fit_line
 from phytovision.temporal.history import Observation
 
 _STRESSED_THRESHOLD = 0.66  # matches bucket_label's stressed cut-off
@@ -49,7 +50,7 @@ def stress_forecast(
             plant_id, 0.0, level, flat, None, 0.1, "need two observations to project a trend"
         )
 
-    slope, intercept, r2 = _fit_line(scores)
+    slope, intercept, r2 = fit_line(scores)
     end = len(scores) - 1
     current_level = intercept + slope * end  # the fitted line at the last step, not the raw reading
     projected = project_scores(scores, steps)
@@ -72,24 +73,9 @@ def project_scores(values: Sequence[float], horizons: Sequence[int]) -> dict[int
         return {h: 0.0 for h in horizons if h > 0}
     if len(values) < 2:
         return {h: clip01(values[-1]) for h in horizons if h > 0}
-    slope, intercept, _ = _fit_line(values)
+    slope, intercept, _ = fit_line(values)
     end = len(values) - 1
     return {h: clip01(intercept + slope * (end + h)) for h in horizons if h > 0}
-
-
-def _fit_line(values: Sequence[float]) -> tuple[float, float, float]:
-    """Least-squares slope, intercept, and R^2 of ``values`` against steps 0, 1, ... (len >= 2)."""
-    n = len(values)
-    mean_x = (n - 1) / 2.0
-    mean_y = sum(values) / n
-    covariance = sum((x - mean_x) * (y - mean_y) for x, y in enumerate(values))
-    variance = sum((x - mean_x) ** 2 for x in range(n))
-    slope = covariance / variance
-    intercept = mean_y - slope * mean_x
-    ss_tot = sum((y - mean_y) ** 2 for y in values)
-    ss_res = sum((y - (intercept + slope * x)) ** 2 for x, y in enumerate(values))
-    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 1.0
-    return slope, intercept, clip01(r2)
 
 
 def _steps_to_threshold(intercept: float, slope: float, end: int) -> int | None:

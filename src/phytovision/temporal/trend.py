@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from phytovision.temporal._fit import slope as fit_slope
 from phytovision.temporal.history import Observation
 
 # Slopes with magnitude below this (stress score per step) count as no meaningful change.
@@ -36,7 +37,7 @@ def stress_trend(plant_id: str, series: Sequence[Observation]) -> StressTrend:
     if len(scores) == 1:
         return StressTrend(plant_id, 1, 0.0, "flat", scores[0], scores[0])
 
-    slope = _least_squares_slope(scores)
+    slope = fit_slope(scores)
     if slope > _FLAT_TOLERANCE:
         direction = "rising"
     elif slope < -_FLAT_TOLERANCE:
@@ -44,13 +45,3 @@ def stress_trend(plant_id: str, series: Sequence[Observation]) -> StressTrend:
     else:
         direction = "flat"
     return StressTrend(plant_id, len(scores), slope, direction, scores[0], scores[-1])
-
-
-def _least_squares_slope(values: Sequence[float]) -> float:
-    """Slope of ``values`` against steps 0, 1, ... (len >= 2 guarantees a positive variance)."""
-    n = len(values)
-    mean_x = (n - 1) / 2.0
-    mean_y = sum(values) / n
-    covariance = sum((x - mean_x) * (y - mean_y) for x, y in enumerate(values))
-    variance = sum((x - mean_x) ** 2 for x in range(n))
-    return covariance / variance

@@ -7,9 +7,8 @@ import sys
 from pathlib import Path
 
 from phytovision.cli._shared import fail
-from phytovision.config import read_config
 from phytovision.exceptions import PhytoVisionError
-from phytovision.models.persistence import load_saved
+from phytovision.serving import serving_env, validate_serving_selection
 
 
 def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -33,24 +32,15 @@ def run(args: argparse.Namespace) -> int:
     except ImportError:
         return fail('the dashboard needs the "dashboard" extra: pip install -e ".[dashboard]"')
 
-    # Validate the pipeline choice here so a bad path is a clean error, not a traceback surfacing
-    # from inside the launched Streamlit subprocess.
     try:
-        if args.config:
-            read_config(args.config)
-        if args.model_path:
-            load_saved(args.model_path)
+        validate_serving_selection(args.config, args.model_path)
     except (OSError, ImportError, PhytoVisionError) as exc:
         return fail(str(exc))
 
     import os
     import subprocess
 
-    env = dict(os.environ)
-    if args.config:
-        env["PHYTOVISION_CONFIG"] = str(Path(args.config))
-    if args.model_path:
-        env["PHYTOVISION_MODEL_PATH"] = str(Path(args.model_path))
+    env = {**os.environ, **serving_env(args.config, args.model_path)}
     script = str(Path(__file__).parent.parent / "dashboard.py")
     command = [  # pragma: no cover: launches the external Streamlit server
         sys.executable,

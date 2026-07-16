@@ -13,6 +13,8 @@ from PIL import ImageDraw
 from skimage.segmentation import find_boundaries
 from skimage.transform import resize
 
+from phytovision.models.base import StressModel
+from phytovision.saliency import pigment_saliency
 from phytovision.types import AnalysisReport, Image, Mask
 
 _HEALTHY = np.array([40, 170, 60], dtype=np.float32)  # green
@@ -37,6 +39,31 @@ def render_overlay(image: Image, report: AnalysisReport, alpha: float = 0.45) ->
 
     rendered = PILImage.fromarray(np.clip(out, 0, 255).astype(np.uint8))
     _draw_caption(rendered, report)
+    return rendered
+
+
+def render_saliency_overlay(
+    image: Image, report: AnalysisReport, model: StressModel, alpha: float = 0.5
+) -> PILImage.Image:
+    """Tint the photo by a pigment saliency map: red where colour pixels raised the score, green
+    where they lowered it. It localizes colour drivers only, so treat it as an RGB proxy of the
+    score's source."""
+    base = _to_uint8_rgb(image).astype(np.float32)
+    height, width = base.shape[:2]
+    saliency = pigment_saliency(image, report, model)
+    if saliency.shape != (height, width):
+        saliency = resize(saliency, (height, width), order=1)
+
+    positive = np.clip(saliency, 0.0, 1.0)[..., None]
+    negative = np.clip(-saliency, 0.0, 1.0)[..., None]
+    tint = _STRESSED * positive + _HEALTHY * negative
+    strength = np.abs(saliency)[..., None]
+    out = base * (1.0 - alpha * strength) + alpha * strength * tint
+
+    rendered = PILImage.fromarray(np.clip(out, 0, 255).astype(np.uint8))
+    draw = ImageDraw.Draw(rendered, "RGBA")
+    draw.rectangle([(0, 0), (rendered.width, 18)], fill=(0, 0, 0, 170))
+    draw.text((4, 3), "PIGMENT SALIENCY (RGB proxy)", fill=(255, 255, 255))
     return rendered
 
 

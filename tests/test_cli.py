@@ -59,6 +59,13 @@ def test_cli_save_overlay(image_path, tmp_path) -> None:
     assert out.exists()
 
 
+def test_cli_save_saliency(image_path, tmp_path, capsys) -> None:
+    out = tmp_path / "saliency.png"
+    assert main(["analyze", str(image_path), "--save-saliency", str(out)]) == 0
+    assert out.exists()
+    assert "Saliency written" in capsys.readouterr().out
+
+
 def test_cli_batch_writes_csv(dataset_dir, tmp_path) -> None:
     out = tmp_path / "features.csv"
     assert main(["batch", str(dataset_dir), "--out", str(out)]) == 0
@@ -96,6 +103,27 @@ def _save_image(path, image) -> None:
     from PIL import Image as PILImage
 
     PILImage.fromarray((image * 255).astype(np.uint8)).save(path)
+
+
+def test_cli_validate_reports_calibration_and_regression(
+    tmp_path, capsys, healthy_image, stressed_image
+) -> None:
+    _save_image(tmp_path / "a.png", healthy_image)
+    _save_image(tmp_path / "b.png", stressed_image)
+    manifest = tmp_path / "m.csv"
+    manifest.write_text("image_path,label,target\na.png,healthy,0.1\nb.png,wilted,0.8\n")
+    assert main(["validate", str(manifest)]) == 0
+    out = capsys.readouterr().out
+    assert "reliability" in out
+    assert "RMSE" in out
+
+
+def test_cli_validate_without_targets_skips_regression(tmp_path, capsys, healthy_image) -> None:
+    _save_image(tmp_path / "a.png", healthy_image)
+    manifest = tmp_path / "m.csv"
+    manifest.write_text("image_path,label\na.png,healthy\n")
+    assert main(["validate", str(manifest)]) == 0
+    assert "regression is skipped" in capsys.readouterr().out
 
 
 def test_cli_phenotype_writes_a_trajectory_table(tmp_path, healthy_image, stressed_image) -> None:
@@ -179,6 +207,15 @@ def test_cli_train_then_use_via_model_path(training_dir, tmp_path) -> None:
 
     image = next((training_dir / "healthy").glob("*.png"))
     assert main(["analyze", str(image), "--model-path", str(model_path)]) == 0
+
+
+def test_cli_train_seed_is_recorded_in_the_manifest(training_dir, tmp_path) -> None:
+    pytest.importorskip("sklearn")
+    from phytovision.models.persistence import read_envelope
+
+    model_path = tmp_path / "seeded.joblib"
+    assert main(["train", str(training_dir), "--out", str(model_path), "--seed", "0"]) == 0
+    assert read_envelope(model_path)["manifest"]["seed"] == 0
 
 
 def test_cli_train_single_class_errors(tmp_path, capsys, healthy_image) -> None:

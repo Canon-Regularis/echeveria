@@ -64,6 +64,15 @@ def test_overlay_endpoint_returns_png(healthy_image) -> None:
     assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_saliency_endpoint_returns_png(healthy_image) -> None:
+    client = TestClient(create_app())
+    files = {"file": ("plant.png", _png_bytes(healthy_image), "image/png")}
+    response = client.post("/saliency", files=files)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def _calibrated_conformal():
     from phytovision.models.conformal import SplitConformalClassifier
     from phytovision.models.stress.heuristic import HeuristicStressModel

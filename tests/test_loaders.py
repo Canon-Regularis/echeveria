@@ -82,6 +82,16 @@ def test_yolo_missing_labels_yield_empty_boxes(tmp_path) -> None:
     assert list(loader)[0].extra["boxes"] == []
 
 
+def test_yolo_skips_malformed_lines_without_aborting(tmp_path) -> None:
+    images, labels = _yolo_dataset(tmp_path)
+    # A non-numeric class id and a non-numeric bbox token must be skipped, not crash the whole load.
+    (labels / "img1.txt").write_text("leaf 0.5 0.5 0.2 0.3\n0 0.1 x 0.2 0.3\n1 0.4 0.4 0.1 0.1\n")
+    sample = list(YoloDetectionLoader(images))[0]
+    boxes = sample.extra["boxes"]
+    assert len(boxes) == 1  # only the last, well-formed line survives
+    assert boxes[0]["bbox"] == [0.4, 0.4, 0.1, 0.1]
+
+
 def test_yolo_rejects_a_non_directory(tmp_path) -> None:
     with pytest.raises(NotADirectoryError):
         YoloDetectionLoader(tmp_path / "nope")

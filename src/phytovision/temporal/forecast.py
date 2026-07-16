@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from phytovision.temporal.history import Observation
 
 _STRESSED_THRESHOLD = 0.66  # matches bucket_label's stressed cut-off
-_RISING_TOLERANCE = 0.01  # slope per step at or below this is treated as flat
 DEFAULT_HORIZONS = (1, 3, 7)
 
 
@@ -53,7 +52,7 @@ def stress_forecast(
     end = len(scores) - 1
     current_level = intercept + slope * end  # the fitted line at the last step, not the raw reading
     projected = project_scores(scores, steps)
-    steps_to_stressed = _steps_to_threshold(current_level, slope)
+    steps_to_stressed = _steps_to_threshold(intercept, slope, end)
     confidence = _confidence(len(scores), r2, steps)
     return Forecast(
         plant_id,
@@ -92,15 +91,20 @@ def _fit_line(values: Sequence[float]) -> tuple[float, float, float]:
     return slope, intercept, _clip01(r2)
 
 
-def _steps_to_threshold(current_level: float, slope: float) -> int | None:
-    """Steps until the fitted projection reaches the stressed cut, or None if not on the way there.
+def _steps_to_threshold(intercept: float, slope: float, end: int) -> int | None:
+    """Steps until the fitted projection reaches the stressed cut, or None if it never does.
 
-    Anchored on the fitted level at the last step (the same line ``project_scores`` uses), so the
-    reported step always agrees with the projected score at that horizon.
+    Uses the exact ``intercept + slope * (end + step)`` that ``project_scores`` evaluates, and walks
+    the step forward until that value actually crosses the cut. So the reported step and the
+    projected score at that step can never disagree, even at a float boundary or a tiny slope. None
+    only when the trend is flat or falling, or already at/above the cut.
     """
-    if slope <= _RISING_TOLERANCE or current_level >= _STRESSED_THRESHOLD:
+    if slope <= 0.0 or intercept + slope * end >= _STRESSED_THRESHOLD:
         return None
-    return int(math.ceil((_STRESSED_THRESHOLD - current_level) / slope))
+    step = max(1, int(math.ceil((_STRESSED_THRESHOLD - (intercept + slope * end)) / slope)))
+    while intercept + slope * (end + step) < _STRESSED_THRESHOLD:  # walk off any float undershoot
+        step += 1
+    return step
 
 
 def _confidence(n: int, r2: float, horizons: Sequence[int]) -> float:

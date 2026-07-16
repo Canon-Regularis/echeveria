@@ -39,6 +39,17 @@ def test_analyze_records_per_stage_timing(healthy_image) -> None:
     assert "timing_ms" in report.summary()
 
 
+def test_degenerate_thin_images_do_not_crash(healthy_image) -> None:
+    # A 1-pixel-thin mask (a 1xN image, or a wide photo the preprocessor shrinks to 1px on a side)
+    # must not raise a raw scikit-image ValueError; it should still give a finite, valid report.
+    pipeline = Pipeline.default()
+    rng = np.random.default_rng(0)
+    for shape in ((1, 1, 3), (1, 200, 3), (200, 1, 3), (3, 5000, 3)):
+        report = pipeline.analyze(rng.integers(0, 255, shape, dtype=np.uint8))
+        assert 0.0 <= report.stress.score <= 1.0 and 0.0 <= report.stress.confidence <= 1.0
+        assert all(np.isfinite(v) for v in report.plant_features.defined().values())
+
+
 def test_accepts_ndarray_and_path(tmp_path, healthy_image) -> None:
     from PIL import Image as PILImage
 

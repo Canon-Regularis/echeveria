@@ -29,6 +29,26 @@ def test_steps_to_stressed_matches_the_projection_under_noise() -> None:
     assert forecast.projected_scores[1] < 0.66  # and not before it
 
 
+def test_slow_rise_inside_the_old_dead_band_reports_finite_consistent_steps() -> None:
+    # A tiny positive slope still crosses the cut within the horizon; steps_to_stressed must be
+    # finite and agree with projected_scores (it used to wrongly return None via a dead band).
+    series = [
+        _obs(f"2026-03-{i + 1:02d}", v) for i, v in enumerate([0.588, 0.596, 0.604, 0.612, 0.620])
+    ]
+    forecast = stress_forecast("p", series, horizons=(1, 3, 7))
+    assert forecast.projected_scores[7] >= 0.66  # the projection does cross the cut
+    assert forecast.steps_to_stressed is not None and forecast.steps_to_stressed <= 7
+
+
+def test_steps_agree_with_projection_at_a_float_boundary() -> None:
+    # A case where the ceil path and the projection's multiply path differ by one float ULP.
+    series = [_obs(f"2026-03-{i + 1:02d}", v) for i, v in enumerate([0.4008, 0.5001, 0.4977])]
+    forecast = stress_forecast("p", series, horizons=(1, 2, 3, 4, 5, 6, 7))
+    step = forecast.steps_to_stressed
+    assert step is not None
+    assert forecast.projected_scores[step] >= 0.66  # the reported step's score really crosses
+
+
 def test_falling_trajectory_has_no_time_to_stressed() -> None:
     series = [_obs("2026-03-01", 0.6), _obs("2026-03-02", 0.4), _obs("2026-03-03", 0.2)]
     forecast = stress_forecast("p", series)

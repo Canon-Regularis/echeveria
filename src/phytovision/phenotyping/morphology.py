@@ -47,6 +47,8 @@ class MorphologyFeatures(FeatureExtractor):
 
 def _radial_variation(mask: np.ndarray, centroid: tuple[float, float]) -> float:
     """Coefficient of variation of centroid-to-boundary distance (a wrinkliness proxy)."""
+    if min(mask.shape) < 2:  # a 1-pixel-thin mask has no boundary; find_contours needs >= 2x2
+        return 0.0
     contours = find_contours(mask.astype(float), 0.5)
     if not contours:
         return 0.0

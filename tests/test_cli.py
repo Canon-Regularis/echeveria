@@ -8,7 +8,7 @@ import json
 import numpy as np
 import pytest
 
-from phytovision.cli import main
+from phytovision.cli import _parse_horizons, main
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.models.persistence import load_saved
 from phytovision.models.stress.ensemble import EnsembleStressModel
@@ -124,6 +124,18 @@ def test_cli_phenotype_json_uses_default_horizons(tmp_path, healthy_image, stres
     records = json.loads(out.read_text())
     assert len(records) == 1
     assert "forecast_h7" in records[0]  # default horizons are 1,3,7
+
+
+def test_parse_horizons_is_positive_deduped_and_sorted() -> None:
+    from phytovision.temporal import DEFAULT_HORIZONS
+
+    assert _parse_horizons("1,3,7") == (1, 3, 7)
+    assert _parse_horizons("  2 , 5 ") == (2, 5)  # tolerates whitespace
+    assert _parse_horizons("-1,2,3") == (2, 3)  # non-positive dropped
+    assert _parse_horizons("3,1,1,2") == (1, 2, 3)  # deduped and sorted (no duplicate columns)
+    assert _parse_horizons("") == DEFAULT_HORIZONS  # empty -> defaults
+    assert _parse_horizons("abc") == DEFAULT_HORIZONS  # unparseable -> defaults
+    assert _parse_horizons("0,-5") == DEFAULT_HORIZONS  # nothing positive -> defaults
 
 
 def test_cli_phenotype_no_tagged_rows_errors(tmp_path, healthy_image, capsys) -> None:

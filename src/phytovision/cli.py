@@ -463,12 +463,16 @@ def _phenotype(args: argparse.Namespace) -> int:
 
 
 def _parse_horizons(text: str) -> tuple[int, ...]:
-    """Parse a comma-separated horizon list, falling back to the defaults on empty or bad input."""
+    """Parse a comma-separated horizon list, falling back to the defaults on empty or bad input.
+
+    Positive horizons only, deduplicated and sorted, so a stray "1,1,3" cannot create duplicate
+    forecast columns.
+    """
     try:
-        horizons = tuple(int(part) for part in text.split(",") if part.strip())
+        horizons = [int(part) for part in text.split(",") if part.strip()]
     except ValueError:
         return DEFAULT_HORIZONS
-    return tuple(h for h in horizons if h > 0) or DEFAULT_HORIZONS
+    return tuple(sorted({h for h in horizons if h > 0})) or DEFAULT_HORIZONS
 
 
 def _train(args: argparse.Namespace) -> int:

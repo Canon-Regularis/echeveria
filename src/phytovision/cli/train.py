@@ -9,7 +9,12 @@ from collections.abc import Sequence
 from phytovision.analysis import analyze_dataset
 from phytovision.cli._shared import fail
 from phytovision.datasets.folder import FolderClassificationLoader
-from phytovision.evaluation._common import binary_labels, model_factory, trainable_model_names
+from phytovision.evaluation._common import (
+    binary_labels,
+    feature_keys_of,
+    model_factory,
+    trainable_model_names,
+)
 from phytovision.exceptions import PhytoVisionError
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.models.persistence import build_manifest, save_model
@@ -68,7 +73,7 @@ def run(args: argparse.Namespace) -> int:
         return fail(f"need at least two classes; found labels {found}")
 
     feature_dicts = [row.features for row in rows]
-    feature_keys = sorted({key for record in feature_dicts for key in record})
+    feature_keys = feature_keys_of(feature_dicts)
     train_idx, calib_idx = _train_calibration_split(labels, args.calibrate)
     if len({labels[i] for i in train_idx}) < 2:
         return fail("not enough data to keep both classes after the calibration split")

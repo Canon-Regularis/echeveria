@@ -65,6 +65,14 @@ def test_falls_back_to_stratified_with_one_source() -> None:
     assert result.mean_accuracy > 0.8  # the data is separable
 
 
+def test_seeded_run_is_deterministic() -> None:
+    rows = _rows(per_class=50)
+    first = grouped_stratified_cv(rows, n_splits=5, seed=3)
+    second = grouped_stratified_cv(rows, n_splits=5, seed=3)
+    assert first.fold_accuracies == second.fold_accuracies
+    assert first.fold_f1s == second.fold_f1s
+
+
 def test_uses_grouped_folds_with_several_sources() -> None:
     result = grouped_stratified_cv(_rows(per_class=12, sources=["d1", "d2", "d3"]), n_splits=5)
     assert result.strategy == "stratified-group"

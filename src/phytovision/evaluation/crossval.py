@@ -67,16 +67,20 @@ def grouped_stratified_cv(
     healthy_label: str = "healthy",
     n_splits: int = 5,
     model: str = "gradient-boosted",
+    seed: int | None = None,
 ) -> CrossValResult:
     """Cross-validate a trainable model over labelled rows, grouped by ``source``.
 
     :param model: which trainable model to fit per fold (``gradient-boosted`` or ``ensemble``).
+    :param seed: when set, shuffles the folds and seeds the model, so the run is reproducible;
+        when ``None``, the folds keep their unshuffled default order.
     :raises ConfigError: if there are too few samples or classes, or the model cannot train.
     :raises ImportError: if the ``ml`` extra (scikit-learn) is not installed.
     """
     if n_splits < 2:
         raise ConfigError("cross-validation needs at least two folds")
-    factory = model_factory(model)  # resolve early so an untrainable model fails before any work
+    # resolve early so an untrainable model fails before any work
+    factory = model_factory(model, seed=seed)
     rows = list(rows)
     labels = binary_labels(rows, healthy_label)
     if len(set(labels)) < 2:
@@ -85,7 +89,7 @@ def grouped_stratified_cv(
     feature_dicts = [row.features for row in rows]
     groups = [row.source for row in rows]
     keys = feature_keys_of(feature_dicts)
-    splits, strategy = _make_splits(labels, groups, n_splits)
+    splits, strategy = _make_splits(labels, groups, n_splits, seed)
 
     accuracies: list[float] = []
     f1s: list[float] = []
@@ -111,23 +115,28 @@ def grouped_stratified_cv(
 
 
 def _make_splits(
-    labels: Sequence[int], groups: Sequence[str | None], n_splits: int
+    labels: Sequence[int], groups: Sequence[str | None], n_splits: int, seed: int | None = None
 ) -> tuple[list[Split], str]:
-    """Pick a splitter: grouped when several sources exist, otherwise plain stratified."""
+    """Pick a splitter: grouped when several sources exist, otherwise plain stratified.
+
+    A seed shuffles the folds and makes them reproducible; without one the folds keep their
+    unshuffled default order, so existing fold composition does not move.
+    """
     group_kfold, stratified_kfold = _splitters()
     dummy_x = np.zeros((len(labels), 1))
     distinct_groups = {group for group in groups if group is not None}
+    shuffle = seed is not None
 
     if len(distinct_groups) >= 2:
         k = min(n_splits, len(distinct_groups))
-        splitter = group_kfold(n_splits=k)
+        splitter = group_kfold(n_splits=k, shuffle=shuffle, random_state=seed)
         splits = list(splitter.split(dummy_x, labels, groups))
         return splits, "stratified-group"
 
     k = min(n_splits, min(labels.count(0), labels.count(1)))
     if k < 2:
         raise ConfigError("need at least two samples in the smaller class for two folds")
-    splitter = stratified_kfold(n_splits=k)
+    splitter = stratified_kfold(n_splits=k, shuffle=shuffle, random_state=seed)
     return list(splitter.split(dummy_x, labels)), "stratified"
 
 

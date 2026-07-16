@@ -50,6 +50,9 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
         action="store_true",
         help="report global permutation feature importance for a trained model",
     )
+    parser.add_argument(
+        "--seed", type=int, metavar="N", help="seed the model and folds so the run is reproducible"
+    )
     parser.set_defaults(func=run)
 
 
@@ -127,7 +130,9 @@ def _evaluation_model(args: argparse.Namespace) -> str:
 def _evaluate_transfer(rows: list[AnalysisRow], args: argparse.Namespace) -> int:
     model = _evaluation_model(args)
     try:
-        matrix = leave_one_dataset_out(rows, healthy_label=args.healthy_label, model=model)
+        matrix = leave_one_dataset_out(
+            rows, healthy_label=args.healthy_label, model=model, seed=args.seed
+        )
     except (ImportError, PhytoVisionError) as exc:
         return fail(str(exc))
 
@@ -143,7 +148,7 @@ def _evaluate_cv(rows: list[AnalysisRow], args: argparse.Namespace) -> int:
     model = _evaluation_model(args)
     try:
         result = grouped_stratified_cv(
-            rows, healthy_label=args.healthy_label, n_splits=args.cv, model=model
+            rows, healthy_label=args.healthy_label, n_splits=args.cv, model=model, seed=args.seed
         )
     except (ImportError, PhytoVisionError) as exc:
         return fail(str(exc))
@@ -160,8 +165,11 @@ def _evaluate_cv(rows: list[AnalysisRow], args: argparse.Namespace) -> int:
 
 def _evaluate_importance(rows: list[AnalysisRow], args: argparse.Namespace) -> int:
     model = _evaluation_model(args)
+    extra = {"seed": args.seed} if args.seed is not None else {}  # keep the default seed otherwise
     try:
-        ranked = permutation_importance(rows, healthy_label=args.healthy_label, model=model)
+        ranked = permutation_importance(
+            rows, healthy_label=args.healthy_label, model=model, **extra
+        )
     except (ImportError, PhytoVisionError) as exc:
         return fail(str(exc))
 

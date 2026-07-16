@@ -49,8 +49,10 @@ def gradient_boosted_factory(
     feature_keys: Sequence[str],
     feature_dicts: Sequence[Mapping[str, float]],
     labels: Sequence[int],
+    *,
+    seed: int | None = None,
 ) -> StressModel:
-    model = GradientBoostedStressModel(list(feature_keys), positive_label=1)
+    model = GradientBoostedStressModel(list(feature_keys), positive_label=1, random_state=seed)
     return model.fit([dict(row) for row in feature_dicts], list(labels))
 
 
@@ -58,12 +60,14 @@ def ensemble_factory(
     feature_keys: Sequence[str],
     feature_dicts: Sequence[Mapping[str, float]],
     labels: Sequence[int],
+    *,
+    seed: int | None = None,
 ) -> StressModel:
-    trained = gradient_boosted_factory(feature_keys, feature_dicts, labels)
+    trained = gradient_boosted_factory(feature_keys, feature_dicts, labels, seed=seed)
     return EnsembleStressModel([HeuristicStressModel(), trained])
 
 
-_FACTORIES: dict[str, ModelFactory] = {
+_FACTORIES: dict[str, Callable[..., StressModel]] = {
     "gradient-boosted": gradient_boosted_factory,
     "ensemble": ensemble_factory,
 }
@@ -74,14 +78,26 @@ def trainable_model_names() -> tuple[str, ...]:
     return tuple(_FACTORIES)
 
 
-def model_factory(name: str) -> ModelFactory:
-    """Resolve a trainable model factory by name. The heuristic cannot fit, so it is not offered."""
+def model_factory(name: str, *, seed: int | None = None) -> ModelFactory:
+    """Resolve a trainable model factory by name, seeded for reproducibility when ``seed`` is set.
+
+    The heuristic cannot fit, so it is not offered.
+    """
     try:
-        return _FACTORIES[name]
+        base = _FACTORIES[name]
     except KeyError:
         raise ConfigError(
             f"{name!r} cannot be trained for evaluation; use gradient-boosted or ensemble"
         ) from None
+
+    def build(
+        feature_keys: Sequence[str],
+        feature_dicts: Sequence[Mapping[str, float]],
+        labels: Sequence[int],
+    ) -> StressModel:
+        return base(feature_keys, feature_dicts, labels, seed=seed)
+
+    return build
 
 
 def fit_predict_labels(

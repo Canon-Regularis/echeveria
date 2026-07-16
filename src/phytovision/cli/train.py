@@ -51,6 +51,9 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
         default=0.1,
         help="conformal miscoverage rate, so coverage is 1 - alpha (with --calibrate)",
     )
+    parser.add_argument(
+        "--seed", type=int, metavar="N", help="seed the model so the fit is reproducible"
+    )
     parser.set_defaults(func=run)
 
 
@@ -81,10 +84,11 @@ def run(args: argparse.Namespace) -> int:
     manifest = build_manifest(
         feature_keys=feature_keys,
         sources=[row.source for row in rows],
+        seed=args.seed,
         extra={"model": args.model, "trained_on": len(train_idx)},
     )
     try:
-        model = model_factory(args.model)(
+        model = model_factory(args.model, seed=args.seed)(
             feature_keys,
             [feature_dicts[i] for i in train_idx],
             [labels[i] for i in train_idx],

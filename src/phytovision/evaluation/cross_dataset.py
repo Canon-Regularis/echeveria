@@ -53,16 +53,19 @@ def leave_one_dataset_out(
     *,
     healthy_label: str = "healthy",
     model: str = "gradient-boosted",
+    seed: int | None = None,
 ) -> TransferMatrix:
     """Hold out each dataset in turn, training on the rest, and score the held-out dataset.
 
     Folds whose training data would carry only one class are skipped with a warning.
 
     :param model: which trainable model to fit (``gradient-boosted`` or ``ensemble``).
+    :param seed: when set, seeds the model so the run is reproducible.
     :raises ConfigError: if fewer than two datasets are present, or the model cannot train.
     :raises ImportError: if the ``ml`` extra (scikit-learn) is not installed.
     """
-    factory = model_factory(model)  # resolve early so an untrainable model fails before any work
+    # resolve early so an untrainable model fails before any work
+    factory = model_factory(model, seed=seed)
     rows = [row for row in rows if row.source is not None]
     sources = sorted({row.source for row in rows if row.source is not None})
     if len(sources) < 2:

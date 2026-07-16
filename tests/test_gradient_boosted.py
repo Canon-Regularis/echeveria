@@ -70,6 +70,17 @@ def test_gbm_is_a_substitutable_stress_model() -> None:
         assert 0.0 <= assessment.confidence <= 1.0
 
 
+def test_seeded_fit_is_reproducible() -> None:
+    dicts, labels = _training_data()
+    probe = PlantFeatures(
+        values={"colour.gcc_mean": 0.34, "colour.yellow_fraction": 0.2, "texture.entropy": 3.5},
+        region_count=1,
+    )
+    first = GradientBoostedStressModel(feature_keys=_KEYS, random_state=7).fit(dicts, labels)
+    second = GradientBoostedStressModel(feature_keys=_KEYS, random_state=7).fit(dicts, labels)
+    assert first.predict(probe).score == second.predict(probe).score
+
+
 def test_fit_rejects_an_all_missing_feature_with_a_clear_error() -> None:
     # A feature that is NaN for every sample crashes the histogram learner cryptically; it must be a
     # clean ConfigError naming the feature (real for library callers and cross-dataset CV).

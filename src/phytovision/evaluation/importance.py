@@ -42,7 +42,7 @@ def permutation_importance(
 
     feature_dicts = [row.features for row in rows]
     keys = feature_keys_of(feature_dicts)
-    fitted = model_factory(model)(keys, feature_dicts, labels)
+    fitted = model_factory(model, seed=seed)(keys, feature_dicts, labels)
     baseline = _accuracy(fitted, feature_dicts, labels)
 
     rng = np.random.default_rng(seed)

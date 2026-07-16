@@ -34,6 +34,7 @@ class GradientBoostedStressModel(StressModel):
         feature_keys: Sequence[str],
         positive_label: int = 1,
         strict_schema: bool = False,
+        random_state: int | None = None,
     ) -> None:
         if not feature_keys:
             raise ConfigError("feature_keys must be non-empty and fixed at construction")
@@ -41,6 +42,8 @@ class GradientBoostedStressModel(StressModel):
         self.positive_label = positive_label
         # When True, predict raises on schema drift instead of vectorizing missing keys as NaN.
         self.strict_schema = strict_schema
+        # Seeds the histogram learner so a fit is reproducible; None leaves sklearn's own default.
+        self.random_state = random_state
         self._model: object | None = None
         self._background: np.ndarray | None = None
         self._schema_warned = False
@@ -64,7 +67,7 @@ class GradientBoostedStressModel(StressModel):
             missing = [self.feature_keys[j] for j in np.flatnonzero(all_missing)]
             raise ConfigError(f"cannot train: feature(s) {missing} are missing for every sample")
         self._background = np.nanmean(matrix, axis=0)
-        model = HistGradientBoostingClassifier()
+        model = HistGradientBoostingClassifier(random_state=self.random_state)
         model.fit(matrix, list(labels))
         if self.positive_label not in model.classes_:
             raise ConfigError(
@@ -166,6 +169,7 @@ class GradientBoostedStressModel(StressModel):
             "estimator": self._model,
             "background": self._background,
             "strict_schema": self.strict_schema,
+            "random_state": self.random_state,
         }
 
     @classmethod
@@ -174,6 +178,7 @@ class GradientBoostedStressModel(StressModel):
             feature_keys=state["feature_keys"],
             positive_label=state["positive_label"],
             strict_schema=state.get("strict_schema", False),  # .get for pre-Q5 saved files
+            random_state=state.get("random_state"),  # .get for files saved before seeding
         )
         model._model = state["estimator"]
         model._background = state["background"]

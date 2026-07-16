@@ -10,9 +10,9 @@ import pytest
 pytest.importorskip("fastapi")
 pytest.importorskip("httpx")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from phytovision.api import create_app  # noqa: E402
+from phytovision.api import create_app
 
 
 def _png_bytes(image: np.ndarray) -> bytes:

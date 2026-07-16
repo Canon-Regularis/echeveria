@@ -10,14 +10,14 @@ import pytest
 
 pytest.importorskip("sklearn")
 
-from phytovision.exceptions import (  # noqa: E402
+from phytovision.exceptions import (
     ConfigError,
     ModelNotFittedError,
     ModelSchemaError,
 )
-from phytovision.models.base import ContributionModel, StressModel  # noqa: E402
-from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel  # noqa: E402
-from phytovision.types import PlantFeatures  # noqa: E402
+from phytovision.models.base import ContributionModel, StressModel
+from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
+from phytovision.types import PlantFeatures
 
 _KEYS = ["colour.gcc_mean", "colour.yellow_fraction", "texture.entropy"]
 

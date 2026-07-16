@@ -8,20 +8,20 @@ import pytest
 pytest.importorskip("sklearn")
 pytest.importorskip("joblib")
 
-import joblib  # noqa: E402
+import joblib
 
-from phytovision.exceptions import ConfigError  # noqa: E402
-from phytovision.models.conformal import SplitConformalClassifier  # noqa: E402
-from phytovision.models.persistence import (  # noqa: E402
+from phytovision.exceptions import ConfigError
+from phytovision.models.conformal import SplitConformalClassifier
+from phytovision.models.persistence import (
     build_manifest,
     load_model,
     read_envelope,
     save_model,
 )
-from phytovision.models.stress.ensemble import EnsembleStressModel  # noqa: E402
-from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel  # noqa: E402
-from phytovision.models.stress.heuristic import HeuristicStressModel  # noqa: E402
-from phytovision.types import PlantFeatures  # noqa: E402
+from phytovision.models.stress.ensemble import EnsembleStressModel
+from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
+from phytovision.models.stress.heuristic import HeuristicStressModel
+from phytovision.types import PlantFeatures
 
 _KEYS = ["colour.gcc_mean", "colour.yellow_fraction", "texture.entropy"]
 

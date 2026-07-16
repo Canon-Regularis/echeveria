@@ -12,7 +12,7 @@ import pytest
 
 pytest.importorskip("pytest_benchmark")
 
-from phytovision.pipeline import Pipeline  # noqa: E402
+from phytovision.pipeline import Pipeline
 
 
 def _blob() -> np.ndarray:

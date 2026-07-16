@@ -7,14 +7,14 @@ import pytest
 
 pytest.importorskip("sklearn")
 
-from phytovision.analysis import AnalysisRow  # noqa: E402
-from phytovision.cli import main  # noqa: E402
-from phytovision.evaluation.cross_dataset import (  # noqa: E402
+from phytovision.analysis import AnalysisRow
+from phytovision.cli import main
+from phytovision.evaluation.cross_dataset import (
     TransferMatrix,
     leave_one_dataset_out,
 )
-from phytovision.evaluation.metrics import BinaryMetrics  # noqa: E402
-from phytovision.exceptions import ConfigError  # noqa: E402
+from phytovision.evaluation.metrics import BinaryMetrics
+from phytovision.exceptions import ConfigError
 
 
 def _row(label: str, source: str | None, seed: int) -> AnalysisRow:

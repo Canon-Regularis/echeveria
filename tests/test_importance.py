@@ -7,9 +7,9 @@ import pytest
 
 pytest.importorskip("sklearn")
 
-from phytovision.analysis import AnalysisRow  # noqa: E402
-from phytovision.evaluation.importance import permutation_importance  # noqa: E402
-from phytovision.exceptions import ConfigError  # noqa: E402
+from phytovision.analysis import AnalysisRow
+from phytovision.evaluation.importance import permutation_importance
+from phytovision.exceptions import ConfigError
 
 
 def _row(features: dict[str, float], label: str) -> AnalysisRow:

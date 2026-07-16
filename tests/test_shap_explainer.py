@@ -8,11 +8,11 @@ import pytest
 pytest.importorskip("sklearn")
 pytest.importorskip("shap")
 
-from phytovision.explainability.shap_explainer import ShapExplainer  # noqa: E402
-from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel  # noqa: E402
-from phytovision.models.stress.heuristic import HeuristicStressModel  # noqa: E402
-from phytovision.registries import EXPLAINERS  # noqa: E402
-from phytovision.types import PlantFeatures  # noqa: E402
+from phytovision.explainability.shap_explainer import ShapExplainer
+from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
+from phytovision.models.stress.heuristic import HeuristicStressModel
+from phytovision.registries import EXPLAINERS
+from phytovision.types import PlantFeatures
 
 _KEYS = ["colour.gcc_mean", "colour.yellow_fraction", "texture.entropy"]
 

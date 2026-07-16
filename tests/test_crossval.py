@@ -7,13 +7,13 @@ import pytest
 
 pytest.importorskip("sklearn")
 
-from phytovision.analysis import AnalysisRow  # noqa: E402
-from phytovision.cli import main  # noqa: E402
-from phytovision.evaluation.crossval import (  # noqa: E402
+from phytovision.analysis import AnalysisRow
+from phytovision.cli import main
+from phytovision.evaluation.crossval import (
     _make_splits,
     grouped_stratified_cv,
 )
-from phytovision.exceptions import ConfigError  # noqa: E402
+from phytovision.exceptions import ConfigError
 
 
 def _row(features: dict[str, float], label: str, source: str | None = None) -> AnalysisRow:

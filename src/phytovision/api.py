@@ -14,11 +14,9 @@ import io
 
 import numpy as np
 from fastapi import FastAPI, Form, HTTPException, Response, UploadFile
-from PIL import Image as PILImage
-from PIL import UnidentifiedImageError
-from PIL.Image import DecompressionBombError
 
-from phytovision.exceptions import PhytoVisionError
+from phytovision.exceptions import InvalidImageError, PhytoVisionError
+from phytovision.io import decode_rgb_bytes
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.pipeline import Pipeline
 from phytovision.serving import attach_heads, engine_from_env
@@ -104,9 +102,9 @@ def _run(engine: Pipeline, data: bytes | Image) -> AnalysisReport:
 
 def _decode(data: bytes) -> Image:
     try:
-        return np.asarray(PILImage.open(io.BytesIO(data)).convert("RGB"))
-    except (UnidentifiedImageError, DecompressionBombError, OSError) as exc:
-        raise HTTPException(status_code=400, detail=f"invalid image: {exc}") from exc
+        return decode_rgb_bytes(data)
+    except InvalidImageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _trend_payload(history: FeatureHistory) -> dict[str, object]:

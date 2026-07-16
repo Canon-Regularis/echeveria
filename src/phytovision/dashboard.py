@@ -15,15 +15,10 @@ importable, and therefore testable, with only the base dependencies installed.
 
 from __future__ import annotations
 
-import io
 from collections.abc import Sequence
 
-import numpy as np
-from PIL import Image as PILImage
-from PIL import UnidentifiedImageError
-from PIL.Image import DecompressionBombError
-
-from phytovision.exceptions import InvalidImageError, PhytoVisionError
+from phytovision.exceptions import PhytoVisionError
+from phytovision.io import decode_rgb_bytes
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.pipeline import Pipeline
 from phytovision.serving import attach_heads, engine_from_env
@@ -33,10 +28,7 @@ from phytovision.types import AnalysisReport, Image
 
 def decode_image(data: bytes) -> Image:
     """Decode uploaded bytes into an RGB array, raising a clean domain error on junk input."""
-    try:
-        return np.asarray(PILImage.open(io.BytesIO(data)).convert("RGB"))
-    except (UnidentifiedImageError, DecompressionBombError, OSError) as exc:
-        raise InvalidImageError(f"invalid image: {exc}") from exc
+    return decode_rgb_bytes(data)
 
 
 def reason_rows(report: AnalysisReport) -> list[dict[str, object]]:
@@ -118,7 +110,7 @@ _DARK_LAYOUT = {
 }
 
 
-def render() -> None:  # pragma: no cover - exercised only inside a running Streamlit server
+def render() -> None:  # pragma: no cover: exercised only inside a running Streamlit server
     """The Streamlit entry point. Streamlit executes this module top to bottom on each rerun."""
     import streamlit as st
 
@@ -136,7 +128,7 @@ def render() -> None:  # pragma: no cover - exercised only inside a running Stre
 
 def _render_analyze_tab(
     engine: Pipeline, conformal: SplitConformalClassifier | None
-) -> None:  # pragma: no cover - Streamlit UI
+) -> None:  # pragma: no cover: Streamlit UI
     import plotly.graph_objects as go
     import streamlit as st
 
@@ -176,7 +168,7 @@ def _render_analyze_tab(
     stage = report.head_outputs.get("drought_stage")
     if isinstance(stage, dict):
         with st.container(border=True):
-            st.markdown("**DROUGHT STAGE** - literature-motivated rule set, not a diagnosis")
+            st.markdown("**DROUGHT STAGE**: literature-motivated rule set, not a diagnosis")
             st.metric("stage", str(stage.get("stage", "?")).upper())
             st.caption(f"basis: {stage.get('basis', '')}")
             names, scores = drought_markers(report)
@@ -205,7 +197,7 @@ def _render_analyze_tab(
 
     disease_col, timing_col = st.columns(2)
     with disease_col.container(border=True):
-        st.markdown("**DISEASE** - placeholder, not a validated diagnostic")
+        st.markdown("**DISEASE**: placeholder, not a validated diagnostic")
         labels, probabilities = disease_series(report)
         for label, probability in zip(labels, probabilities, strict=True):
             st.metric(label, f"{probability:.2f}")
@@ -226,7 +218,7 @@ def _render_analyze_tab(
         st.dataframe(table, use_container_width=True, hide_index=True)
 
 
-def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover - Streamlit UI
+def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover: Streamlit UI
     import plotly.graph_objects as go
     import streamlit as st
 
@@ -312,5 +304,5 @@ def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover - Stream
     st.dataframe(observation_table(series), use_container_width=True, hide_index=True)
 
 
-if __name__ == "__main__":  # pragma: no cover - the streamlit runner sets __name__ to __main__
+if __name__ == "__main__":  # pragma: no cover: the streamlit runner sets __name__ to __main__
     render()

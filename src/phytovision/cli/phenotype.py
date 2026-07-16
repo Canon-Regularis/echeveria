@@ -76,7 +76,7 @@ def run(args: argparse.Namespace) -> int:
         series = history.series_for(plant_id)
         latest = series[-1]
         forecast = forecasts[plant_id]
-        latest_features = PlantFeatures(values=dict(latest.features), region_count=1)
+        latest_features = PlantFeatures.from_values(latest.features)
         row: dict[str, object] = {
             "plant_id": plant_id,
             "n": len(series),

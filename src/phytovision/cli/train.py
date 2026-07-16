@@ -9,17 +9,13 @@ from collections.abc import Sequence
 from phytovision.analysis import analyze_dataset
 from phytovision.cli._shared import fail
 from phytovision.datasets.folder import FolderClassificationLoader
-from phytovision.evaluation._common import (
-    binary_labels,
-    model_factory,
-    to_plant_features,
-    trainable_model_names,
-)
+from phytovision.evaluation._common import binary_labels, model_factory, trainable_model_names
 from phytovision.exceptions import PhytoVisionError
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.models.persistence import build_manifest, save_model
 from phytovision.pipeline import Pipeline
 from phytovision.registries import SEGMENTERS
+from phytovision.types import PlantFeatures
 
 
 def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -90,7 +86,7 @@ def run(args: argparse.Namespace) -> int:
         )
         if calib_idx:
             wrapper = SplitConformalClassifier(model, alpha=args.alpha).calibrate(
-                [to_plant_features(feature_dicts[i]) for i in calib_idx],
+                [PlantFeatures.from_values(feature_dicts[i]) for i in calib_idx],
                 [labels[i] for i in calib_idx],
             )
             wrapper.save(args.out, manifest=manifest)

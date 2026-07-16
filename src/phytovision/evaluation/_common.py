@@ -25,11 +25,6 @@ ModelFactory = Callable[[Sequence[str], Sequence[Mapping[str, float]], Sequence[
 _DECISION_THRESHOLD = 0.5
 
 
-def to_plant_features(values: Mapping[str, float]) -> PlantFeatures:
-    """Wrap a flat feature dict in the ``PlantFeatures`` a model's ``predict`` expects."""
-    return PlantFeatures(values=dict(values), region_count=1)
-
-
 def binary_labels(rows: Sequence[AnalysisRow], healthy_label: str) -> list[int]:
     """Map labelled rows to 0 (the healthy label) or 1 (anything else) for the metrics."""
     return [0 if row.label == healthy_label else 1 for row in rows]
@@ -37,7 +32,7 @@ def binary_labels(rows: Sequence[AnalysisRow], healthy_label: str) -> list[int]:
 
 def predict_label(model: StressModel, row: Mapping[str, float]) -> int:
     """A fitted model's 0/1 label for one feature row, thresholded at the decision cut."""
-    return int(model.predict(to_plant_features(row)).score >= _DECISION_THRESHOLD)
+    return int(model.predict(PlantFeatures.from_values(row)).score >= _DECISION_THRESHOLD)
 
 
 def predict_labels(model: StressModel, rows: Sequence[Mapping[str, float]]) -> list[int]:

@@ -8,7 +8,7 @@ shapes correctly, the rest of the pipeline neither knows nor cares which impleme
 from __future__ import annotations
 
 import math
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -132,6 +132,11 @@ class PlantFeatures:
     values: dict[str, float | None]
     region_count: int
     per_region: tuple[FeatureVector, ...] = field(default_factory=tuple)
+
+    @classmethod
+    def from_values(cls, values: Mapping[str, float | None]) -> PlantFeatures:
+        """Wrap a flat feature mapping as a single-region ``PlantFeatures``."""
+        return cls(values=dict(values), region_count=1)
 
     def __post_init__(self) -> None:
         for key, value in self.values.items():

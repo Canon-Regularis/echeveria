@@ -50,9 +50,6 @@ _T = TypeVar("_T")
 
 logger = logging.getLogger(__name__)
 
-# A component spec is either a registered name, or {"name": ..., "params": {...}}.
-ComponentSpec = str | Mapping[str, object]
-
 
 @dataclass(frozen=True)
 class Pipeline:
@@ -238,6 +235,8 @@ def _build(registry: Registry[_T], spec: object, default_name: object = None) ->
     try:
         return registry.create(name, **params)
     except KeyError as exc:
-        raise ConfigError(str(exc)) from exc
+        # KeyError.__str__ repr-quotes its message, so read the raw text to keep the error clean.
+        message = str(exc.args[0]) if exc.args else str(exc)
+        raise ConfigError(message) from exc
     except TypeError as exc:
         raise ConfigError(f"could not construct {name!r}: {exc}") from exc

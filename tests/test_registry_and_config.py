@@ -64,6 +64,13 @@ def test_from_config_unknown_component_raises_configerror() -> None:
         Pipeline.from_config({"model": "does-not-exist"})
 
 
+def test_unknown_component_error_message_is_unquoted() -> None:
+    # The wrapped KeyError message must read plainly, without the quotes KeyError.__str__ adds.
+    with pytest.raises(ConfigError, match=r"^unknown ") as info:
+        Pipeline.from_config({"model": "does-not-exist"})
+    assert not str(info.value).startswith('"')
+
+
 def test_from_config_rejects_non_list_feature_extractors() -> None:
     with pytest.raises(ConfigError, match="feature_extractors"):
         Pipeline.from_config({"feature_extractors": "geometry"})

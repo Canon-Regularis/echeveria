@@ -38,6 +38,23 @@ def test_feature_table_header_and_records(dataset_dir) -> None:
     rows = analyze_dataset(Pipeline.default(), FolderClassificationLoader(dataset_dir))
     fieldnames, records = feature_table(rows)
     assert fieldnames[:4] == ["image_path", "label", "split", "source"]
+    assert "target" in fieldnames  # the measured-value column is part of the base schema
     assert "colour.gcc_mean" in fieldnames
     assert len(records) == 2
     assert set(records[0]) <= set(fieldnames)
+
+
+def test_analysis_row_record_carries_the_target() -> None:
+    row = AnalysisRow(
+        image_path="x",
+        label="healthy",
+        split=None,
+        source=None,
+        score=0.2,
+        confidence=0.5,
+        stress_label="healthy",
+        model="m",
+        features={"colour.gcc_mean": 0.4},
+        target=0.7,
+    )
+    assert row.as_record()["target"] == 0.7

@@ -25,6 +25,7 @@ class CsvManifestLoader(InMemoryDataset):
         license_column: str = "license",
         plant_id_column: str = "plant_id",
         timestamp_column: str = "timestamp",
+        target_column: str = "target",
     ) -> None:
         manifest = Path(manifest_path)
         root = resolve_root(images_root, manifest.parent)
@@ -47,6 +48,7 @@ class CsvManifestLoader(InMemoryDataset):
                     license=_clean(row.get(license_column)),
                     plant_id=_clean(row.get(plant_id_column)),
                     timestamp=_clean(row.get(timestamp_column)),
+                    target=_clean_float(row.get(target_column), manifest, target_column),
                 )
                 for row in reader
                 if (image_value := _clean(row.get(image_column)))
@@ -56,3 +58,16 @@ class CsvManifestLoader(InMemoryDataset):
 def _clean(value: str | None) -> str | None:
     stripped = (value or "").strip()
     return stripped or None
+
+
+def _clean_float(value: str | None, manifest: Path, column: str) -> float | None:
+    """Parse a numeric column, tolerating a blank cell; a non-numeric value is a clean error."""
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        raise ConfigError(
+            f"manifest {manifest} has a non-numeric {column!r} value: {text!r}"
+        ) from None

@@ -25,6 +25,21 @@ def test_csv_manifest_loads_samples(tmp_path) -> None:
     assert samples[0].timestamp is None
 
 
+def test_csv_manifest_parses_a_numeric_target(tmp_path) -> None:
+    manifest = tmp_path / "m.csv"
+    manifest.write_text("image_path,target\na.png,0.42\nb.png,\n")
+    samples = list(CsvManifestLoader(manifest))
+    assert samples[0].target == 0.42
+    assert samples[1].target is None  # a blank target cell is None, not an error
+
+
+def test_csv_manifest_rejects_a_non_numeric_target(tmp_path) -> None:
+    manifest = tmp_path / "m.csv"
+    manifest.write_text("image_path,target\na.png,wet\n")
+    with pytest.raises(ConfigError, match="non-numeric"):
+        CsvManifestLoader(manifest)
+
+
 def test_csv_tsv_delimiter_and_blank_rows(tmp_path) -> None:
     manifest = tmp_path / "m.tsv"
     manifest.write_text("image_path\tlabel\na.png\thealthy\n\t\n")

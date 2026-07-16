@@ -9,13 +9,22 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 
-from phytovision.cli import analyze, batch, dashboard, evaluate, phenotype, serve, train
+from phytovision.cli import (
+    analyze,
+    batch,
+    dashboard,
+    evaluate,
+    phenotype,
+    serve,
+    train,
+    validate,
+)
 from phytovision.cli._shared import configure_logging, parse_horizons
 
 # Re-exported under its historical name so existing imports keep working.
 _parse_horizons = parse_horizons
 
-_COMMANDS = (analyze, batch, train, evaluate, serve, dashboard, phenotype)
+_COMMANDS = (analyze, batch, train, evaluate, serve, dashboard, phenotype, validate)
 
 __all__ = ["main"]
 

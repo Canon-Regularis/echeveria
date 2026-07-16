@@ -32,6 +32,8 @@ class AnalysisRow:
     stress_label: str
     model: str
     features: dict[str, float]
+    # A measured water-status value for this image, when the dataset provides one; used by validate.
+    target: float | None = None
 
     def as_record(self) -> dict[str, object]:
         """Flatten to a single dict (features merged in) for CSV/JSON rows."""
@@ -40,6 +42,7 @@ class AnalysisRow:
             "label": self.label,
             "split": self.split,
             "source": self.source,
+            "target": self.target,
             "score": self.score,
             "confidence": self.confidence,
             "stress_label": self.stress_label,
@@ -54,6 +57,7 @@ _BASE_COLUMNS = [
     "label",
     "split",
     "source",
+    "target",
     "score",
     "confidence",
     "stress_label",
@@ -93,4 +97,5 @@ def analyze_dataset(pipeline: Pipeline, loader: DatasetLoader) -> Iterator[Analy
             stress_label=report.stress.label,
             model=report.stress.model_name,
             features=report.plant_features.defined(),
+            target=sample.target,
         )

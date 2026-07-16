@@ -40,6 +40,9 @@ class Sample:
     # timestamp (ISO-8601 works) lets the feature-history store order a plant's observations.
     plant_id: str | None = None
     timestamp: str | None = None
+    # A measured water-status value (soil moisture, leaf water content, or similar), when a dataset
+    # ships one. Units are dataset specific; validate scores the stress score against it.
+    target: float | None = None
     extra: dict[str, object] = field(default_factory=dict)
 
 

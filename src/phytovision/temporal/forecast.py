@@ -14,10 +14,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from phytovision._num import clip01
+from phytovision.models.base import STRESSED_THRESHOLD
 from phytovision.temporal._fit import fit_line
 from phytovision.temporal.history import Observation
 
-_STRESSED_THRESHOLD = 0.66  # matches bucket_label's stressed cut-off
 DEFAULT_HORIZONS = (1, 3, 7)
 
 
@@ -86,10 +86,10 @@ def _steps_to_threshold(intercept: float, slope: float, end: int) -> int | None:
     projected score at that step can never disagree, even at a float boundary or a tiny slope. None
     only when the trend is flat or falling, or already at/above the cut.
     """
-    if slope <= 0.0 or intercept + slope * end >= _STRESSED_THRESHOLD:
+    if slope <= 0.0 or intercept + slope * end >= STRESSED_THRESHOLD:
         return None
-    step = max(1, int(math.ceil((_STRESSED_THRESHOLD - (intercept + slope * end)) / slope)))
-    while intercept + slope * (end + step) < _STRESSED_THRESHOLD:  # walk off any float undershoot
+    step = max(1, int(math.ceil((STRESSED_THRESHOLD - (intercept + slope * end)) / slope)))
+    while intercept + slope * (end + step) < STRESSED_THRESHOLD:  # walk off any float undershoot
         step += 1
     return step
 

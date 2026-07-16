@@ -14,7 +14,12 @@ from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from phytovision._num import normalize01
-from phytovision.models.base import StressModel, bucket_label
+from phytovision.models.base import (
+    HEALTHY_THRESHOLD,
+    STRESSED_THRESHOLD,
+    StressModel,
+    bucket_label,
+)
 from phytovision.types import PlantFeatures, StressAssessment
 
 
@@ -54,8 +59,8 @@ class HeuristicStressModel(StressModel):
     def __init__(
         self,
         bias: float = 0.0,
-        healthy_threshold: float = 0.33,
-        stressed_threshold: float = 0.66,
+        healthy_threshold: float = HEALTHY_THRESHOLD,
+        stressed_threshold: float = STRESSED_THRESHOLD,
     ) -> None:
         self.bias = bias
         self.healthy_threshold = healthy_threshold

@@ -28,8 +28,17 @@ class StressModel(ABC):
     def predict(self, features: PlantFeatures) -> StressAssessment: ...
 
 
+# The canonical bucketing cuts on a stress score in [0, 1]: below the healthy cut is "healthy"; at
+# or above the stressed cut is "stressed"; between them is "mild". Everything that references these
+# cuts imports them from here, so the verdict, the forecast, and the early warning cannot drift.
+HEALTHY_THRESHOLD = 0.33
+STRESSED_THRESHOLD = 0.66
+
+
 def bucket_label(
-    score: float, healthy_threshold: float = 0.33, stressed_threshold: float = 0.66
+    score: float,
+    healthy_threshold: float = HEALTHY_THRESHOLD,
+    stressed_threshold: float = STRESSED_THRESHOLD,
 ) -> str:
     """Map a stress score in [0, 1] to a human bucket: healthy, mild, or stressed."""
     if score < healthy_threshold:

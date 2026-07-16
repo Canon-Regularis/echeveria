@@ -42,7 +42,7 @@ from phytovision.types import (
 
 try:
     __version__ = version("phytovision")
-except PackageNotFoundError:  # pragma: no cover - running from a source tree without install
+except PackageNotFoundError:  # pragma: no cover: running from a source tree without install
     __version__ = "0.0.0.dev0"
 
 __all__ = [

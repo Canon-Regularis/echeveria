@@ -59,7 +59,7 @@ def plant_region(plant_mask: Mask) -> Region:
 class HalfSplitLeafSegmenter(LeafInstanceSegmenter):
     """A trivial leaf segmenter that splits the plant into left/right halves.
 
-    Not biologically meaningful — it exists purely to exercise the multi-region code path so the LSP
+    Not biologically meaningful: it exists purely to exercise the multi-region code path so the LSP
     substitution test can run without a trained model.
     """
 

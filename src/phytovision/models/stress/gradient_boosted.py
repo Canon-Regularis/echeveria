@@ -48,7 +48,7 @@ class GradientBoostedStressModel(StressModel):
     def fit(self, feature_dicts: Sequence[dict[str, float]], labels: Sequence[int]) -> Self:
         try:
             from sklearn.ensemble import HistGradientBoostingClassifier
-        except ImportError as exc:  # pragma: no cover - depends on optional extra
+        except ImportError as exc:  # pragma: no cover: depends on optional extra
             raise ImportError(
                 "GradientBoostedStressModel needs the 'ml' extra: pip install -e \".[ml]\""
             ) from exc
@@ -131,7 +131,7 @@ class GradientBoostedStressModel(StressModel):
         estimator = self._ensure_fitted()
         try:
             import shap
-        except ImportError as exc:  # pragma: no cover - depends on optional extra
+        except ImportError as exc:  # pragma: no cover: depends on optional extra
             raise ImportError(
                 "SHAP explanations need the 'ml' extra: pip install -e \".[ml]\""
             ) from exc

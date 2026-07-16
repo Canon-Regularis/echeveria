@@ -129,7 +129,7 @@ def _make_splits(
 def _splitters() -> tuple[Any, Any]:
     try:
         from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
-    except ImportError as exc:  # pragma: no cover - depends on optional extra
+    except ImportError as exc:  # pragma: no cover: depends on optional extra
         raise ImportError(
             "cross-validation needs the 'ml' extra: pip install -e \".[ml]\""
         ) from exc

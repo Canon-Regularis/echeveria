@@ -139,7 +139,7 @@ def _versions() -> dict[str, str]:
     for dist in ("numpy", "scikit-learn", "phytovision"):
         try:
             out[dist] = metadata.version(dist)
-        except metadata.PackageNotFoundError:  # pragma: no cover - environment dependent
+        except metadata.PackageNotFoundError:  # pragma: no cover: environment dependent
             continue
     return out
 
@@ -147,7 +147,7 @@ def _versions() -> dict[str, str]:
 def _joblib() -> Any:
     try:
         import joblib
-    except ImportError as exc:  # pragma: no cover - depends on optional extra
+    except ImportError as exc:  # pragma: no cover: depends on optional extra
         raise ImportError(
             "model persistence needs the 'ml' extra: pip install -e \".[ml]\""
         ) from exc

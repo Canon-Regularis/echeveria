@@ -100,7 +100,7 @@ class PlantLevelAggregator(FeatureAggregator):
         if policy.get(key) == "sum":
             return float(sum(vals))
         weight_sum = sum(weights)
-        if weight_sum <= 0:  # pragma: no cover - regions always have area > 0; defensive only
+        if weight_sum <= 0:  # pragma: no cover: regions always have area > 0; defensive only
             logger.warning("region areas sum to 0 for %r; falling back to unweighted mean", key)
             return float(np.mean(vals)) if vals else 0.0
         return float(np.average(vals, weights=weights))

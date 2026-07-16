@@ -3,12 +3,12 @@
 ``Pipeline`` depends only on the abstract stage interfaces (dependency inversion); concrete
 implementations are injected. Build one three ways:
 
-- ``Pipeline.default()`` — the v1 stack.
-- ``Pipeline.from_names(model=..., ...)`` — swap stages by registered name.
-- ``Pipeline.from_config({...})`` — full config (names + params), e.g. loaded from TOML/JSON.
+- ``Pipeline.default()``: the v1 stack.
+- ``Pipeline.from_names(model=..., ...)``: swap stages by registered name.
+- ``Pipeline.from_config({...})``: full config with names and params, loaded from TOML/JSON.
 
 The ``with_*`` builders return a new pipeline with one stage swapped; ``add_head`` adds an optional
-post-model head. Nothing here is edited to add a new implementation — it registers in
+post-model head. Nothing here is edited to add a new implementation: it registers in
 :mod:`phytovision.registries` and becomes selectable.
 """
 

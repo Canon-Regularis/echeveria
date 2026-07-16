@@ -2,7 +2,7 @@
 
 Design notes:
 - ``FeatureExtractor`` uses a *template method*: subclasses implement ``_compute``, and the
-  base ``extract`` enforces the invariant for every subtype — keys are namespaced and every value
+  base ``extract`` enforces the invariant for every subtype: keys are namespaced and every value
   is a finite float. A subtype cannot violate the contract, which is what LSP requires.
 - Extractors declare which of their traits are *extensive* (summed across regions) vs intensive
   (area-weighted mean) via ``reduction_policy``, so the aggregator never has to hardcode key names.

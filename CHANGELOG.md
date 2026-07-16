@@ -64,7 +64,7 @@ All notable changes to this project are documented here. The format is based on
 - Packaging modernized to PEP 639 SPDX license metadata; `all` extra is self-referential.
 - Version is single-sourced from installed distribution metadata.
 
-## [0.1.0] - 2026-07-12
+## [0.1.0] (2026-07-12)
 
 ### Added
 - Initial explainable water-stress pipeline: preprocessing, Excess-Green segmentation, whole-plant

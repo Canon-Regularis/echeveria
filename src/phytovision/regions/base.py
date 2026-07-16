@@ -1,4 +1,4 @@
-"""The ``RegionProvider`` contract — the pipeline's central extensibility seam.
+"""The ``RegionProvider`` contract, the pipeline's central extensibility seam.
 
 Every provider maps ``(image, plant_mask)`` to a **non-empty** ``RegionSet``. Whether it returns one
 whole-plant region or N leaf regions, downstream stages are identical, so any provider can replace

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 
+from phytovision.analysis import AnalysisRow
 from phytovision.exceptions import ConfigError
 from phytovision.models.base import StressModel
 from phytovision.models.stress.ensemble import EnsembleStressModel
@@ -20,10 +21,28 @@ from phytovision.types import PlantFeatures
 # Builds and fits a model from a fold: (feature_keys, feature_dicts, labels) -> fitted model.
 ModelFactory = Callable[[Sequence[str], Sequence[Mapping[str, float]], Sequence[int]], StressModel]
 
+# Score at or above this counts as stressed when a model's output becomes a 0/1 label.
+_DECISION_THRESHOLD = 0.5
+
 
 def to_plant_features(values: Mapping[str, float]) -> PlantFeatures:
     """Wrap a flat feature dict in the ``PlantFeatures`` a model's ``predict`` expects."""
     return PlantFeatures(values=dict(values), region_count=1)
+
+
+def binary_labels(rows: Sequence[AnalysisRow], healthy_label: str) -> list[int]:
+    """Map labelled rows to 0 (the healthy label) or 1 (anything else) for the metrics."""
+    return [0 if row.label == healthy_label else 1 for row in rows]
+
+
+def predict_label(model: StressModel, row: Mapping[str, float]) -> int:
+    """A fitted model's 0/1 label for one feature row, thresholded at the decision cut."""
+    return int(model.predict(to_plant_features(row)).score >= _DECISION_THRESHOLD)
+
+
+def predict_labels(model: StressModel, rows: Sequence[Mapping[str, float]]) -> list[int]:
+    """A fitted model's 0/1 label for each feature row."""
+    return [predict_label(model, row) for row in rows]
 
 
 def feature_keys_of(feature_dicts: Sequence[Mapping[str, float]]) -> list[str]:
@@ -55,6 +74,11 @@ _FACTORIES: dict[str, ModelFactory] = {
 }
 
 
+def trainable_model_names() -> tuple[str, ...]:
+    """The model names that can be fitted, for both training and evaluation."""
+    return tuple(_FACTORIES)
+
+
 def model_factory(name: str) -> ModelFactory:
     """Resolve a trainable model factory by name. The heuristic cannot fit, so it is not offered."""
     try:
@@ -75,4 +99,4 @@ def fit_predict_labels(
     """Fit a model on the train fold and return 0/1 predictions for the test fold."""
     build = factory or gradient_boosted_factory
     model = build(feature_keys, train_dicts, train_labels)
-    return [int(model.predict(to_plant_features(row)).score >= 0.5) for row in test_dicts]
+    return predict_labels(model, test_dicts)

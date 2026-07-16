@@ -9,7 +9,8 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from skimage.measure import find_contours, regionprops
+from skimage.measure import find_contours
+from skimage.measure import perimeter as measure_perimeter
 
 from phytovision._num import EPS
 from phytovision.phenotyping.base import FeatureExtractor, prop, single_region_props
@@ -29,7 +30,9 @@ class MorphologyFeatures(FeatureExtractor):
         convex_image = getattr(props, "image_convex", None)
         if convex_image is None:
             convex_image = props.convex_image  # older scikit-image
-        convex_perimeter = float(regionprops(convex_image.astype(np.int32))[0].perimeter)
+        # perimeter() gives the same value as regionprops(...).perimeter without building a whole
+        # RegionProperties object just to read one attribute.
+        convex_perimeter = float(measure_perimeter(convex_image))
 
         radial_variation = _radial_variation(mask, props.centroid)
         # boundary_complexity = perimeter vs the perimeter of an equal-area circle (>= 1).

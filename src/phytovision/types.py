@@ -169,6 +169,11 @@ class Reason:
     value: float  # the feature's observed value
     description: str
 
+    @property
+    def marker(self) -> str:
+        """A ``+`` when this reason raises the estimate, otherwise ``-``."""
+        return "+" if self.direction == "increases" else "-"
+
 
 @dataclass(frozen=True, slots=True)
 class Explanation:

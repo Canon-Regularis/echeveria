@@ -59,8 +59,7 @@ def _draw_caption(img: PILImage.Image, report: AnalysisReport) -> None:
     lines = [f"{stress.label.upper()}  score={stress.score:.2f}  conf={stress.confidence:.2f}"]
     if report.explanation.reasons:
         reason = report.explanation.reasons[0]
-        marker = "+" if reason.direction == "increases" else "-"
-        lines.append(f"[{marker}] {reason.feature}")
+        lines.append(f"[{reason.marker}] {reason.feature}")
 
     draw = ImageDraw.Draw(img, "RGBA")
     draw.rectangle([(0, 0), (img.width, 12 * len(lines) + 6)], fill=(0, 0, 0, 170))

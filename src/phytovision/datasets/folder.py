@@ -6,13 +6,17 @@ Matches the layout of several v1 datasets (Kaggle healthy/wilted, Mendeley aloe 
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from pathlib import Path
 
-from phytovision.datasets.base import IMAGE_SUFFIXES, DatasetLoader, Sample
+from phytovision.datasets.base import (
+    IMAGE_SUFFIXES,
+    InMemoryDataset,
+    Sample,
+    require_directory,
+)
 
 
-class FolderClassificationLoader(DatasetLoader):
+class FolderClassificationLoader(InMemoryDataset):
     def __init__(
         self,
         root: str | Path,
@@ -20,9 +24,7 @@ class FolderClassificationLoader(DatasetLoader):
         license: str | None = None,
         split: str | None = None,
     ) -> None:
-        self.root = Path(root)
-        if not self.root.is_dir():
-            raise NotADirectoryError(f"dataset root is not a directory: {self.root}")
+        self.root = require_directory(root, "dataset root")
         self.source = source
         self.license = license
         self.split = split
@@ -43,13 +45,3 @@ class FolderClassificationLoader(DatasetLoader):
                         )
                     )
         return samples
-
-    def __iter__(self) -> Iterator[Sample]:
-        return iter(self._samples)
-
-    def __len__(self) -> int:
-        return len(self._samples)
-
-    @property
-    def labels(self) -> list[str]:
-        return sorted({s.label for s in self._samples if s.label is not None})

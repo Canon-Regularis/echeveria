@@ -8,15 +8,14 @@ None. This is the ingestion path for the aloe stress detection sets and for a fu
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from phytovision.datasets.base import DatasetLoader, Sample
+from phytovision.datasets.base import InMemoryDataset, Sample, resolve_root
 from phytovision.exceptions import ConfigError
 
 
-class CocoDetectionLoader(DatasetLoader):
+class CocoDetectionLoader(InMemoryDataset):
     def __init__(
         self,
         annotations_path: str | Path,
@@ -32,7 +31,7 @@ class CocoDetectionLoader(DatasetLoader):
             raise ConfigError(f"could not parse COCO file {annotations}: {exc}") from exc
         if not isinstance(data, dict):
             raise ConfigError(f"COCO file {annotations} must be a JSON object at the top level")
-        root = Path(images_root) if images_root is not None else annotations.parent
+        root = resolve_root(images_root, annotations.parent)
 
         # A malformed export (missing a required id/bbox/file_name, or a non-object entry) becomes a
         # clean ConfigError naming the file, rather than a bare KeyError or TypeError.
@@ -40,12 +39,6 @@ class CocoDetectionLoader(DatasetLoader):
             self._samples, self._categories = _parse(data, root, split, source, license)
         except (KeyError, TypeError, AttributeError) as exc:
             raise ConfigError(f"malformed COCO file {annotations}: {exc}") from exc
-
-    def __iter__(self) -> Iterator[Sample]:
-        return iter(self._samples)
-
-    def __len__(self) -> int:
-        return len(self._samples)
 
     @property
     def categories(self) -> list[str]:

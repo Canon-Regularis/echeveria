@@ -7,14 +7,13 @@ provenance. Column names are configurable so it reads exports from other tools w
 from __future__ import annotations
 
 import csv
-from collections.abc import Iterator
 from pathlib import Path
 
-from phytovision.datasets.base import DatasetLoader, Sample
+from phytovision.datasets.base import InMemoryDataset, Sample, resolve_root
 from phytovision.exceptions import ConfigError
 
 
-class CsvManifestLoader(DatasetLoader):
+class CsvManifestLoader(InMemoryDataset):
     def __init__(
         self,
         manifest_path: str | Path,
@@ -28,7 +27,7 @@ class CsvManifestLoader(DatasetLoader):
         timestamp_column: str = "timestamp",
     ) -> None:
         manifest = Path(manifest_path)
-        root = Path(images_root) if images_root is not None else manifest.parent
+        root = resolve_root(images_root, manifest.parent)
         delimiter = "\t" if manifest.suffix.lower() in {".tsv", ".tab"} else ","
         # utf-8-sig drops the BOM that Excel and pandas prepend, so the first column name matches.
         with manifest.open(newline="", encoding="utf-8-sig") as handle:
@@ -52,12 +51,6 @@ class CsvManifestLoader(DatasetLoader):
                 for row in reader
                 if (image_value := _clean(row.get(image_column)))
             ]
-
-    def __iter__(self) -> Iterator[Sample]:
-        return iter(self._samples)
-
-    def __len__(self) -> int:
-        return len(self._samples)
 
 
 def _clean(value: str | None) -> str | None:

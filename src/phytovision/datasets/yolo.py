@@ -8,13 +8,18 @@ loader, and ``Sample.label`` stays None because detection data has no single ima
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
-from phytovision.datasets.base import IMAGE_SUFFIXES, DatasetLoader, Sample
+from phytovision.datasets.base import (
+    IMAGE_SUFFIXES,
+    InMemoryDataset,
+    Sample,
+    require_directory,
+)
 
 
-class YoloDetectionLoader(DatasetLoader):
+class YoloDetectionLoader(InMemoryDataset):
     def __init__(
         self,
         images_dir: str | Path,
@@ -24,9 +29,7 @@ class YoloDetectionLoader(DatasetLoader):
         license: str | None = None,
         split: str | None = None,
     ) -> None:
-        images = Path(images_dir)
-        if not images.is_dir():
-            raise NotADirectoryError(f"images directory is not a directory: {images}")
+        images = require_directory(images_dir, "images directory")
         labels = Path(labels_dir) if labels_dir is not None else images.parent / "labels"
         names = list(class_names) if class_names is not None else None
         self._categories = names
@@ -44,12 +47,6 @@ class YoloDetectionLoader(DatasetLoader):
                     extra={"boxes": boxes},
                 )
             )
-
-    def __iter__(self) -> Iterator[Sample]:
-        return iter(self._samples)
-
-    def __len__(self) -> int:
-        return len(self._samples)
 
     @property
     def categories(self) -> list[str] | None:

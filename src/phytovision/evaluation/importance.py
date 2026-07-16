@@ -12,7 +12,12 @@ from collections.abc import Iterable, Mapping, Sequence
 import numpy as np
 
 from phytovision.analysis import AnalysisRow
-from phytovision.evaluation._common import feature_keys_of, model_factory, to_plant_features
+from phytovision.evaluation._common import (
+    binary_labels,
+    feature_keys_of,
+    model_factory,
+    predict_labels,
+)
 from phytovision.exceptions import ConfigError
 from phytovision.models.base import StressModel
 
@@ -31,7 +36,7 @@ def permutation_importance(
     :raises ImportError: if the ``ml`` extra (scikit-learn) is not installed.
     """
     rows = list(rows)
-    labels = [0 if row.label == healthy_label else 1 for row in rows]
+    labels = binary_labels(rows, healthy_label)
     if len(set(labels)) < 2:
         raise ConfigError("permutation importance needs both classes present")
 
@@ -54,9 +59,9 @@ def permutation_importance(
 def _accuracy(
     model: StressModel, feature_dicts: Sequence[Mapping[str, float]], labels: Sequence[int]
 ) -> float:
+    predictions = predict_labels(model, feature_dicts)
     correct = sum(
-        int(model.predict(to_plant_features(row)).score >= 0.5) == label
-        for row, label in zip(feature_dicts, labels, strict=True)
+        int(prediction == label) for prediction, label in zip(predictions, labels, strict=True)
     )
     return correct / len(labels)
 

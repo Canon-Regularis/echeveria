@@ -16,7 +16,12 @@ from typing import Any
 import numpy as np
 
 from phytovision.analysis import AnalysisRow
-from phytovision.evaluation._common import feature_keys_of, fit_predict_labels, model_factory
+from phytovision.evaluation._common import (
+    binary_labels,
+    feature_keys_of,
+    fit_predict_labels,
+    model_factory,
+)
 from phytovision.evaluation.metrics import binary_metrics
 from phytovision.exceptions import ConfigError
 
@@ -73,7 +78,7 @@ def grouped_stratified_cv(
         raise ConfigError("cross-validation needs at least two folds")
     factory = model_factory(model)  # resolve early so an untrainable model fails before any work
     rows = list(rows)
-    labels = [0 if row.label == healthy_label else 1 for row in rows]
+    labels = binary_labels(rows, healthy_label)
     if len(set(labels)) < 2:
         raise ConfigError("cross-validation needs both classes present in the data")
 

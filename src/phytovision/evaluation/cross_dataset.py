@@ -15,7 +15,12 @@ from dataclasses import dataclass
 import numpy as np
 
 from phytovision.analysis import AnalysisRow
-from phytovision.evaluation._common import feature_keys_of, fit_predict_labels, model_factory
+from phytovision.evaluation._common import (
+    binary_labels,
+    feature_keys_of,
+    fit_predict_labels,
+    model_factory,
+)
 from phytovision.evaluation.metrics import BinaryMetrics, binary_metrics
 from phytovision.exceptions import ConfigError
 
@@ -67,7 +72,7 @@ def leave_one_dataset_out(
     for held in sources:
         train_rows = [row for row in rows if row.source != held]
         test_rows = [row for row in rows if row.source == held]
-        train_labels = [_label(row, healthy_label) for row in train_rows]
+        train_labels = binary_labels(train_rows, healthy_label)
         if len(set(train_labels)) < 2:
             logger.warning("skipping held-out dataset %s: training data has a single class", held)
             continue
@@ -79,13 +84,9 @@ def leave_one_dataset_out(
             keys,
             factory,
         )
-        test_labels = [_label(row, healthy_label) for row in test_rows]
+        test_labels = binary_labels(test_rows, healthy_label)
         entries.append((held, binary_metrics(test_labels, predictions)))
 
     if not entries:
         raise ConfigError("no dataset could be held out with two training classes")
     return TransferMatrix(tuple(entries))
-
-
-def _label(row: AnalysisRow, healthy_label: str) -> int:
-    return 0 if row.label == healthy_label else 1

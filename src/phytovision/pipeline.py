@@ -30,6 +30,7 @@ from phytovision.models.base import Head, StressModel
 from phytovision.phenotyping.aggregation.base import FeatureAggregator
 from phytovision.phenotyping.base import CompositeFeatureExtractor, FeatureExtraction
 from phytovision.preprocessing.base import Preprocessor
+from phytovision.quality import assess_quality
 from phytovision.regions.base import RegionProvider
 from phytovision.registries import (
     AGGREGATORS,
@@ -163,6 +164,9 @@ class Pipeline:
         if self.heads:
             lap("heads")
 
+        quality = assess_quality(prepared, float(plant_mask.mean()))
+        lap("quality")
+
         timing_ms["total"] = (time.perf_counter() - started) * 1000.0
         logger.debug(
             "analyze: stress=%.3f (%s) in %.1f ms",
@@ -179,6 +183,7 @@ class Pipeline:
             explanation=explanation,
             head_outputs=head_outputs,
             timing_ms=timing_ms,
+            quality=quality,
         )
 
     # --- builders (return a new Pipeline with one stage swapped / a head added) ---

@@ -14,10 +14,23 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from phytovision.exceptions import ContractViolationError
+from phytovision.quality import QualityAssessment
 
 # Type aliases (documentation-level; runtime is plain ``numpy.ndarray``).
 Image = np.ndarray  # H x W x 3, RGB. uint8 for raw input, float32 in [0, 1] once preprocessed.
 Mask = np.ndarray  # H x W, boolean. True = foreground / inside region.
+
+
+def _default_quality() -> QualityAssessment:
+    """A neutral quality placeholder for a report built outside the pipeline."""
+    return QualityAssessment(
+        usable=True,
+        flags=(),
+        warnings=(),
+        blur_score=0.0,
+        foreground_fraction=0.0,
+        luminance_std=0.0,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,6 +218,8 @@ class AnalysisReport:
     head_outputs: dict[str, object] = field(default_factory=dict)
     # Per-stage wall-clock timing in milliseconds, populated by the pipeline.
     timing_ms: dict[str, float] = field(default_factory=dict)
+    # Reliability of this analysis (blur, uniformity, segmentation coverage), set by the pipeline.
+    quality: QualityAssessment = field(default_factory=_default_quality)
 
     def summary(self) -> dict[str, object]:
         """A compact, JSON-serializable digest for CLIs / APIs."""
@@ -230,6 +245,7 @@ class AnalysisReport:
                 for r in self.explanation.reasons[:5]
             ],
             "heads": sorted(self.head_outputs),
+            "quality": self.quality.as_dict(),
         }
         if self.explanation.additivity_error is not None:
             digest["additivity_error"] = round(self.explanation.additivity_error, 5)

@@ -82,6 +82,13 @@ def observation_table(observations: Sequence[Observation]) -> list[dict[str, obj
     ]
 
 
+def quality_banner(report: AnalysisReport) -> str | None:
+    """A one-line reliability warning for the analyze tab, or None when the input looks fine."""
+    if report.quality.usable:
+        return None
+    return "Low input quality: " + "; ".join(report.quality.warnings)
+
+
 def timing_rows(report: AnalysisReport) -> list[dict[str, object]]:
     """Per-stage wall-clock timing rows in pipeline order."""
     return [{"stage": stage, "ms": round(ms, 1)} for stage, ms in report.timing_ms.items()]
@@ -132,7 +139,7 @@ def _render_analyze_tab(
     import plotly.graph_objects as go
     import streamlit as st
 
-    from phytovision.visualize import render_overlay
+    from phytovision.visualize import render_overlay, render_saliency_overlay
 
     st.caption("Upload a plant image. The verdict, overlay, and drivers behind it appear below.")
     upload = st.file_uploader(
@@ -159,6 +166,10 @@ def _render_analyze_tab(
     regions.metric(f"regions ({report.regions.kind})", len(report.regions))
     model.metric("model", stress.model_name)
 
+    banner = quality_banner(report)
+    if banner:
+        st.warning(banner)
+
     if conformal is not None:
         label_set = conformal.predict_set(report.plant_features)
         coverage = round((1.0 - label_set.alpha) * 100)
@@ -184,6 +195,11 @@ def _render_analyze_tab(
         st.markdown("**INPUT / OVERLAY**")
         st.image(image, caption="input", use_container_width=True)
         st.image(render_overlay(image, report), caption="overlay", use_container_width=True)
+        st.image(
+            render_saliency_overlay(image, report, engine.model),
+            caption="pigment saliency (RGB proxy)",
+            use_container_width=True,
+        )
     with right.container(border=True):
         st.markdown("**DRIVERS**")
         features, contributions = contribution_series(report)

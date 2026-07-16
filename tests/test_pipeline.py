@@ -24,6 +24,13 @@ def test_summary_is_json_shaped(healthy_image) -> None:
     assert set(summary["stress"]) == {"score", "confidence", "label", "model"}
 
 
+def test_report_carries_a_quality_assessment(healthy_image) -> None:
+    report = Pipeline.default().analyze(healthy_image)
+    assert isinstance(report.quality.usable, bool)
+    assert report.quality.usable  # the clean synthetic blob is analysable
+    assert "quality" in report.summary()
+
+
 def test_healthy_scores_lower_than_stressed(healthy_image, stressed_image) -> None:
     pipeline = Pipeline.default()
     healthy = pipeline.analyze(healthy_image).stress.score

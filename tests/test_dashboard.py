@@ -16,11 +16,13 @@ from phytovision.dashboard import (
     disease_series,
     forecast_points,
     observation_table,
+    quality_banner,
     reason_rows,
     timing_rows,
 )
 from phytovision.exceptions import InvalidImageError
 from phytovision.pipeline import Pipeline
+from phytovision.quality import QualityAssessment
 from phytovision.serving import attach_heads
 from phytovision.temporal import Forecast, Observation
 
@@ -28,6 +30,22 @@ from phytovision.temporal import Forecast, Observation
 @pytest.fixture
 def report(stressed_image):
     return Pipeline.default().analyze(stressed_image)
+
+
+def test_quality_banner_is_none_when_usable(report) -> None:
+    assert quality_banner(report) is None
+
+
+def test_quality_banner_summarises_warnings(report) -> None:
+    warning = "image detail is very low, so the score may be unreliable"
+    unusable = replace(
+        report,
+        quality=QualityAssessment(False, ("blurry",), (warning,), 0.0, 0.3, 0.2),
+    )
+    banner = quality_banner(unusable)
+    assert banner is not None
+    assert "Low input quality" in banner
+    assert warning in banner
 
 
 def _png_bytes(image) -> bytes:

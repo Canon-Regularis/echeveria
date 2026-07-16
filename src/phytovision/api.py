@@ -27,7 +27,7 @@ from phytovision.temporal import (
     plant_trends,
 )
 from phytovision.types import AnalysisReport, Image
-from phytovision.visualize import render_overlay
+from phytovision.visualize import render_overlay, render_saliency_overlay
 
 
 def create_app(
@@ -54,15 +54,17 @@ def create_app(
         if conformal is not None:
             label_set = conformal.predict_set(report.plant_features)
             payload["conformal"] = {"labels": list(label_set.labels), "alpha": label_set.alpha}
+        notes: list[str] = []
         if report.head_outputs:  # summary() lists head names only; expose the values here
             payload["head_outputs"] = report.head_outputs
-            notes = []
             if "disease" in report.head_outputs:
                 notes.append("disease is an unvalidated placeholder, not a diagnostic")
             if "drought_stage" in report.head_outputs:
                 notes.append("drought_stage is a literature-motivated rule set, not a diagnosis")
-            if notes:
-                payload["disclaimer"] = "; ".join(notes)
+        if not report.quality.usable:
+            notes.append("input quality is low, so the score may be unreliable")
+        if notes:
+            payload["disclaimer"] = "; ".join(notes)
         return payload
 
     @app.post("/overlay")
@@ -71,6 +73,15 @@ def create_app(
         report = _run(engine, image)
         buffer = io.BytesIO()
         render_overlay(image, report).save(buffer, format="PNG")
+        return Response(content=buffer.getvalue(), media_type="image/png")
+
+    @app.post("/saliency")
+    async def saliency(file: UploadFile) -> Response:
+        """A pigment saliency overlay: where colour drivers moved the score. It is an RGB proxy."""
+        image = _decode(await file.read())
+        report = _run(engine, image)
+        buffer = io.BytesIO()
+        render_saliency_overlay(image, report, engine.model).save(buffer, format="PNG")
         return Response(content=buffer.getvalue(), media_type="image/png")
 
     @app.post("/trend")

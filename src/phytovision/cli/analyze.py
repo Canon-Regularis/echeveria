@@ -13,7 +13,7 @@ from phytovision.models.base import StressModel
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.models.persistence import load_saved
 from phytovision.serving import attach_heads
-from phytovision.visualize import render_overlay
+from phytovision.visualize import render_overlay, render_saliency_overlay
 
 
 def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -23,6 +23,9 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
     parser.add_argument("--json", action="store_true", help="emit the JSON summary only")
     parser.add_argument("--features", action="store_true", help="include the full feature vector")
     parser.add_argument("--save-overlay", metavar="PNG", help="write an annotated overlay image")
+    parser.add_argument(
+        "--save-saliency", metavar="PNG", help="write a pigment saliency overlay (an RGB proxy)"
+    )
     parser.add_argument("--timing", action="store_true", help="show per-stage wall-clock timing")
     parser.add_argument(
         "--disease",
@@ -67,6 +70,10 @@ def run(args: argparse.Namespace) -> int:
         )
         if args.save_overlay:
             render_overlay(load_image(args.image), report).save(args.save_overlay)
+        if args.save_saliency:
+            render_saliency_overlay(load_image(args.image), report, pipeline.model).save(
+                args.save_saliency
+            )
     except (OSError, ImportError, PhytoVisionError) as exc:
         return fail(str(exc))
 
@@ -102,6 +109,9 @@ def run(args: argparse.Namespace) -> int:
         f"score={stress.score:.2f}  confidence={stress.confidence:.2f}  "
         f"(model: {stress.model_name})"
     )
+    if not report.quality.usable:
+        for note in report.quality.warnings:
+            print(f"QUALITY: {note}")
     if conformal_set is not None:
         coverage = round((1.0 - conformal_set.alpha) * 100)
         members = " or ".join(conformal_set.labels) if conformal_set.labels else "(empty)"
@@ -134,4 +144,6 @@ def run(args: argparse.Namespace) -> int:
             print(f"  {key} = {value:.4f}")
     if args.save_overlay:
         print(f"Overlay written to {args.save_overlay}")
+    if args.save_saliency:
+        print(f"Saliency written to {args.save_saliency}")
     return 0

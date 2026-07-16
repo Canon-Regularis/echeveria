@@ -54,6 +54,14 @@ class GradientBoostedStressModel(StressModel):
             ) from exc
 
         matrix = np.array([self._vector(d) for d in feature_dicts], dtype=np.float64)
+        if matrix.size == 0:
+            raise ConfigError("cannot train on an empty feature matrix")
+        # A feature that is missing (NaN) for every sample has nothing to bin, and the histogram
+        # learner would otherwise fail with a cryptic error. Reject it with a clear message.
+        all_missing = np.isnan(matrix).all(axis=0)
+        if all_missing.any():
+            missing = [self.feature_keys[j] for j in np.flatnonzero(all_missing)]
+            raise ConfigError(f"cannot train: feature(s) {missing} are missing for every sample")
         self._background = np.nanmean(matrix, axis=0)
         model = HistGradientBoostingClassifier()
         model.fit(matrix, list(labels))

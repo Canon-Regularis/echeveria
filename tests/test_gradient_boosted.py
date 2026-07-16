@@ -70,6 +70,31 @@ def test_gbm_is_a_substitutable_stress_model() -> None:
         assert 0.0 <= assessment.confidence <= 1.0
 
 
+def test_fit_rejects_an_all_missing_feature_with_a_clear_error() -> None:
+    # A feature that is NaN for every sample crashes the histogram learner cryptically; it must be a
+    # clean ConfigError naming the feature (real for library callers and cross-dataset CV).
+    dicts = [{"colour.gcc_mean": 0.4}, {"colour.gcc_mean": 0.3}, {"colour.gcc_mean": 0.4}]
+    labels = [0, 1, 0]
+    model = GradientBoostedStressModel(feature_keys=["colour.gcc_mean", "colour.yellow_fraction"])
+    with pytest.raises(ConfigError, match="colour.yellow_fraction"):
+        model.fit(dicts, labels)
+
+
+def test_fit_trains_when_a_feature_is_only_partially_missing() -> None:
+    # A feature missing for SOME samples is fine (the learner handles per-sample NaN); only an
+    # entirely-missing column is rejected.
+    dicts, labels = _training_data(per_class=20)
+    for row in dicts[::3]:  # drop one feature from a third of the rows
+        row.pop("texture.entropy", None)
+    model = GradientBoostedStressModel(feature_keys=_KEYS).fit(dicts, labels)
+    assert 0.0 <= model.predict(PlantFeatures(values=dicts[0], region_count=1)).score <= 1.0
+
+
+def test_fit_rejects_empty_training_data() -> None:
+    with pytest.raises(ConfigError):
+        GradientBoostedStressModel(feature_keys=_KEYS).fit([], [])
+
+
 def test_gbm_contributions_cover_all_features() -> None:
     dicts, labels = _training_data()
     model = GradientBoostedStressModel(feature_keys=_KEYS).fit(dicts, labels)

@@ -30,11 +30,15 @@ jobs:
         with:
           path: site
 
+  # The deploy publishes only once GitHub Pages is enabled in the repository settings, under
+  # Settings, Pages, Build and deployment, Source: GitHub Actions. Until then it reports a 404, so it
+  # is allowed to fail without failing the workflow; the strict build above stays the required gate.
   deploy:
     name: deploy to GitHub Pages
     if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       pages: write
       id-token: write

@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import pytest
 from PIL import Image as PILImage
 
 from phytovision.datasets.coco import CocoDetectionLoader
 from phytovision.datasets.folder import FolderClassificationLoader
+from phytovision.exceptions import ConfigError
 
 
 def test_folder_loader_reads_classes_and_metadata(tmp_path) -> None:
@@ -52,3 +54,33 @@ def test_coco_loader_reads_boxes_and_categories(tmp_path) -> None:
     boxes = sample.extra["boxes"]
     assert isinstance(boxes, list)
     assert {box["category"] for box in boxes} == {"Healthy", "Unhealthy"}
+
+
+def test_coco_invalid_json_is_a_clean_config_error(tmp_path) -> None:
+    # A truncated or corrupt download must name the file, not raise a bare JSONDecodeError.
+    bad = tmp_path / "bad.coco.json"
+    bad.write_text("{not valid json")
+    with pytest.raises(ConfigError, match="could not parse"):
+        CocoDetectionLoader(bad)
+
+
+def test_coco_non_object_top_level_is_a_clean_config_error(tmp_path) -> None:
+    listy = tmp_path / "list.coco.json"
+    listy.write_text(json.dumps([1, 2, 3]))
+    with pytest.raises(ConfigError, match="JSON object"):
+        CocoDetectionLoader(listy)
+
+
+def test_coco_missing_required_key_is_a_clean_config_error(tmp_path) -> None:
+    # An image entry without file_name must be a clean, file-named error, not a bare KeyError.
+    malformed = tmp_path / "m.coco.json"
+    malformed.write_text(json.dumps({"images": [{"id": 1}], "annotations": [], "categories": []}))
+    with pytest.raises(ConfigError, match="malformed"):
+        CocoDetectionLoader(malformed)
+
+
+def test_coco_empty_object_yields_no_samples(tmp_path) -> None:
+    empty = tmp_path / "e.coco.json"
+    empty.write_text(json.dumps({}))
+    loader = CocoDetectionLoader(empty)
+    assert len(loader) == 0 and loader.categories == []

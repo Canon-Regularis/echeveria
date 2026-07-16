@@ -20,6 +20,12 @@ _EARLY = "early-stress"
 _MODERATE = "moderate"
 _SEVERE = "severe"
 
+# The marker score at which each driver first counts, so the early-stage branch and the basis text
+# read from one definition and cannot disagree about whether a marker is elevated.
+_PIGMENT_EARLY = 0.25
+_TURGOR_EARLY = 0.20
+_NECROSIS_EARLY = 0.10
+
 
 class RuleBasedDroughtStage(DroughtStageModel):
     name: ClassVar[str] = "rule-based-drought-v0"
@@ -39,7 +45,7 @@ def stage_from_values(values: Mapping[str, float | None]) -> dict[str, object]:
         name = _SEVERE
     elif turgor >= 0.30 or pigment >= 0.50 or necrosis >= 0.20:
         name = _MODERATE
-    elif pigment >= 0.25 or turgor >= 0.20 or necrosis >= 0.10:
+    elif pigment >= _PIGMENT_EARLY or turgor >= _TURGOR_EARLY or necrosis >= _NECROSIS_EARLY:
         name = _EARLY
     else:
         name = _WELL_WATERED
@@ -56,9 +62,9 @@ def _basis(pigment: float, turgor: float, necrosis: float) -> str:
     """Name the markers actually elevated, so the basis never contradicts the reported scores."""
     # Floors match the earliest stage each marker can trigger, so a driver is named iff it counts.
     candidates = [
-        (pigment, "pigment loss", 0.25),
-        (turgor, "turgor loss", 0.20),
-        (necrosis, "browning", 0.10),
+        (pigment, "pigment loss", _PIGMENT_EARLY),
+        (turgor, "turgor loss", _TURGOR_EARLY),
+        (necrosis, "browning", _NECROSIS_EARLY),
     ]
     drivers = [label for value, label, floor in sorted(candidates, reverse=True) if value >= floor]
     return " and ".join(drivers) if drivers else "no strong drought markers"

@@ -182,6 +182,8 @@ class Reason:
 
 @dataclass(frozen=True, slots=True)
 class Explanation:
+    """Why a model reached its verdict: the ranked reasons and the method that produced them."""
+
     reasons: tuple[Reason, ...]
     method: str  # e.g. "feature-contribution" | "shap"
     # How far the attribution is from completeness (sum of contributions vs the model output).

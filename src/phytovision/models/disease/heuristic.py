@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from phytovision._num import as_float, clip01
+from phytovision._num import clip01, feature_value
 from phytovision.models.disease.base import DiseaseModel
 from phytovision.types import PlantFeatures
 
@@ -20,12 +20,7 @@ class HeuristicDiseaseModel(DiseaseModel):
 
     def predict(self, features: PlantFeatures) -> dict[str, float]:
         values = features.values
-        brown = _value(values, "colour.brown_fraction")
-        speckle = clip01(_value(values, "texture.glcm_contrast") / 5.0)
+        brown = feature_value(values, "colour.brown_fraction", 0.0)
+        speckle = clip01(feature_value(values, "texture.glcm_contrast", 0.0) / 5.0)
         risk = clip01(0.6 * brown + 0.4 * speckle)
         return {"healthy": 1.0 - risk, "lesion-like": risk}
-
-
-def _value(values: dict[str, float | None], key: str) -> float:
-    """Read ``key`` as a float, or 0.0 when it is missing."""
-    return as_float(values.get(key), 0.0)

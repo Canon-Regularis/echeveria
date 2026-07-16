@@ -6,6 +6,8 @@ cycle. Keep it tiny: only genuinely cross-cutting helpers belong here.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 # A small positive constant used to keep divisions away from zero.
 EPS = 1e-9
 
@@ -23,3 +25,8 @@ def normalize01(value: float, lo: float, hi: float) -> float:
 def as_float(value: object, default: float) -> float:
     """Coerce an optional feature value to a float, using ``default`` when the value is None."""
     return default if value is None else float(value)  # type: ignore[arg-type]
+
+
+def feature_value(values: Mapping[str, object], key: str, default: float) -> float:
+    """Read ``key`` from a feature mapping as a float, using ``default`` when it is missing."""
+    return as_float(values.get(key), default)

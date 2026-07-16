@@ -17,7 +17,7 @@ from typing import Any, ClassVar, Self
 
 import numpy as np
 
-from phytovision._num import as_float
+from phytovision._num import feature_value
 from phytovision.exceptions import ConfigError, ModelNotFittedError, ModelSchemaError
 from phytovision.models.base import ShapResult, StressModel
 from phytovision.types import PlantFeatures, StressAssessment
@@ -203,7 +203,9 @@ class GradientBoostedStressModel(StressModel):
 
     def _vector(self, values: Mapping[str, float | None]) -> np.ndarray:
         nan = float("nan")
-        return np.array([as_float(values.get(k), nan) for k in self.feature_keys], dtype=np.float64)
+        return np.array(
+            [feature_value(values, k, nan) for k in self.feature_keys], dtype=np.float64
+        )
 
     def _score(self, x: np.ndarray) -> float:
         model = self._ensure_fitted()

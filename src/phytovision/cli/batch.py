@@ -35,6 +35,9 @@ def run(args: argparse.Namespace) -> int:
         return fail(f"no images found in {args.directory}")
 
     out = Path(args.out)
-    write_table(out, fieldnames, records)
+    try:
+        write_table(out, fieldnames, records)
+    except OSError as exc:
+        return fail(str(exc))
     print(f"wrote {len(records)} row(s) to {out}")
     return 0

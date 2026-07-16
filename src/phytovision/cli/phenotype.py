@@ -95,6 +95,9 @@ def run(args: argparse.Namespace) -> int:
         records.append(row)
 
     out = Path(args.out)
-    write_table(out, fieldnames, records)
+    try:
+        write_table(out, fieldnames, records)
+    except OSError as exc:
+        return fail(str(exc))
     print(f"wrote {len(records)} plant trajectory row(s) to {out}")
     return 0

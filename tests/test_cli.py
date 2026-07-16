@@ -84,6 +84,14 @@ def test_cli_batch_empty_dir_errors(tmp_path, capsys) -> None:
     assert capsys.readouterr().err.startswith("error:")
 
 
+def test_cli_batch_bad_out_reports_clean_error(dataset_dir, tmp_path, capsys) -> None:
+    # A bad --out (a missing parent directory) is a clean error with exit code 2, not a traceback.
+    bad_out = tmp_path / "missing_dir" / "out.csv"
+    rc = main(["batch", str(dataset_dir), "--out", str(bad_out)])
+    assert rc == 2
+    assert capsys.readouterr().err.startswith("error:")
+
+
 def _save_image(path, image) -> None:
     from PIL import Image as PILImage
 

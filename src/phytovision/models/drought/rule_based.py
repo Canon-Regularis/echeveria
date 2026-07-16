@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import ClassVar
 
+from phytovision._num import clip01
 from phytovision.models.drought.base import DroughtStageModel
 from phytovision.types import PlantFeatures
 
@@ -69,7 +70,7 @@ def pigment_marker(values: Mapping[str, float | None]) -> float:
     greenness_loss = 1.0 - _norm(_get(values, "colour.gcc_mean", 0.42), 0.28, 0.42)
     yellowing = _norm(_get(values, "colour.yellow_fraction", 0.0), 0.02, 0.50)
     reddening = _norm(_get(values, "colour.red_fraction", 0.0), 0.02, 0.50)
-    return _clip01(0.50 * greenness_loss + 0.35 * yellowing + 0.15 * reddening)
+    return clip01(0.50 * greenness_loss + 0.35 * yellowing + 0.15 * reddening)
 
 
 def turgor_marker(values: Mapping[str, float | None]) -> float:
@@ -77,7 +78,7 @@ def turgor_marker(values: Mapping[str, float | None]) -> float:
     solidity_loss = 1.0 - _norm(_get(values, "geometry.solidity", 0.95), 0.40, 0.95)
     concavity = _norm(_get(values, "morphology.concavity", 0.0), 0.0, 0.50)
     radial = _norm(_get(values, "morphology.radial_variation", 0.0), 0.0, 0.50)
-    return _clip01(0.50 * solidity_loss + 0.30 * concavity + 0.20 * radial)
+    return clip01(0.50 * solidity_loss + 0.30 * concavity + 0.20 * radial)
 
 
 def necrosis_marker(values: Mapping[str, float | None]) -> float:
@@ -91,8 +92,4 @@ def _get(values: Mapping[str, float | None], key: str, default: float) -> float:
 
 
 def _norm(value: float, lo: float, hi: float) -> float:
-    return _clip01((value - lo) / (hi - lo))
-
-
-def _clip01(value: float) -> float:
-    return min(1.0, max(0.0, value))
+    return clip01((value - lo) / (hi - lo))

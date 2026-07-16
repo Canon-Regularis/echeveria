@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
+from phytovision._num import clip01
 from phytovision.exceptions import ConfigError
 from phytovision.models.base import ContributionModel, StressModel, bucket_label
 from phytovision.types import PlantFeatures, StressAssessment
@@ -41,8 +42,8 @@ class EnsembleStressModel(StressModel):
     def predict(self, features: PlantFeatures) -> StressAssessment:
         assessments = [m.predict(features) for m in self.members]
         pairs = list(zip(self.weights, assessments, strict=True))
-        score = _clamp01(sum(w * a.score for w, a in pairs))
-        confidence = _clamp01(sum(w * a.confidence for w, a in pairs))
+        score = clip01(sum(w * a.score for w, a in pairs))
+        confidence = clip01(sum(w * a.confidence for w, a in pairs))
         return StressAssessment(
             score=score,
             confidence=confidence,
@@ -91,7 +92,3 @@ class EnsembleStressModel(StressModel):
 
         members = [model_from_state(m["model_type"], m["state"]) for m in state["members"]]
         return cls(members, weights=state["weights"])
-
-
-def _clamp01(value: float) -> float:
-    return min(1.0, max(0.0, value))

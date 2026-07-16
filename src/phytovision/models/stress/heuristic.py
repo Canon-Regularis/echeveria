@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+from phytovision._num import clip01
 from phytovision.models.base import StressModel, bucket_label
 from phytovision.types import PlantFeatures, StressAssessment
 
@@ -100,7 +101,7 @@ class HeuristicStressModel(StressModel):
             value = defined.get(term.key)
             if value is None:
                 continue
-            norm = _clip01((value - term.lo) / (term.hi - term.lo))
+            norm = clip01((value - term.lo) / (term.hi - term.lo))
             out[term.key] = term.weight * norm
         return out
 
@@ -110,7 +111,3 @@ class HeuristicStressModel(StressModel):
 
 def _sigmoid(x: float) -> float:
     return 1.0 / (1.0 + math.exp(-x))
-
-
-def _clip01(x: float) -> float:
-    return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x

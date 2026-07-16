@@ -13,6 +13,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from phytovision._num import clip01
 from phytovision.temporal.history import Observation
 
 _STRESSED_THRESHOLD = 0.66  # matches bucket_label's stressed cut-off
@@ -42,7 +43,7 @@ def stress_forecast(
     scores = [obs.stress_score for obs in ordered]
     steps = [h for h in horizons if h > 0]
     if len(scores) < 2:
-        level = _clip01(scores[-1]) if scores else 0.0
+        level = clip01(scores[-1]) if scores else 0.0
         flat = dict.fromkeys(steps, level)
         return Forecast(
             plant_id, 0.0, level, flat, None, 0.1, "need two observations to project a trend"
@@ -57,7 +58,7 @@ def stress_forecast(
     return Forecast(
         plant_id,
         slope,
-        _clip01(current_level),
+        clip01(current_level),
         projected,
         steps_to_stressed,
         confidence,
@@ -70,10 +71,10 @@ def project_scores(values: Sequence[float], horizons: Sequence[int]) -> dict[int
     if not values:
         return {h: 0.0 for h in horizons if h > 0}
     if len(values) < 2:
-        return {h: _clip01(values[-1]) for h in horizons if h > 0}
+        return {h: clip01(values[-1]) for h in horizons if h > 0}
     slope, intercept, _ = _fit_line(values)
     end = len(values) - 1
-    return {h: _clip01(intercept + slope * (end + h)) for h in horizons if h > 0}
+    return {h: clip01(intercept + slope * (end + h)) for h in horizons if h > 0}
 
 
 def _fit_line(values: Sequence[float]) -> tuple[float, float, float]:
@@ -88,7 +89,7 @@ def _fit_line(values: Sequence[float]) -> tuple[float, float, float]:
     ss_tot = sum((y - mean_y) ** 2 for y in values)
     ss_res = sum((y - (intercept + slope * x)) ** 2 for x, y in enumerate(values))
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 1.0
-    return slope, intercept, _clip01(r2)
+    return slope, intercept, clip01(r2)
 
 
 def _steps_to_threshold(intercept: float, slope: float, end: int) -> int | None:
@@ -112,8 +113,4 @@ def _confidence(n: int, r2: float, horizons: Sequence[int]) -> float:
     data_factor = min(1.0, (n - 1) / 4.0)  # five or more observations reaches full weight
     max_horizon = max(horizons) if horizons else 1
     horizon_decay = 1.0 / (1.0 + max_horizon / n)
-    return _clip01(r2 * data_factor * horizon_decay)
-
-
-def _clip01(value: float) -> float:
-    return min(1.0, max(0.0, value))
+    return clip01(r2 * data_factor * horizon_decay)

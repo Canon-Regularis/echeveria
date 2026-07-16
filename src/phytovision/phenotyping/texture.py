@@ -7,7 +7,6 @@ raises texture entropy / contrast and lowers homogeneity.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any
 
 import numpy as np
 from skimage.color import rgb2gray
@@ -22,13 +21,15 @@ _GLCM_LEVELS = 32
 
 
 @lru_cache(maxsize=2)
-def _gray_maps(image_bytes: bytes, shape: tuple[int, ...], dtype: str) -> Any:
+def _gray_maps(
+    image_bytes: bytes, shape: tuple[int, ...], dtype: str
+) -> tuple[np.ndarray, np.ndarray]:
     image = np.frombuffer(image_bytes, dtype=dtype).reshape(shape)
     gray = rgb2gray(image)
     return gray, sobel(gray)
 
 
-def _texture_maps(image: Image) -> Any:
+def _texture_maps(image: Image) -> tuple[np.ndarray, np.ndarray]:
     """Grayscale and Sobel edges, cached by image content so per-leaf regions reuse the work."""
     contiguous = np.ascontiguousarray(image)
     return _gray_maps(contiguous.tobytes(), contiguous.shape, str(contiguous.dtype))

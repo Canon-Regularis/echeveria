@@ -65,7 +65,9 @@ def _parse_labels(path: Path, names: list[str] | None) -> list[dict[str, object]
             bbox = [float(value) for value in parts[1:5]]  # normalized centre x, y, width, height
         except ValueError:
             continue  # skip a line with non-numeric tokens, as a too-short line is skipped
-        known = names is not None and 0 <= class_id < len(names)
-        category = names[class_id] if known else str(class_id)  # type: ignore[index]
+        if names is not None and 0 <= class_id < len(names):
+            category = names[class_id]
+        else:
+            category = str(class_id)
         boxes.append({"category": category, "bbox": bbox})
     return boxes

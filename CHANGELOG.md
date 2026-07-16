@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.0] (2026-07-16)
+
 ### Added
 - Registry-driven pipeline construction: `Pipeline.from_config()` / `Pipeline.from_names()` and CLI
   `--model` / `--segmenter` / `--explainer` selection.
@@ -57,6 +59,18 @@ All notable changes to this project are documented here. The format is based on
 - Shared `validate_rgb_image` input validation at the pipeline entry point.
 - PEP 561 `py.typed` marker; full public API re-exported from `phytovision`.
 - CI (GitHub Actions), pre-commit config, coverage gate, and Dependabot.
+- Input and segmentation quality gate: a per-analysis `quality` assessment (blur, uniformity, and
+  segmentation coverage) on `AnalysisReport` and its `summary()`, surfaced in the CLI, the API
+  disclaimer, and the dashboard, so an unanalysable image is flagged rather than scored silently.
+- Reproducibility: `train --seed` and `evaluate --seed`, threaded into the gradient-boosted model and
+  the cross-validation folds and recorded in the persistence manifest.
+- Spatial pigment saliency: a per-pixel map of the colour drivers behind the score
+  (`analyze --save-saliency`, the `/saliency` API route, and the dashboard), labelled an RGB proxy.
+- Scientific validation: a `validate` command reporting a reliability curve, Brier score, and
+  RMSE/MAE/R2 of the score against a measured water-status target, with a numeric `target` column on
+  the CSV manifest and on `Sample`. The datasets remain non-succulent, so results are indicative.
+- Presentation: README status badges, a docs build-and-deploy CI workflow (GitHub Pages), Docker
+  images and a compose file for the API and dashboard, and an example notebook.
 
 ### Changed
 - `Explainer.explain` now types the model as `StressModel` and logs when explanations are unavailable.

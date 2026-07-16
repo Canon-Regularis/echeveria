@@ -1,0 +1,16 @@
+# Runs the API and the dashboard together, each on the classical pipeline.
+# Start both with: docker compose up --build.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    ports:
+      - "8501:8501"

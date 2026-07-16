@@ -1,0 +1,6 @@
+image_path,label,plant_id,timestamp,source,target
+plant_01_day1.jpg,healthy,plant_01,2026-03-01,greenhouse_a,0.12
+plant_01_day2.jpg,healthy,plant_01,2026-03-03,greenhouse_a,0.20
+plant_01_day3.jpg,wilted,plant_01,2026-03-05,greenhouse_a,0.55
+plant_02_day1.jpg,healthy,plant_02,2026-03-01,greenhouse_a,0.10
+plant_02_day2.jpg,wilted,plant_02,2026-03-04,greenhouse_a,0.60

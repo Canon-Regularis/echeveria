@@ -1,5 +1,10 @@
 # echeveria
 
+[![CI](https://github.com/Matthew-Miezaniec/echeveria/actions/workflows/ci.yml/badge.svg)](https://github.com/Matthew-Miezaniec/echeveria/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue.svg)](pyproject.toml)
+[![PyPI](https://img.shields.io/pypi/v/phytovision.svg)](https://pypi.org/project/phytovision/)
+
 echeveria detects water stress (wilting) in succulents from ordinary RGB photos. It finds the plant in
 the image and measures traits like colour, shape, and texture. It scores the stress, then lists the
 features that drove that score. The scores are proxies read from pixels, so treat them as

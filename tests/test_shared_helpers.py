@@ -1,10 +1,15 @@
-"""Unit tests for the shared helpers introduced by the modularisation refactor."""
+"""Unit tests for the small shared helpers used across the package.
+
+Covers the numeric helpers, the least-squares line fit, the dataset-loader base, the evaluation
+label and prediction helpers, the segmentation threshold helper, and the ``Reason`` marker.
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from phytovision._num import EPS, as_float, clip01, normalize01
@@ -16,6 +21,7 @@ from phytovision.datasets.base import (
 )
 from phytovision.evaluation._common import binary_labels, predict_labels, trainable_model_names
 from phytovision.models.stress.heuristic import HeuristicStressModel
+from phytovision.segmentation.plant._threshold_base import threshold_field
 from phytovision.temporal._fit import fit_line, slope
 from phytovision.types import Reason
 
@@ -108,6 +114,13 @@ def test_trainable_model_names_excludes_the_heuristic() -> None:
     names = trainable_model_names()
     assert set(names) == {"gradient-boosted", "ensemble"}
     assert "heuristic" not in names
+
+
+def test_threshold_field_splits_and_guards_degenerate_input() -> None:
+    assert not threshold_field(np.zeros((4, 4))).any()  # uniform field has no foreground
+    assert not threshold_field(np.full((4, 4), np.nan)).any()  # a non-finite field is empty
+    split = threshold_field(np.array([[0.0, 0.0], [1.0, 1.0]]))
+    assert split.sum() == 2  # the high half is foreground
 
 
 def test_reason_marker_reflects_direction() -> None:

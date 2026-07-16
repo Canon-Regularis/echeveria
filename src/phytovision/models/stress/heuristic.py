@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from phytovision._num import clip01
+from phytovision._num import normalize01
 from phytovision.models.base import StressModel, bucket_label
 from phytovision.types import PlantFeatures, StressAssessment
 
@@ -101,8 +101,7 @@ class HeuristicStressModel(StressModel):
             value = defined.get(term.key)
             if value is None:
                 continue
-            norm = clip01((value - term.lo) / (term.hi - term.lo))
-            out[term.key] = term.weight * norm
+            out[term.key] = term.weight * normalize01(value, term.lo, term.hi)
         return out
 
     def feature_label(self, key: str) -> str:

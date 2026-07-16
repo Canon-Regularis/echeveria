@@ -9,10 +9,9 @@ from __future__ import annotations
 import numpy as np
 from skimage.color import rgb2hsv, rgb2lab
 
+from phytovision._num import EPS
 from phytovision.phenotyping.base import FeatureExtractor
 from phytovision.types import Image, Region
-
-_EPS = 1e-9
 
 
 class ColourFeatures(FeatureExtractor):
@@ -22,7 +21,7 @@ class ColourFeatures(FeatureExtractor):
         mask = region.mask
         rgb = image[mask]  # (N, 3) foreground pixels
         r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
-        total = r + g + b + _EPS
+        total = r + g + b + EPS
 
         hsv = rgb2hsv(rgb)  # convert the foreground pixels only, not the whole frame
         hue, sat, val = hsv[:, 0], hsv[:, 1], hsv[:, 2]
@@ -52,7 +51,7 @@ class ColourFeatures(FeatureExtractor):
             "lab_l_mean": float(lab[:, 0].mean()),
             "lab_a_mean": float(lab[:, 1].mean()),  # +a = red, -a = green
             "lab_b_mean": float(lab[:, 2].mean()),  # +b = yellow, -b = blue
-            "yellow_fraction": float(yellow.sum()) / (n + _EPS),
-            "brown_fraction": float(brown.sum()) / (n + _EPS),
-            "red_fraction": float(red.sum()) / (n + _EPS),  # anthocyanin reddening (pigment stress)
+            "yellow_fraction": float(yellow.sum()) / (n + EPS),
+            "brown_fraction": float(brown.sum()) / (n + EPS),
+            "red_fraction": float(red.sum()) / (n + EPS),  # anthocyanin reddening (pigment stress)
         }

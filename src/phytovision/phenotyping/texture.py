@@ -14,10 +14,10 @@ from skimage.color import rgb2gray
 from skimage.feature import graycomatrix, graycoprops, local_binary_pattern
 from skimage.filters import sobel
 
+from phytovision._num import EPS
 from phytovision.phenotyping.base import FeatureExtractor
 from phytovision.types import Image, Region
 
-_EPS = 1e-9
 _GLCM_LEVELS = 32
 
 
@@ -69,7 +69,7 @@ def _shannon_entropy(values: np.ndarray) -> float:
         return 0.0
     hist, _ = np.histogram(values, bins=64, range=(0.0, 1.0), density=False)
     p = hist.astype(np.float64)
-    p /= p.sum() + _EPS
+    p /= p.sum() + EPS
     p = p[p > 0]
     return float(-(p * np.log2(p)).sum())
 
@@ -102,7 +102,7 @@ def _lbp_stats(patch: np.ndarray, mask_crop: np.ndarray) -> dict[str, float]:
     n_bins = n_points + 2
     hist, _ = np.histogram(lbp_fg, bins=n_bins, range=(0, n_bins))
     p = hist.astype(np.float64)
-    p /= p.sum() + _EPS
+    p /= p.sum() + EPS
     nz = p[p > 0]
     return {
         "lbp_uniformity": float((p**2).sum()),

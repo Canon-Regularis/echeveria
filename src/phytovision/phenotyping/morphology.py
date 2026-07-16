@@ -11,10 +11,9 @@ import math
 import numpy as np
 from skimage.measure import find_contours, regionprops
 
+from phytovision._num import EPS
 from phytovision.phenotyping.base import FeatureExtractor, prop, single_region_props
 from phytovision.types import Image, Region
-
-_EPS = 1e-9
 
 
 class MorphologyFeatures(FeatureExtractor):
@@ -38,9 +37,9 @@ class MorphologyFeatures(FeatureExtractor):
 
         return {
             "solidity": float(props.solidity),
-            "concavity": (convex_area - area) / (convex_area + _EPS),
-            "roughness": perimeter / (convex_perimeter + _EPS),
-            "boundary_complexity": perimeter / (equiv_circle_perimeter + _EPS),
+            "concavity": (convex_area - area) / (convex_area + EPS),
+            "roughness": perimeter / (convex_perimeter + EPS),
+            "boundary_complexity": perimeter / (equiv_circle_perimeter + EPS),
             "radial_variation": radial_variation,
         }
 
@@ -56,4 +55,4 @@ def _radial_variation(mask: np.ndarray, centroid: tuple[float, float]) -> float:
     cy, cx = centroid
     d = np.hypot(boundary[:, 0] - cy, boundary[:, 1] - cx)
     mean = d.mean()
-    return float(d.std() / (mean + _EPS)) if mean > 0 else 0.0
+    return float(d.std() / (mean + EPS)) if mean > 0 else 0.0

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from phytovision._num import as_float
 from phytovision.explainability.physiology import physiology_note
 from phytovision.models.base import ContributionModel
 from phytovision.types import PlantFeatures, Reason
@@ -31,7 +32,7 @@ def build_reasons(
                 feature=key,
                 direction="increases" if increases else "decreases",
                 contribution=contribution,
-                value=float(value) if value is not None else float("nan"),
+                value=as_float(value, float("nan")),
                 description=description,
             )
         )

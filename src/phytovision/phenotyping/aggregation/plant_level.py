@@ -8,12 +8,12 @@ from collections.abc import Mapping, Sequence
 
 import numpy as np
 
+from phytovision._num import EPS
 from phytovision.phenotyping.aggregation.base import FeatureAggregator
 from phytovision.types import FeatureVector, PlantFeatures, RegionSet
 
 logger = logging.getLogger(__name__)
 
-_EPS = 1e-9
 _DEFAULT_SENESCENCE_KEYS = ("colour.yellow_fraction", "colour.brown_fraction")
 
 
@@ -59,8 +59,8 @@ class PlantLevelAggregator(FeatureAggregator):
         # Plant-level traits that exist regardless of region count.
         values["plant.region_count"] = float(len(regions))
         values["plant.total_area_px"] = total_area
-        values["plant.canopy_coverage"] = union_area / (image_area + _EPS)
-        values["plant.mean_region_area"] = total_area / (len(regions) + _EPS)
+        values["plant.canopy_coverage"] = union_area / (image_area + EPS)
+        values["plant.mean_region_area"] = total_area / (len(regions) + EPS)
 
         # Instance-only traits: defined only when regions are per-leaf.
         if regions.is_per_leaf:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from phytovision._num import clip01
+from phytovision._num import as_float, clip01
 from phytovision.models.disease.base import DiseaseModel
 from phytovision.types import PlantFeatures
 
@@ -27,5 +27,5 @@ class HeuristicDiseaseModel(DiseaseModel):
 
 
 def _value(values: dict[str, float | None], key: str) -> float:
-    value = values.get(key)
-    return float(value) if value is not None else 0.0
+    """Read ``key`` as a float, or 0.0 when it is missing."""
+    return as_float(values.get(key), 0.0)

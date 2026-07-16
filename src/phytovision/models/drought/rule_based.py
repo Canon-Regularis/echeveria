@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import ClassVar
 
-from phytovision._num import clip01
+from phytovision._num import as_float, clip01, normalize01
 from phytovision.models.drought.base import DroughtStageModel
 from phytovision.types import PlantFeatures
 
@@ -67,29 +67,25 @@ def _basis(pigment: float, turgor: float, necrosis: float) -> str:
 def pigment_marker(values: Mapping[str, float | None]) -> float:
     """Pigment-stress score in [0,1]: greenness loss plus yellowing plus anthocyanin reddening."""
     # Missing greenness defaults to the healthy high end, so an absent feature adds no false stress.
-    greenness_loss = 1.0 - _norm(_get(values, "colour.gcc_mean", 0.42), 0.28, 0.42)
-    yellowing = _norm(_get(values, "colour.yellow_fraction", 0.0), 0.02, 0.50)
-    reddening = _norm(_get(values, "colour.red_fraction", 0.0), 0.02, 0.50)
+    greenness_loss = 1.0 - normalize01(_get(values, "colour.gcc_mean", 0.42), 0.28, 0.42)
+    yellowing = normalize01(_get(values, "colour.yellow_fraction", 0.0), 0.02, 0.50)
+    reddening = normalize01(_get(values, "colour.red_fraction", 0.0), 0.02, 0.50)
     return clip01(0.50 * greenness_loss + 0.35 * yellowing + 0.15 * reddening)
 
 
 def turgor_marker(values: Mapping[str, float | None]) -> float:
     """Turgor-loss score in [0,1]: low shape solidity, plus concavity and radial variation."""
-    solidity_loss = 1.0 - _norm(_get(values, "geometry.solidity", 0.95), 0.40, 0.95)
-    concavity = _norm(_get(values, "morphology.concavity", 0.0), 0.0, 0.50)
-    radial = _norm(_get(values, "morphology.radial_variation", 0.0), 0.0, 0.50)
+    solidity_loss = 1.0 - normalize01(_get(values, "geometry.solidity", 0.95), 0.40, 0.95)
+    concavity = normalize01(_get(values, "morphology.concavity", 0.0), 0.0, 0.50)
+    radial = normalize01(_get(values, "morphology.radial_variation", 0.0), 0.0, 0.50)
     return clip01(0.50 * solidity_loss + 0.30 * concavity + 0.20 * radial)
 
 
 def necrosis_marker(values: Mapping[str, float | None]) -> float:
     """Necrosis score in [0,1]: the browning fraction."""
-    return _norm(_get(values, "colour.brown_fraction", 0.0), 0.02, 0.50)
+    return normalize01(_get(values, "colour.brown_fraction", 0.0), 0.02, 0.50)
 
 
 def _get(values: Mapping[str, float | None], key: str, default: float) -> float:
-    value = values.get(key)
-    return float(value) if value is not None else default
-
-
-def _norm(value: float, lo: float, hi: float) -> float:
-    return clip01((value - lo) / (hi - lo))
+    """Read ``key`` as a float, or ``default`` when it is missing."""
+    return as_float(values.get(key), default)

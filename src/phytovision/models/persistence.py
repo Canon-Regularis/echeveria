@@ -8,7 +8,7 @@ every model round-trips the same way and carries its own provenance.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
@@ -16,11 +16,21 @@ from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
 
 from phytovision.exceptions import ConfigError
 from phytovision.models.base import StressModel
+from phytovision.models.stress.ensemble import EnsembleStressModel
+from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
+from phytovision.models.stress.heuristic import HeuristicStressModel
 
 if TYPE_CHECKING:
     from phytovision.models.conformal import SplitConformalClassifier
 
 _ENVELOPE_VERSION = 1
+
+# Reconstructors keyed by each model's own MODEL_TYPE tag: adding a persistable model is one entry.
+_FROM_STATE: dict[str, Callable[[Mapping[str, Any]], StressModel]] = {
+    HeuristicStressModel.MODEL_TYPE: HeuristicStressModel.from_state,
+    GradientBoostedStressModel.MODEL_TYPE: GradientBoostedStressModel.from_state,
+    EnsembleStressModel.MODEL_TYPE: EnsembleStressModel.from_state,
+}
 
 
 @runtime_checkable
@@ -118,20 +128,12 @@ def load_saved(path: str | Path) -> StressModel | SplitConformalClassifier:
 
 
 def model_from_state(model_type: str, state: Mapping[str, Any]) -> StressModel:
-    """Reconstruct a stress model from its type tag and state. Imports are lazy to avoid cycles."""
-    if model_type == "heuristic":
-        from phytovision.models.stress.heuristic import HeuristicStressModel
-
-        return HeuristicStressModel.from_state(state)
-    if model_type == "gradient-boosted":
-        from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
-
-        return GradientBoostedStressModel.from_state(state)
-    if model_type == "ensemble":
-        from phytovision.models.stress.ensemble import EnsembleStressModel
-
-        return EnsembleStressModel.from_state(state)
-    raise ConfigError(f"unknown model_type {model_type!r}")
+    """Reconstruct a stress model from its type tag and state."""
+    try:
+        reconstruct = _FROM_STATE[model_type]
+    except KeyError:
+        raise ConfigError(f"unknown model_type {model_type!r}") from None
+    return reconstruct(state)
 
 
 def _versions() -> dict[str, str]:

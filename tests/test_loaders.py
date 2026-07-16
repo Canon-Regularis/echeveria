@@ -43,6 +43,24 @@ def test_csv_manifest_carries_temporal_metadata(tmp_path) -> None:
     assert [s.timestamp for s in samples] == ["2026-03-01", "2026-03-02"]
 
 
+def test_csv_manifest_tolerates_a_utf8_bom(tmp_path) -> None:
+    # Excel and pandas.to_csv prepend a UTF-8 BOM; the first column name must still match.
+    manifest = tmp_path / "m.csv"
+    manifest.write_bytes(b"\xef\xbb\xbfimage_path,plant_id,timestamp\r\na.png,p1,2026-03-01\r\n")
+    samples = list(CsvManifestLoader(manifest))
+    assert len(samples) == 1
+    assert samples[0].plant_id == "p1" and samples[0].timestamp == "2026-03-01"
+
+
+def test_csv_manifest_strips_header_whitespace(tmp_path) -> None:
+    # "image_path, plant_id" (spaces after commas) is the common human/Excel pattern; the columns
+    # must map instead of silently dropping plant_id/timestamp.
+    manifest = tmp_path / "m.csv"
+    manifest.write_text("image_path, plant_id, timestamp\na.png, p1, 2026-03-01\n")
+    samples = list(CsvManifestLoader(manifest))
+    assert samples[0].plant_id == "p1" and samples[0].timestamp == "2026-03-01"
+
+
 def test_csv_missing_image_column_errors(tmp_path) -> None:
     manifest = tmp_path / "m.csv"
     manifest.write_text("path,label\na.png,healthy\n")

@@ -30,8 +30,13 @@ class CsvManifestLoader(DatasetLoader):
         manifest = Path(manifest_path)
         root = Path(images_root) if images_root is not None else manifest.parent
         delimiter = "\t" if manifest.suffix.lower() in {".tsv", ".tab"} else ","
-        with manifest.open(newline="", encoding="utf-8") as handle:
+        # utf-8-sig drops the BOM that Excel and pandas prepend, so the first column name matches.
+        with manifest.open(newline="", encoding="utf-8-sig") as handle:
             reader = csv.DictReader(handle, delimiter=delimiter)
+            header = reader.fieldnames
+            if header is not None:
+                # Strip header whitespace so "image_path, plant_id" (spaces after commas) maps.
+                reader.fieldnames = [name.strip() for name in header]
             if reader.fieldnames is None or image_column not in reader.fieldnames:
                 raise ConfigError(f"manifest {manifest} has no {image_column!r} column")
             self._samples = [

@@ -14,8 +14,8 @@ All notable changes to this project are documented here. The format is based on
 - Models: gradient-boosted (`ml` extra) and soft-voting ensemble, plus a type-tagged persistence
   envelope (`save_model`/`load_model`) with a provenance manifest.
 - Honest uncertainty and evaluation: split conformal prediction (`train --calibrate`,
-  `analyze --conformal`), grouped stratified cross-validation (`evaluate --cv`), and leave-one-dataset
-  -out transfer (`evaluate --transfer`).
+  `analyze --conformal`), grouped stratified cross-validation (`evaluate --cv`), and
+  leave-one-dataset-out transfer (`evaluate --transfer`).
 - Explainability: SHAP explainer (`--explainer shap`), completeness (additivity) check, counterfactuals
   (`analyze --counterfactual`), and global permutation importance (`evaluate --importance`).
 - Correctness safeguards: a model schema-drift guard (`--strict-schema`, `ModelSchemaError`) and a

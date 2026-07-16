@@ -8,11 +8,11 @@ import json
 import logging
 import math
 import sys
-import tomllib
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 from phytovision.analysis import AnalysisRow, analyze_dataset, feature_table
+from phytovision.config import read_config
 from phytovision.datasets.directory import ImageDirectoryLoader
 from phytovision.datasets.folder import FolderClassificationLoader
 from phytovision.datasets.manifest import CsvManifestLoader
@@ -235,7 +235,7 @@ def _configure_logging(verbose: bool) -> None:
 
 def _build_pipeline(args: argparse.Namespace, model: StressModel | None = None) -> Pipeline:
     if args.config:
-        pipeline = Pipeline.from_config(_load_config(args.config))
+        pipeline = Pipeline.from_config(read_config(args.config))
     else:
         pipeline = Pipeline.from_names(
             model=args.model, segmenter=args.segmenter, explainer=args.explainer
@@ -261,21 +261,6 @@ def _stress_model_from_path(path: str) -> StressModel:
     """The stress model to run in the pipeline; a conformal file contributes its wrapped model."""
     loaded = load_saved(path)
     return loaded.model if isinstance(loaded, SplitConformalClassifier) else loaded
-
-
-def _load_config(path: str) -> Mapping[str, object]:
-    file = Path(path)
-    text = file.read_text(encoding="utf-8")  # raises FileNotFoundError if missing
-    suffix = file.suffix.lower()
-    if suffix not in {".toml", ".json"}:
-        raise ConfigError(f"config must be .toml or .json: {file}")
-    try:
-        data = tomllib.loads(text) if suffix == ".toml" else json.loads(text)
-    except (tomllib.TOMLDecodeError, json.JSONDecodeError) as exc:
-        raise ConfigError(f"could not parse config {file}: {exc}") from exc
-    if not isinstance(data, dict):
-        raise ConfigError(f"config must be a table/object at the top level: {file}")
-    return data
 
 
 def _analyze(args: argparse.Namespace) -> int:
@@ -350,7 +335,7 @@ def _analyze(args: argparse.Namespace) -> int:
         print("Top reasons:")
         for reason in report.explanation.reasons:
             marker = "+" if reason.direction == "increases" else "-"
-            print(f"  [{marker}] {reason.feature}={reason.value:.3f} - {reason.description}")
+            print(f"  [{marker}] {reason.feature}={reason.value:.3f}: {reason.description}")
     if args.counterfactual:
         if changes:
             print("To change the verdict:")
@@ -385,6 +370,13 @@ def _batch(args: argparse.Namespace) -> int:
         return 2
 
     out = Path(args.out)
+    _write_table(out, fieldnames, records)
+    print(f"wrote {len(records)} row(s) to {out}")
+    return 0
+
+
+def _write_table(out: Path, fieldnames: list[str], records: list[dict[str, object]]) -> None:
+    """Write records to the output path as JSON (.json) or CSV (any other suffix)."""
     if out.suffix.lower() == ".json":
         out.write_text(json.dumps(records, indent=2), encoding="utf-8")
     else:
@@ -392,8 +384,6 @@ def _batch(args: argparse.Namespace) -> int:
             writer = csv.DictWriter(handle, fieldnames=fieldnames, restval="")
             writer.writeheader()
             writer.writerows(records)
-    print(f"wrote {len(records)} row(s) to {out}")
-    return 0
 
 
 def _phenotype(args: argparse.Namespace) -> int:
@@ -451,13 +441,7 @@ def _phenotype(args: argparse.Namespace) -> int:
         records.append(row)
 
     out = Path(args.out)
-    if out.suffix.lower() == ".json":
-        out.write_text(json.dumps(records, indent=2), encoding="utf-8")
-    else:
-        with out.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=fieldnames, restval="")
-            writer.writeheader()
-            writer.writerows(records)
+    _write_table(out, fieldnames, records)
     print(f"wrote {len(records)} plant trajectory row(s) to {out}")
     return 0
 
@@ -605,7 +589,7 @@ def _extraction_pipeline(args: argparse.Namespace) -> Pipeline:
     if args.cv is None and not args.transfer and not args.importance:
         return _build_pipeline(args)
     if args.config:
-        config = dict(_load_config(args.config))
+        config = dict(read_config(args.config))
         config.pop("model", None)  # the evaluated model comes from --model, not this pipeline
         return Pipeline.from_config(config)
     return Pipeline.from_names(segmenter=args.segmenter)
@@ -706,7 +690,7 @@ def _serve(args: argparse.Namespace) -> int:
     # app is imported by string below (create_app runs at import and reads these files).
     try:
         if args.config:
-            _load_config(args.config)
+            read_config(args.config)
         if args.model_path:
             load_saved(args.model_path)
     except (OSError, ImportError, PhytoVisionError) as exc:
@@ -737,7 +721,7 @@ def _dashboard(args: argparse.Namespace) -> int:
     # from inside the launched Streamlit subprocess.
     try:
         if args.config:
-            _load_config(args.config)
+            read_config(args.config)
         if args.model_path:
             load_saved(args.model_path)
     except (OSError, ImportError, PhytoVisionError) as exc:
@@ -753,7 +737,7 @@ def _dashboard(args: argparse.Namespace) -> int:
     if args.model_path:
         env["PHYTOVISION_MODEL_PATH"] = str(Path(args.model_path))
     script = str(Path(__file__).with_name("dashboard.py"))
-    command = [  # pragma: no cover - launches the external Streamlit server
+    command = [  # pragma: no cover: launches the external Streamlit server
         sys.executable,
         "-m",
         "streamlit",

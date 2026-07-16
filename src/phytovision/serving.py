@@ -7,12 +7,9 @@ and the dashboard cannot drift apart. This module needs only the base dependenci
 
 from __future__ import annotations
 
-import json
 import os
-import tomllib
-from pathlib import Path
 
-from phytovision.exceptions import ConfigError
+from phytovision.config import read_config
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.models.disease.head import DiseaseHead
 from phytovision.models.drought.head import DroughtStageHead
@@ -20,21 +17,7 @@ from phytovision.models.persistence import load_saved
 from phytovision.pipeline import Pipeline
 from phytovision.registries import DISEASE_MODELS, DROUGHT_STAGE_MODELS
 
-
-def read_config(path: str | os.PathLike[str]) -> dict[str, object]:
-    """Parse a pipeline config file (.toml or .json) into a plain dict."""
-    file = Path(path)
-    text = file.read_text(encoding="utf-8")
-    suffix = file.suffix.lower()
-    if suffix == ".toml":
-        data = tomllib.loads(text)
-    elif suffix == ".json":
-        data = json.loads(text)
-    else:
-        raise ConfigError(f"config must be .toml or .json: {file}")
-    if not isinstance(data, dict):
-        raise ConfigError(f"config must be a table/object at the top level: {file}")
-    return data
+__all__ = ["attach_heads", "engine_from_env", "read_config"]
 
 
 def engine_from_env(

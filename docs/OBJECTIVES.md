@@ -210,8 +210,11 @@ registry of pluggable models (linear-trend, state-space, ARIMA, Gaussian process
 prediction interval per horizon threaded through `phenotype`, `/trend`, and the dashboard, and a
 `benchmark` command that ranks the forecasters over the simulator with time-series cross-validation
 and proper scoring rules. Because no labelled succulent time-series data exists, every forecaster is
-fitted and scored on synthetic data, so a forecast is indicative, not a validated prognostic. A model
-validated on real graded sequences is future work once the dry-down rig produces them.
+fitted and scored on synthetic data, so a forecast is indicative, not a validated prognostic. A
+survival layer answers time-to-wilt from the same observed events, with a Kaplan-Meier baseline,
+Weibull and Cox covariate models, a per-plant median with a band, and a held-out concordance
+leaderboard. A model validated on real graded sequences is future work once the dry-down rig produces
+them.
 
 **Multi-sensor fusion is deferred.** The same work fuses RGB with multispectral sensors. echeveria is
 RGB-only, so multispectral indices (NDVI and similar) are out of reach without new hardware and data. A

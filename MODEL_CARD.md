@@ -123,6 +123,33 @@ Honesty caveats:
 - Inputs are RGB. The cited work fuses RGB with multispectral sensors; multispectral fusion is out of
   scope here (no hardware or data). A `Sample.extra["modality"]` tag is reserved for that future work.
 
+### Survival analysis (time-to-wilt)
+
+The forecast answers "what score, when"; survival analysis answers "how long until it wilts", handling
+plants that never wilt inside the observed window (right censoring). The event is derived from the
+observed stress score crossing the stressed cut, never from any hidden truth, so it runs on any
+manifest. Three models register under `SURVIVAL_MODELS`: a Kaplan-Meier cohort baseline (the survival
+curve, the cohort median, and a real 95 percent confidence band), and two covariate models over two
+observable baseline features (the early stress level and the early slope), a Weibull accelerated
+failure time model (the default, giving a per-plant median time-to-wilt with an interquartile time
+band) and a Cox proportional-hazards model. A survival block appears on `/trend`, four columns on the
+`phenotype` table, and a survival curve on the dashboard TEMPORAL tab. The models need the `stats`
+extra (lifelines) and import it lazily.
+
+Honesty caveats:
+
+- Every survival model is fitted on the simulator, so a median time-to-wilt is synthetic-trained and
+  indicative, not a validated prognosis. The covariates are RGB proxies, not physiological measurements.
+- The concordance index shown on a surface is in-sample and optimistic (the model is fitted and scored
+  on the same cohort). The honest, held-out number comes from `benchmark_survival_models`, a k-fold
+  concordance leaderboard.
+- The Kaplan-Meier band is a genuine 95 percent confidence interval on cohort survival; a covariate
+  model's per-plant band is the interquartile spread of the modelled time-to-event, not a calibrated
+  interval. A covariate model that cannot fit (too few events, a constant covariate) falls back to the
+  cohort baseline and labels those rows `cohort-km`, so a broadcast median is never read as per-plant.
+- A time beyond the observed window has no median and surfaces as blank or null, never a fabricated
+  number.
+
 ## Evaluation
 
 - `phytovision evaluate <folder>` reports accuracy, precision, recall, F1, and a confusion matrix.

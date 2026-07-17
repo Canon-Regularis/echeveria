@@ -24,8 +24,16 @@ All notable changes to this project are documented here. The format is based on
 - Forecaster benchmark (`phytovision benchmark`): runs every registered forecaster over a synthetic
   cohort with time-series cross-validation and ranks them by CRPS, pinball, and coverage, with optional
   MLflow logging behind the new `tracking` extra.
-- New optional extras: `stats` (statsmodels, for the state-space and ARIMA forecasters) and `tracking`
-  (mlflow, for benchmark logging), both added to the `all` self-reference and the CI install lists.
+- Survival analysis of time-to-wilt: a `SurvivalModel` contract and a `SURVIVAL_MODELS` registry with a
+  Kaplan-Meier cohort baseline, a Weibull accelerated-failure-time model (the default), and a Cox
+  proportional-hazards model, all over events derived from the observed stress crossing (never the
+  latent) and two observable covariates. It surfaces as a `survival` block on `/trend`
+  (`/trend?survival_model=`), four columns on the `phenotype` table (`--survival-model`), and a survival
+  curve on the dashboard, plus a held-out concordance leaderboard (`benchmark_survival_models`). Needs
+  the `stats` extra (lifelines); estimates are synthetic-trained RGB proxies, not validated prognoses.
+- New optional extras: `stats` (statsmodels and lifelines, for the statistical forecasters and the
+  survival models) and `tracking` (mlflow, for benchmark logging), both added to the `all`
+  self-reference and the CI install lists.
 
 ## [0.2.0] (2026-07-16)
 

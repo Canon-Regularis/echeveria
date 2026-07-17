@@ -67,11 +67,16 @@ Given a timestamped series of images of one plant, echeveria reports how the str
   state-space local linear trend and an ARIMA model (the `stats` extra), and a Gaussian process and a
   Bayesian ridge (the `ml` extra). Each also estimates the steps to the stressed cut and a confidence
   that falls as the horizon grows.
+- Survival analysis: a median time-to-wilt per plant with a band, handling plants that never wilt in
+  the observed window (right censoring). A Kaplan-Meier cohort baseline, a Weibull accelerated-failure
+  model (default), and a Cox model register under `SURVIVAL_MODELS`; the event is derived from the
+  observed stress crossing, and the estimate surfaces on `phenotype`, `/trend`, and the dashboard.
 - High-throughput phenotyping: the `phenotype` command reads a manifest of many plants over time and
-  writes one trajectory row per plant, with the per-horizon interval columns.
+  writes one trajectory row per plant, with the per-horizon interval columns and the time-to-wilt band.
 - Synthetic data and benchmarking: no labelled succulent time series exists, so `simulate` generates a
-  seeded dry-down cohort (labelled synthetic) and `benchmark` ranks every forecaster over it with
-  time-series cross-validation and proper scoring rules (CRPS, pinball loss, interval coverage).
+  seeded dry-down cohort (labelled synthetic), `benchmark` ranks every forecaster over it with
+  time-series cross-validation and proper scoring rules (CRPS, pinball loss, interval coverage), and a
+  survival leaderboard ranks the survival models by held-out concordance.
 
 ### Training, evaluation, and persistence
 

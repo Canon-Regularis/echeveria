@@ -64,6 +64,46 @@ mutmut browse                          # inspect them interactively
 
 A surviving mutant points at a weak assertion. Strengthen the test that should have caught it.
 
+## Reproducibility and data versioning
+
+- **Seeding.** The commands that draw randomness accept `--seed` (`train`, `evaluate`, `simulate`).
+  A seed threads into the per-stage generators (the simulator's per-plant streams, the
+  cross-validation splits, the gradient-boosted `random_state`) and, in one place in the CLI entry
+  point, into `set_global_seed` from [`src/phytovision/seeding.py`](src/phytovision/seeding.py), which
+  seeds Python's `random` and numpy's legacy global generator. Re-running with the same seed and inputs
+  reproduces the run. The `benchmark` command is already deterministic (its forecasters carry fixed
+  internal seeds), so it needs no `--seed`.
+- **Validated config.** `Pipeline.from_config` routes the parsed dict through
+  [`config_schema.PipelineConfig`](src/phytovision/config_schema.py), which rejects an unknown
+  top-level key (so a mistyped slot name fails loudly instead of silently) and fills every slot's
+  default. `PipelineConfig.from_mapping(cfg).as_dict()` gives a canonical, resolved config you can log
+  or diff.
+- **Experiment tracking (optional).** With the `tracking` extra installed, `phytovision benchmark
+  --mlflow` logs the forecaster comparison (params and per-model metrics) to MLflow, so runs are
+  comparable across changes.
+- **Data and artifact versioning with DVC (optional).** DVC is not a dependency; it is a recommended
+  way to version large datasets and model artifacts without committing them to git. Set it up once:
+
+  ```bash
+  pip install dvc            # optional, not in any extra
+  dvc init                   # creates .dvc/ and a .dvc/config
+  dvc add data/ models/      # track large paths; commit the small .dvc pointer files, not the data
+  dvc remote add -d storage s3://your-bucket/echeveria   # or gdrive, ssh, a local path, ...
+  dvc push                   # upload the tracked data to the remote
+  ```
+
+  A minimal `.dvc/config` then reads:
+
+  ```ini
+  [core]
+      remote = storage
+  ['remote "storage"']
+      url = s3://your-bucket/echeveria
+  ```
+
+  Teammates run `dvc pull` to fetch the exact data a commit points at, so an experiment is
+  reproducible from the git SHA plus the DVC pointers.
+
 ## Conventions
 
 - Public functions/classes are typed and have docstrings; the package is `py.typed`.

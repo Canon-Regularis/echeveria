@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- Reproducibility: a typed, validated config schema (`config_schema.PipelineConfig`) that
+  `Pipeline.from_config` routes through, so an unknown top-level config key is rejected (a mistyped
+  slot name fails loudly instead of silently) and the resolved config is diffable via `as_dict()`; a
+  one-call `seeding.set_global_seed`, applied in the CLI entry point for any `--seed` command so the
+  global RNGs are seeded alongside the per-stage seeds; and a CONTRIBUTING section documenting the
+  seeding, the validated config, MLflow tracking, and optional DVC data versioning with a sample config.
 - Dry-down simulator (`phytovision simulate`): a seeded generative model of a succulent dry-down that
   emits synthetic labelled sequences (a per-observation manifest plus a per-plant events table with
   durations and censoring). It exists because no labelled succulent time series is available to fit or

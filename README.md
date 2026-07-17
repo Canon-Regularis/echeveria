@@ -178,9 +178,14 @@ Pipeline.from_names(model="gradient-boosted", segmenter="exg-otsu", explainer="s
 ```
 
 Or build the whole thing from a config dictionary, or from a config file you load into one, with
-`Pipeline.from_config({...})`. Adding a new implementation means registering it; nothing in the
-orchestrator changes. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the parts fit together
-and how to add your own.
+`Pipeline.from_config({...})`. The config is validated against a typed schema, so a mistyped slot name
+is rejected rather than silently ignored, and the resolved config is diffable for reproducibility.
+Adding a new implementation means registering it; nothing in the orchestrator changes. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the parts fit together and how to add your own.
+
+For reproducible runs, the commands that draw randomness take `--seed`, which threads into the
+per-stage generators and seeds the global RNGs from one place; see the reproducibility notes in
+[CONTRIBUTING.md](CONTRIBUTING.md), which also cover optional MLflow tracking and DVC data versioning.
 
 ## Honesty and limits
 

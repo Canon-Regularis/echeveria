@@ -16,13 +16,14 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TypeVar
 
 import numpy as np
 
+from phytovision.config_schema import ComponentSpec, PipelineConfig
 from phytovision.exceptions import ConfigError, InvalidImageError
 from phytovision.explainability.base import Explainer
 from phytovision.io import load_image
@@ -34,7 +35,6 @@ from phytovision.quality import assess_quality
 from phytovision.regions.base import RegionProvider
 from phytovision.registries import (
     AGGREGATORS,
-    DEFAULTS,
     EXPLAINERS,
     FEATURE_EXTRACTORS,
     PREPROCESSORS,
@@ -75,27 +75,21 @@ class Pipeline:
         :param config: keys ``preprocessor``, ``segmenter``, ``region_provider``,
             ``feature_extractors``, ``aggregator``, ``model``, ``explainer``. Each value is a
             registered name, or ``{"name": ..., "params": {...}}``. A spec with only ``params``
-            keeps the slot's default component and just overrides its parameters.
-        :raises ConfigError: if a component name is unknown or a spec is malformed.
+            keeps the slot's default component and just overrides its parameters. An unknown
+            top-level key is rejected, so a mistyped slot name fails loudly instead of silently.
+        :raises ConfigError: if a top-level key is unknown, a component name is unknown, or a spec
+            is malformed.
         """
-        cfg = dict(config or {})
-        extractor_specs = cfg.get("feature_extractors", DEFAULTS["feature_extractors"])
-        if not isinstance(extractor_specs, Sequence) or isinstance(extractor_specs, str):
-            raise ConfigError("`feature_extractors` must be a list of component specs")
-        extractors = [_build(FEATURE_EXTRACTORS, s) for s in extractor_specs]
-
-        def slot(name: str, registry: Registry[_T]) -> _T:
-            default = DEFAULTS[name]
-            return _build(registry, cfg.get(name, default), default_name=default)
-
+        resolved = PipelineConfig.from_mapping(config)
+        extractors = [_create(FEATURE_EXTRACTORS, spec) for spec in resolved.feature_extractors]
         return cls(
-            preprocessor=slot("preprocessor", PREPROCESSORS),
-            segmenter=slot("segmenter", SEGMENTERS),
-            region_provider=slot("region_provider", REGION_PROVIDERS),
+            preprocessor=_create(PREPROCESSORS, resolved.preprocessor),
+            segmenter=_create(SEGMENTERS, resolved.segmenter),
+            region_provider=_create(REGION_PROVIDERS, resolved.region_provider),
             feature_extractor=CompositeFeatureExtractor(extractors),
-            aggregator=slot("aggregator", AGGREGATORS),
-            model=slot("model", STRESS_MODELS),
-            explainer=slot("explainer", EXPLAINERS),
+            aggregator=_create(AGGREGATORS, resolved.aggregator),
+            model=_create(STRESS_MODELS, resolved.model),
+            explainer=_create(EXPLAINERS, resolved.explainer),
         )
 
     @classmethod
@@ -220,28 +214,17 @@ class Pipeline:
         return replace(self, heads=(*self.heads, head))
 
 
-def _build(registry: Registry[_T], spec: object, default_name: object = None) -> _T:
-    """Instantiate a component from a name or ``{"name", "params"}`` spec via ``registry``.
+def _create(registry: Registry[_T], spec: ComponentSpec) -> _T:
+    """Instantiate a component from a resolved ``ComponentSpec`` via ``registry``.
 
-    If a mapping spec omits ``name``, ``default_name`` is used, so a config can override just the
-    parameters of a slot's default component.
+    The spec is already validated and normalized by ``PipelineConfig``; this only resolves the name
+    against the registry and surfaces a clean ``ConfigError`` for an unknown name or bad parameters.
     """
-    if isinstance(spec, str):
-        name, params = spec, {}
-    elif isinstance(spec, Mapping):
-        raw_name = spec.get("name", default_name)
-        if not isinstance(raw_name, str):
-            raise ConfigError(f"component spec needs a string 'name': {spec!r}")
-        name = raw_name
-        raw_params = spec.get("params", {})
-        params = dict(raw_params) if isinstance(raw_params, Mapping) else {}
-    else:
-        raise ConfigError(f"invalid component spec: {spec!r}")
     try:
-        return registry.create(name, **params)
+        return registry.create(spec.name, **spec.params)
     except KeyError as exc:
         # KeyError.__str__ repr-quotes its message, so read the raw text to keep the error clean.
         message = str(exc.args[0]) if exc.args else str(exc)
         raise ConfigError(message) from exc
     except TypeError as exc:
-        raise ConfigError(f"could not construct {name!r}: {exc}") from exc
+        raise ConfigError(f"could not construct {spec.name!r}: {exc}") from exc

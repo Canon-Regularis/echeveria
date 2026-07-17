@@ -76,6 +76,12 @@ def test_from_config_rejects_non_list_feature_extractors() -> None:
         Pipeline.from_config({"feature_extractors": "geometry"})
 
 
+def test_from_config_rejects_an_unknown_top_level_key() -> None:
+    # A mistyped slot name is validated by the schema, so it fails loudly instead of silently.
+    with pytest.raises(ConfigError, match="unknown config key"):
+        Pipeline.from_config({"modell": "heuristic"})
+
+
 def test_unbuildable_component_raises_configerror_not_typeerror() -> None:
     # gradient-boosted requires feature_keys, so building it by name must surface as ConfigError
     # (a PhytoVisionError), not a raw TypeError.

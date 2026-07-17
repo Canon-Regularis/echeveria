@@ -41,7 +41,7 @@ def run(args: argparse.Namespace) -> int:
     import subprocess
 
     env = {**os.environ, **serving_env(args.config, args.model_path)}
-    script = str(Path(__file__).parent.parent / "dashboard.py")
+    script = str(Path(__file__).parent.parent / "dashboard" / "app.py")
     command = [  # pragma: no cover: launches the external Streamlit server
         sys.executable,
         "-m",

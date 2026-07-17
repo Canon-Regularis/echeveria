@@ -51,9 +51,38 @@ All notable changes to this project are documented here. The format is based on
   silhouette (skimage `medial_axis`), reporting skeleton length, branch and endpoint counts, medial
   thickness, and tortuosity. It is registered but kept out of the default stack, so the shipped feature
   schema does not drift; it describes the silhouette, not the vein network.
+- Model-agnostic occlusion saliency: `occlusion.occlusion_saliency` reruns the pipeline over occluded
+  patches of the plant and paints each patch by how far hiding it moves the stress score, so it
+  localizes any driver (shape and texture, not only colour) and works for any model, unlike the
+  colour-only pigment saliency. It reruns the pipeline once per patch, so it lives behind a flag:
+  `analyze --save-occlusion` and `visualize.render_occlusion_overlay`. Every value is an RGB proxy of
+  the score's source, not a measurement.
+- Standalone physiology head: `PhysiologyHead` (`analyze --physiology`, `/analyze?physiology=true`, and
+  a dashboard panel) reports the water-potential, stomatal-conductance, and transpiration proxies on
+  their own, without running the drought-stage rule set. The proxies derive from the same drought
+  markers, so the standalone head and the `drought_stage` block always agree; every value stays a crude
+  RGB proxy, not a measurement.
 - New optional extras: `stats` (statsmodels and lifelines, for the statistical forecasters and the
   survival models) and `tracking` (mlflow, for benchmark logging), both added to the `all`
   self-reference and the CI install lists.
+
+### Fixed
+- A project-wide bug sweep closed a set of latent defects: the config schema now rejects a malformed
+  (non-mapping) `params` instead of silently dropping it; `read_config` validates the extension before
+  reading and wraps a non-UTF-8 file as a clean `ConfigError`; manifest and cohort readers reject a
+  non-finite (`nan`/`inf`) or non-numeric cell rather than poisoning a regression report or crashing;
+  `validate --bins` and `benchmark --interval-level` reject out-of-range values cleanly instead of
+  dumping a traceback; the forecasters' time-to-stressed search no longer reports a too-late crossing
+  when a horizon above its 30-step window is requested, and the linear forecaster and `forecast_scores`
+  now reject an out-of-range interval level like the others do; the excess-green segmenter no longer
+  integer-overflows on a uint8 image; the covariate survival model now actually drops a constant column
+  (the standard-deviation floor had made the drop unreachable); the gradient-boosted verdict uses the
+  shared bucket cuts so it agrees with the other models at a score; the synthetic events table emits a
+  1-based duration matching the survival contract (never a 0 that a parametric fit rejects); a survival
+  cohort with no repeated observations degrades to a clear note on `/trend` and the dashboard instead of
+  raising; the folder loader skips a directory whose name ends in an image suffix; and the saliency and
+  occlusion overlays tint a mid-strength pixel with its true colour at a strength-scaled opacity, rather
+  than applying the magnitude twice and pulling it toward grey.
 
 ## [0.2.0] (2026-07-16)
 

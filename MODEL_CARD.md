@@ -62,11 +62,13 @@ The RGB features stand in for those mechanisms as proxies:
 | Stomatal conductance (RGB proxy) | `physiology.stomatal_conductance_proxy` (relative index, not a flux) |
 | Transpiration (RGB proxy) | `physiology.transpiration_proxy` (relative index, not a flux) |
 
-Two optional heads build on this progression: `analyze --drought-stage` names an ordinal stage
-(`well-watered`, `early-stress`, `moderate`, `severe`) from the pattern of markers, and the temporal
-early warning flags a plant whose pigment stress is rising while its overall score is still below the
-stressed cut-off (the pigment-before-collapse signal). Explanations also cite the mechanism behind
-each driver (for example "yellowing raises the estimate (chlorophyll degradation)").
+Optional heads build on this progression: `analyze --drought-stage` names an ordinal stage
+(`well-watered`, `early-stress`, `moderate`, `severe`) from the pattern of markers, `analyze
+--physiology` reports the three physiology proxies on their own, and the temporal early warning flags
+a plant whose pigment stress is rising while its overall score is still below the stressed cut-off (the
+pigment-before-collapse signal). Explanations also cite the mechanism behind each driver (for example
+"yellowing raises the estimate (chlorophyll degradation)"), and `analyze --save-occlusion` writes a
+model-agnostic occlusion map that localizes any driver, colour or shape, as an RGB proxy.
 
 Honesty caveats:
 
@@ -83,8 +85,9 @@ Honesty caveats:
   necrosis markers above, so they add interpretive grounding, not independent signal. They are crude
   RGB proxies, never measurements: the water-potential proxy is an ordinal deficit index, not a
   pressure in MPa, and the conductance and transpiration proxies are relative indices, not fluxes.
-  They are head-only readings (in the `drought_stage` output), never in the trained feature schema and
-  never fed to the stress model or a forecaster, which would count the same pixels twice.
+  They are head-only readings (in the `drought_stage` output and the standalone `physiology` head),
+  never in the trained feature schema and never fed to the stress model or a forecaster, which would
+  count the same pixels twice.
 - The forecasters take a scalar stress-score series only. Using a physiology proxy as a forecaster
   covariate was deferred deliberately: each proxy is a deterministic re-weighting of the signals the
   score already carries, so it would double-count rather than add exogenous information, and a genuinely

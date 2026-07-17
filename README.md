@@ -149,8 +149,9 @@ tooling.
 
 ```bash
 phytovision analyze path/to/plant.jpg
-phytovision analyze path/to/plant.jpg --json --features --disease --drought-stage
+phytovision analyze path/to/plant.jpg --json --features --disease --drought-stage --physiology
 phytovision analyze path/to/plant.jpg --counterfactual --conformal --save-overlay overlay.png
+phytovision analyze path/to/plant.jpg --save-saliency pigment.png --save-occlusion occlusion.png
 ```
 
 Add `-v` for debug logging and `--json` for machine-readable output.

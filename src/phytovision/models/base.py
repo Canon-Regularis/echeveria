@@ -16,9 +16,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import ClassVar, Protocol, Self, runtime_checkable
+from typing import TYPE_CHECKING, ClassVar, Protocol, Self, runtime_checkable
 
 from phytovision.types import PlantFeatures, StressAssessment
+
+if TYPE_CHECKING:
+    from phytovision.temporal.forecast import Forecast
 
 
 class StressModel(ABC):
@@ -94,6 +97,24 @@ class TrainableStressModel(Protocol):
     def fit(self, feature_dicts: Sequence[dict[str, float]], labels: Sequence[int]) -> Self: ...
 
     def predict(self, features: PlantFeatures) -> StressAssessment: ...
+
+
+class TrajectoryForecaster(ABC):
+    """A per-series stress forecaster that returns a predictive distribution, not a point.
+
+    Where ``StressModel`` maps one image to one score, a forecaster consumes a whole stress-score
+    sequence and projects it forward, reporting a mean and a prediction interval per horizon.
+    Implementations live in ``models.forecasting`` and register under ``FORECASTERS``, so a caller
+    selects one by name and reads every one through the same ``Forecast`` shape.
+    """
+
+    name: ClassVar[str] = "trajectory-forecaster"
+
+    @abstractmethod
+    def forecast(
+        self, series: Sequence[float], horizons: Sequence[int], plant_id: str = ""
+    ) -> Forecast:
+        """Project ``series`` forward to each horizon as a ``Forecast`` with intervals."""
 
 
 @runtime_checkable

@@ -22,6 +22,7 @@ from phytovision.temporal.trend import StressTrend, stress_trend
 if TYPE_CHECKING:
     # Imported for typing only. Keeping it out of runtime lets the temporal package be imported
     # (e.g. by the leaf-death forecaster via the registry) without dragging in the pipeline module.
+    from phytovision.models.base import TrajectoryForecaster
     from phytovision.pipeline import Pipeline
 
 _log = logging.getLogger(__name__)
@@ -60,10 +61,29 @@ def plant_early_warnings(history: FeatureHistory) -> dict[str, EarlyWarning]:
 
 
 def plant_forecasts(
-    history: FeatureHistory, horizons: Sequence[int] = DEFAULT_HORIZONS
+    history: FeatureHistory,
+    horizons: Sequence[int] = DEFAULT_HORIZONS,
+    forecaster: TrajectoryForecaster | None = None,
 ) -> dict[str, Forecast]:
-    """Project each plant's stress trajectory forward to the given horizons."""
+    """Project each plant's stress trajectory forward to the given horizons.
+
+    With no ``forecaster`` this is the linear-trend default. Pass any registered
+    ``TrajectoryForecaster`` to project with prediction intervals from a richer model instead.
+    """
     return {
-        plant_id: stress_forecast(plant_id, history.series_for(plant_id), horizons)
+        plant_id: _forecast_plant(plant_id, history, horizons, forecaster)
         for plant_id in history.plant_ids
     }
+
+
+def _forecast_plant(
+    plant_id: str,
+    history: FeatureHistory,
+    horizons: Sequence[int],
+    forecaster: TrajectoryForecaster | None,
+) -> Forecast:
+    series = history.series_for(plant_id)
+    if forecaster is None:
+        return stress_forecast(plant_id, series, horizons)
+    scores = [observation.stress_score for observation in series]
+    return forecaster.forecast(scores, horizons, plant_id)

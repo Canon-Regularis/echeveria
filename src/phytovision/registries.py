@@ -22,11 +22,16 @@ from phytovision.datasets.yolo import YoloDetectionLoader
 from phytovision.explainability.base import Explainer
 from phytovision.explainability.feature_reasons import FeatureContributionExplainer
 from phytovision.explainability.shap_explainer import ShapExplainer
-from phytovision.models.base import StressModel
+from phytovision.models.base import StressModel, TrajectoryForecaster
 from phytovision.models.disease.base import DiseaseModel
 from phytovision.models.disease.heuristic import HeuristicDiseaseModel
 from phytovision.models.drought.base import DroughtStageModel
 from phytovision.models.drought.rule_based import RuleBasedDroughtStage
+from phytovision.models.forecasting.arima import ArimaForecaster
+from phytovision.models.forecasting.baseline import LinearTrendForecaster
+from phytovision.models.forecasting.bayesian import BayesianRidgeForecaster
+from phytovision.models.forecasting.gaussian_process import GaussianProcessForecaster
+from phytovision.models.forecasting.state_space import StateSpaceForecaster
 from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
 from phytovision.models.stress.heuristic import HeuristicStressModel
@@ -114,6 +119,15 @@ DROUGHT_STAGE_MODELS.register("rule-based")(RuleBasedDroughtStage)
 # Leaf-death / decline forecasters. The shipped one is a trend extrapolation, not a fitted model.
 LEAF_DEATH_PREDICTORS: Registry[LeafDeathPredictor] = Registry("leaf_death_predictor")
 LEAF_DEATH_PREDICTORS.register("trend")(TrendLeafDeathPredictor)
+
+# Trajectory forecasters that return a predictive distribution per horizon. The linear baseline
+# needs no extra; the scikit-learn models need `ml`; the state-space and ARIMA models need `stats`.
+FORECASTERS: Registry[TrajectoryForecaster] = Registry("forecaster")
+FORECASTERS.register("linear-trend")(LinearTrendForecaster)
+FORECASTERS.register("gaussian-process")(GaussianProcessForecaster)
+FORECASTERS.register("bayesian-ridge")(BayesianRidgeForecaster)
+FORECASTERS.register("state-space")(StateSpaceForecaster)
+FORECASTERS.register("arima")(ArimaForecaster)
 
 # Dataset loaders are selectable by name too. Their first constructor argument is the path (dataset
 # root, annotations file, or manifest), so callers pass it as the loader's own keyword.

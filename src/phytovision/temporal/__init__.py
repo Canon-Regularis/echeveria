@@ -8,7 +8,13 @@ build on the single-image pipeline, so nothing upstream changes.
 from __future__ import annotations
 
 from phytovision.temporal.early_warning import EarlyWarning, pigment_early_warning
-from phytovision.temporal.forecast import DEFAULT_HORIZONS, Forecast, stress_forecast
+from phytovision.temporal.forecast import (
+    DEFAULT_HORIZONS,
+    DEFAULT_INTERVAL_LEVEL,
+    Forecast,
+    forecast_scores,
+    stress_forecast,
+)
 from phytovision.temporal.history import FeatureHistory, Observation
 from phytovision.temporal.ingest import (
     build_history,
@@ -20,12 +26,14 @@ from phytovision.temporal.trend import StressTrend, stress_trend
 
 __all__ = [
     "DEFAULT_HORIZONS",
+    "DEFAULT_INTERVAL_LEVEL",
     "EarlyWarning",
     "FeatureHistory",
     "Forecast",
     "Observation",
     "StressTrend",
     "build_history",
+    "forecast_scores",
     "pigment_early_warning",
     "plant_early_warnings",
     "plant_forecasts",

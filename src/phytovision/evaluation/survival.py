@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from phytovision.evaluation._aggregate import mean_ci95
 from phytovision.exceptions import ConfigError
 from phytovision.models.survival.base import SurvivalDataset, _finite_or_none
 from phytovision.models.survival.cohort import derive_records
@@ -113,7 +114,7 @@ def benchmark_survival_models(
             continue
         if fold_scores:
             mean = float(np.mean(fold_scores))
-            scores.append(SurvivalScore(name, mean, _ci95(fold_scores), len(fold_scores)))
+            scores.append(SurvivalScore(name, mean, mean_ci95(fold_scores), len(fold_scores)))
     return SurvivalLeaderboard(tuple(scores), len(splits), tuple(skipped))
 
 
@@ -155,12 +156,3 @@ def _kfold(n: int, folds: int, seed: int) -> list[tuple[list[int], list[int]]]:
         train = [i for other, chunk in enumerate(chunks) if other != held_out for i in chunk]
         splits.append((train, test))
     return splits
-
-
-def _ci95(values: list[float]) -> tuple[float, float]:
-    array = np.asarray(values, dtype=np.float64)
-    mean = float(np.mean(array))
-    if array.size < 2:
-        return (mean, mean)
-    half = 1.96 * float(np.std(array, ddof=1)) / (array.size**0.5)
-    return (mean - half, mean + half)

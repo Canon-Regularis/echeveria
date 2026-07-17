@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 
 from phytovision.analysis import AnalysisRow
+from phytovision.evaluation._aggregate import mean_ci95
 from phytovision.evaluation._common import (
     binary_labels,
     feature_keys_of,
@@ -53,8 +54,7 @@ class CrossValResult:
     @property
     def accuracy_ci95(self) -> tuple[float, float]:
         """A 95% confidence interval for the mean accuracy (normal approximation)."""
-        half = 1.96 * self.std_accuracy / (self.n_splits**0.5) if self.n_splits else 0.0
-        return (self.mean_accuracy - half, self.mean_accuracy + half)
+        return mean_ci95(self.fold_accuracies)
 
     @property
     def mean_f1(self) -> float:

@@ -6,8 +6,8 @@ import importlib.util
 
 import pytest
 
+from phytovision.evaluation._aggregate import mean_ci95
 from phytovision.evaluation.survival import (
-    _ci95,
     _covariate_model_names,
     _kfold,
     benchmark_survival_models,
@@ -70,8 +70,8 @@ def test_leaderboard_ranks_covariate_models_above_chance() -> None:
 
 
 def test_ci95_kfold_and_benchmark_guards() -> None:
-    assert _ci95([0.7]) == (0.7, 0.7)  # a single fold has a degenerate interval
-    low, high = _ci95([0.6, 0.8])
+    assert mean_ci95([0.7]) == (0.7, 0.7)  # a single fold has a degenerate interval
+    low, high = mean_ci95([0.6, 0.8])
     assert high > low and abs((low + high) / 2 - 0.7) < 1e-9
     with pytest.raises(ConfigError):
         _kfold(10, folds=1, seed=0)  # a benchmark needs at least two folds

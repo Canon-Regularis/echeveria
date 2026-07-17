@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from phytovision.evaluation._aggregate import mean_ci95
 from phytovision.evaluation.probabilistic import (
     crps_gaussian_samples,
     interval_coverage,
@@ -177,7 +178,7 @@ def _score_horizon(
         name=name,
         horizon=horizon,
         crps=float(np.mean(samples)),
-        crps_ci95=_ci95(samples),
+        crps_ci95=mean_ci95(samples),
         pinball=interval_pinball(actual, mean, lower, upper, interval_level),
         coverage=interval_coverage(actual, lower, upper),
         mean_width=mean_interval_width(lower, upper),
@@ -187,13 +188,3 @@ def _score_horizon(
 
 def _scores(history: FeatureHistory, plant_id: str) -> list[float]:
     return [observation.stress_score for observation in history.series_for(plant_id)]
-
-
-def _ci95(samples: np.ndarray) -> tuple[float, float]:
-    """A 95% confidence interval for the mean via the normal approximation."""
-    n = samples.size
-    mean = float(np.mean(samples))
-    if n < 2:
-        return (mean, mean)
-    half = 1.96 * float(np.std(samples, ddof=1)) / (n**0.5)
-    return (mean - half, mean + half)

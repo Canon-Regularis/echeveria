@@ -199,14 +199,19 @@ was dropped.
 **There is no in-domain data for the time-series work.** Same-plant sequences exist for other species,
 which is fine for prototyping, but nothing succulent and nothing with graded leaf-death labels. This is
 fine for a later goal, but the camera rig for a controlled dry-down should be set up early so data
-starts accumulating while the first version is built.
+starts accumulating while the first version is built. Until it does, `phytovision simulate` provides a
+seeded dry-down simulator: honest synthetic sequences, each labelled synthetic, that unblock fitting
+and benchmarking the temporal models without pretending to be real succulents.
 
-**Forecasting is a trend extrapolation, not a fitted model.** The high-throughput phenotyping work
-(arXiv 2402.18751, 2024) frames water stress as a trajectory ending in a prediction. echeveria now ships
-that seam: `phytovision phenotype`, the reserved `LeafDeathPredictor`, and a `/trend` + dashboard
-forecast. Because no labelled succulent time-series data exists, the shipped forecaster is a linear
-extrapolation of the stress trend, not a validated prognostic. A fitted forecaster is future work once
-the dry-down rig produces graded, timestamped sequences.
+**Forecasting is an extrapolation, benchmarked but not validated.** The high-throughput phenotyping
+work (arXiv 2402.18751, 2024) frames water stress as a trajectory ending in a prediction. echeveria
+ships that seam and now makes it probabilistic: a `TrajectoryForecaster` contract, a `FORECASTERS`
+registry of pluggable models (linear-trend, state-space, ARIMA, Gaussian process, Bayesian ridge), a
+prediction interval per horizon threaded through `phenotype`, `/trend`, and the dashboard, and a
+`benchmark` command that ranks the forecasters over the simulator with time-series cross-validation
+and proper scoring rules. Because no labelled succulent time-series data exists, every forecaster is
+fitted and scored on synthetic data, so a forecast is indicative, not a validated prognostic. A model
+validated on real graded sequences is future work once the dry-down rig produces them.
 
 **Multi-sensor fusion is deferred.** The same work fuses RGB with multispectral sensors. echeveria is
 RGB-only, so multispectral indices (NDVI and similar) are out of reach without new hardware and data. A

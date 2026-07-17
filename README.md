@@ -62,11 +62,16 @@ Given a timestamped series of images of one plant, echeveria reports how the str
 - Stress trend: a direction and a slope fitted to the stress score over observation order.
 - Pigment early warning: flags a plant whose RGB pigment-stress proxy is rising while its stress score
   is still below the stressed cut. Deterioration shows up before the verdict flips.
-- Forecast: a linear extrapolation of the recent trend. It projects the stress score forward per
-  horizon and estimates the steps to the stressed cut; its confidence falls as the horizon grows. Treat
-  it as an estimate of the trend, and validate it before you rely on it.
+- Probabilistic forecast: pluggable forecasters that each project the stress score forward with a
+  prediction interval per horizon. Pick one by name (`--forecaster`): a linear-trend baseline, a
+  state-space local linear trend and an ARIMA model (the `stats` extra), and a Gaussian process and a
+  Bayesian ridge (the `ml` extra). Each also estimates the steps to the stressed cut and a confidence
+  that falls as the horizon grows.
 - High-throughput phenotyping: the `phenotype` command reads a manifest of many plants over time and
-  writes one trajectory row per plant.
+  writes one trajectory row per plant, with the per-horizon interval columns.
+- Synthetic data and benchmarking: no labelled succulent time series exists, so `simulate` generates a
+  seeded dry-down cohort (labelled synthetic) and `benchmark` ranks every forecaster over it with
+  time-series cross-validation and proper scoring rules (CRPS, pinball loss, interval coverage).
 
 ### Training, evaluation, and persistence
 
@@ -106,8 +111,10 @@ pip install -e ".[dev]"
 ```
 
 The core single-image path installs with the base dependencies alone. Heavier features live behind
-extras: `ml` (the gradient-boosted model, SHAP, persistence), `api`, `dashboard`, and `docs`. Install
-`.[all]` for every runtime feature, or `.[dev]` for the test, lint, and type-check tooling.
+extras: `ml` (the gradient-boosted model, SHAP, persistence, and two forecasters), `stats` (the
+state-space and ARIMA forecasters), `tracking` (MLflow benchmark logging), `api`, `dashboard`, and
+`docs`. Install `.[all]` for every runtime feature, or `.[dev]` for the test, lint, and type-check
+tooling.
 
 ## Command line
 
@@ -120,6 +127,8 @@ extras: `ml` (the gradient-boosted model, SHAP, persistence), `api`, `dashboard`
 | `serve` | run the HTTP API (needs the `api` extra) |
 | `dashboard` | run the Streamlit dashboard (needs the `dashboard` extra) |
 | `phenotype` | high-throughput trajectory phenotyping over a timestamped manifest |
+| `simulate` | write a synthetic dry-down cohort (a manifest plus an events table) |
+| `benchmark` | rank the forecasters over a synthetic cohort with time-series cross-validation |
 
 ```bash
 phytovision analyze path/to/plant.jpg

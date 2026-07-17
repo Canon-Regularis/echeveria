@@ -90,11 +90,35 @@ Over a `plant_id`/`timestamp` manifest, `phytovision phenotype` builds a per-pla
 API `/trend` and dashboard TEMPORAL tab surface it: the trend, the pigment early warning, and a
 forecast (a projected stress score per horizon, an estimated steps-to-stressed, and a confidence).
 
+The forecast is pluggable. Every forecaster reports a mean and a prediction interval per horizon, and
+all register under `FORECASTERS`, so a caller selects one by name (`phenotype --forecaster`,
+`/trend?forecaster=`, the dashboard picker):
+
+- `linear-trend` (default): the least-squares extrapolation, with an ordinary-least-squares interval.
+- `state-space`: a local linear trend model (statsmodels, the `stats` extra).
+- `arima`: an ARIMA model with native prediction intervals (the `stats` extra).
+- `gaussian-process` and `bayesian-ridge`: scikit-learn models over the trend (the `ml` extra).
+
+### Synthetic data and the benchmark
+
+No labelled succulent time series exists, so the advanced forecasters have nothing real to fit or
+score against. `phytovision simulate` fills that gap with a seeded dry-down simulator: a latent stress
+state rises under a decline forcing, the observed score is a noisy readout, a wilt event fires when the
+latent state crosses the stressed cut, and each step carries a real-namespace feature vector. Every
+row is labelled synthetic in its `source`. `phytovision benchmark` then runs every forecaster over a
+synthetic cohort with time-series cross-validation and ranks them by CRPS, pinball loss, and
+prediction-interval coverage. On the simulator the state-space and ARIMA models beat the naive linear
+baseline, whose interval undercovers at longer horizons.
+
 Honesty caveats:
 
-- The forecast is a linear extrapolation of the recent stress trend, not a fitted or validated
-  prognostic. There is no labelled succulent time-series dataset to train or verify one, so treat it as
-  indicative. Confidence decays the further ahead it projects and grows with trajectory length.
+- The forecast is an extrapolation of the recent stress trend, not a validated prognostic. A prediction
+  interval is an uncertainty estimate, not a measurement. Confidence decays the further ahead it
+  projects and grows with trajectory length.
+- The simulator is a small generative tool for benchmark data, not a plant physiology model. Any
+  forecaster fitted or benchmarked on it is validated against synthetic data, not real succulents.
+- A distribution-free interval is available separately (split-conformal regression), which reaches
+  close to its nominal coverage on the simulator where a parametric interval may not.
 - Each observation is treated as one time step, so horizons are days only under daily sampling.
 - Inputs are RGB. The cited work fuses RGB with multispectral sensors; multispectral fusion is out of
   scope here (no hardware or data). A `Sample.extra["modality"]` tag is reserved for that future work.
@@ -114,6 +138,9 @@ Honesty caveats:
 - `train --calibrate` and `analyze --conformal` provide split conformal prediction: a label set with a
   distribution-free coverage guarantee (the true label falls in the set at least `1 - alpha` of the
   time over fresh data).
+- Forecasts carry a prediction interval per horizon, and split-conformal regression turns any point
+  forecaster's residuals into a distribution-free interval. The `benchmark` command scores forecasters
+  with proper scoring rules (CRPS, pinball loss) and reports interval coverage against width.
 - Explanations: per-feature contributions (default), SHAP (`--explainer shap`, needs the `ml` extra),
   counterfactuals (`analyze --counterfactual`), and global importance.
 

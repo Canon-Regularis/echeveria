@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- Dry-down simulator (`phytovision simulate`): a seeded generative model of a succulent dry-down that
+  emits synthetic labelled sequences (a per-observation manifest plus a per-plant events table with
+  durations and censoring). It exists because no labelled succulent time series is available to fit or
+  benchmark the temporal models; every row is labelled synthetic in its `source`.
+- Probabilistic trajectory forecasting: a `TrajectoryForecaster` contract and a `FORECASTERS` registry
+  with five pluggable models (a linear-trend baseline, a local-linear-trend state-space model, an ARIMA
+  model, a Gaussian process, and a Bayesian ridge). Each reports a prediction interval per horizon.
+  `Forecast` now carries per-horizon lower/upper bounds and the method name; the intervals thread into
+  the `phenotype` columns, the `/trend` forecast block (`/trend?forecaster=`), and the dashboard
+  projection as a shaded band.
+- Probabilistic evaluation: CRPS, pinball loss, prediction-interval coverage and width, and PIT
+  (`evaluation/probabilistic.py`); split-conformal regression intervals extending the conformal
+  primitive from label space to residual space (`evaluation/conformal_regression.py`); and an
+  expanding-window time-series cross-validation splitter (`evaluation/timeseries.py`).
+- Forecaster benchmark (`phytovision benchmark`): runs every registered forecaster over a synthetic
+  cohort with time-series cross-validation and ranks them by CRPS, pinball, and coverage, with optional
+  MLflow logging behind the new `tracking` extra.
+- New optional extras: `stats` (statsmodels, for the state-space and ARIMA forecasters) and `tracking`
+  (mlflow, for benchmark logging), both added to the `all` self-reference and the CI install lists.
+
 ## [0.2.0] (2026-07-16)
 
 ### Added

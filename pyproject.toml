@@ -35,6 +35,10 @@ dependencies = [
 [project.optional-dependencies]
 # Interpretable + end-to-end models and SHAP explanations.
 ml = ["scikit-learn>=1.4", "xgboost>=2.0", "shap>=0.44", "joblib>=1.3"]
+# Statistical trajectory forecasters (state-space and ARIMA).
+stats = ["statsmodels>=0.14"]
+# Experiment tracking for the forecaster benchmark.
+tracking = ["mlflow>=2.11"]
 # Serving surfaces.
 api = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
 dashboard = ["streamlit>=1.33", "plotly>=5.20"]
@@ -54,7 +58,7 @@ dev = [
     "pytest-benchmark>=4.0",  # performance benchmarks
 ]
 # All runtime feature extras (single-sourced via self-reference; excludes dev tooling).
-all = ["phytovision[ml,api,dashboard]"]
+all = ["phytovision[ml,stats,tracking,api,dashboard]"]
 
 [project.scripts]
 phytovision = "phytovision.cli:main"

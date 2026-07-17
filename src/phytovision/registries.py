@@ -46,6 +46,7 @@ from phytovision.phenotyping.base import FeatureExtractor
 from phytovision.phenotyping.colour import ColourFeatures
 from phytovision.phenotyping.geometry import GeometryFeatures
 from phytovision.phenotyping.morphology import MorphologyFeatures
+from phytovision.phenotyping.skeleton import SkeletonFeatures
 from phytovision.phenotyping.texture import TextureFeatures
 from phytovision.preprocessing.base import Preprocessor
 from phytovision.preprocessing.basic import ResizeNormalizePreprocessor
@@ -92,6 +93,9 @@ FEATURE_EXTRACTORS.register("geometry")(GeometryFeatures)
 FEATURE_EXTRACTORS.register("colour")(ColourFeatures)
 FEATURE_EXTRACTORS.register("texture")(TextureFeatures)
 FEATURE_EXTRACTORS.register("morphology")(MorphologyFeatures)
+# Silhouette-skeleton morphology. Registered but not in the DEFAULTS stack, so it never changes the
+# default feature schema; select it explicitly to add the `skeleton.*` descriptors.
+FEATURE_EXTRACTORS.register("skeleton")(SkeletonFeatures)
 
 AGGREGATORS.register("plant-level")(PlantLevelAggregator)
 

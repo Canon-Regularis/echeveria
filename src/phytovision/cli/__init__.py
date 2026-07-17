@@ -56,5 +56,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     configure_logging(args.verbose)
+    # A command that accepts --seed also seeds the global RNGs here, in one place, so any stage that
+    # falls back to the global random state is reproducible alongside the per-stage seeds.
+    seed = getattr(args, "seed", None)
+    if seed is not None:
+        from phytovision.seeding import set_global_seed
+
+        set_global_seed(seed)
     exit_code: int = args.func(args)
     return exit_code

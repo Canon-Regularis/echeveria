@@ -35,6 +35,10 @@ from phytovision.models.forecasting.state_space import StateSpaceForecaster
 from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
 from phytovision.models.stress.heuristic import HeuristicStressModel
+from phytovision.models.survival.base import SurvivalModel
+from phytovision.models.survival.cox import CoxPHSurvival
+from phytovision.models.survival.kaplan_meier import KaplanMeierSurvival
+from phytovision.models.survival.weibull_aft import WeibullAFTSurvival
 from phytovision.models.temporal.leaf_death import LeafDeathPredictor, TrendLeafDeathPredictor
 from phytovision.phenotyping.aggregation.base import FeatureAggregator
 from phytovision.phenotyping.aggregation.plant_level import PlantLevelAggregator
@@ -128,6 +132,13 @@ FORECASTERS.register("gaussian-process")(GaussianProcessForecaster)
 FORECASTERS.register("bayesian-ridge")(BayesianRidgeForecaster)
 FORECASTERS.register("state-space")(StateSpaceForecaster)
 FORECASTERS.register("arima")(ArimaForecaster)
+
+# Survival models for time-to-wilt. Kaplan-Meier needs no covariates and owns the cohort curve; the
+# Weibull-AFT (default) and Cox models add per-plant medians. All need the `stats` extra to fit.
+SURVIVAL_MODELS: Registry[SurvivalModel] = Registry("survival_model")
+SURVIVAL_MODELS.register("kaplan-meier")(KaplanMeierSurvival)
+SURVIVAL_MODELS.register("weibull-aft")(WeibullAFTSurvival)
+SURVIVAL_MODELS.register("cox-ph")(CoxPHSurvival)
 
 # Dataset loaders are selectable by name too. Their first constructor argument is the path (dataset
 # root, annotations file, or manifest), so callers pass it as the loader's own keyword.

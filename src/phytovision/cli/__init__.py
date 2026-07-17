@@ -12,10 +12,12 @@ from collections.abc import Sequence
 from phytovision.cli import (
     analyze,
     batch,
+    benchmark,
     dashboard,
     evaluate,
     phenotype,
     serve,
+    simulate,
     train,
     validate,
 )
@@ -24,7 +26,18 @@ from phytovision.cli._shared import configure_logging, parse_horizons
 # Re-exported under its historical name so existing imports keep working.
 _parse_horizons = parse_horizons
 
-_COMMANDS = (analyze, batch, train, evaluate, serve, dashboard, phenotype, validate)
+_COMMANDS = (
+    analyze,
+    batch,
+    train,
+    evaluate,
+    serve,
+    dashboard,
+    phenotype,
+    validate,
+    simulate,
+    benchmark,
+)
 
 __all__ = ["main"]
 

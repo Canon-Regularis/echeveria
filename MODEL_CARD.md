@@ -150,6 +150,26 @@ Honesty caveats:
 - A time beyond the observed window has no median and surfaces as blank or null, never a fabricated
   number.
 
+### Per-leaf tracking and silhouette skeleton
+
+Two computer-vision additions deepen the trait set without changing the default pipeline. A
+`LeafTracker` assigns each leaf a stable identity across a plant's frames (Hungarian matching on
+normalized centroid and area), so `build_leaf_histories` produces one trajectory per leaf and the
+forecasters and the survival model can run per leaf, not only per plant. This needs a leaf-instance
+pipeline (the classical watershed segmenter); a trained deep leaf segmenter stays deferred, since it
+would need a labelled succulent leaf dataset. A `SkeletonFeatures` extractor adds silhouette
+medial-axis descriptors (skeleton length, branch and endpoint counts, medial thickness, tortuosity).
+
+Honesty caveats:
+
+- The skeleton describes the region silhouette, not the vein network: it is a morphological shape
+  proxy read from the mask, not vein extraction, which would need texture-level segmentation this does
+  not do. The `skeleton` extractor is registered but not in the default stack, so the shipped feature
+  schema and any trained model are unchanged unless a pipeline selects it; a model trained with it must
+  be re-fit against the new schema.
+- The leaf tracker matches on geometry alone (position and size), so it can confuse leaves that cross or
+  occlude; it is a classical matcher, not a learned re-identification model.
+
 ## Evaluation
 
 - `phytovision evaluate <folder>` reports accuracy, precision, recall, F1, and a confusion matrix.

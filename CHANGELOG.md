@@ -31,6 +31,14 @@ All notable changes to this project are documented here. The format is based on
   (`/trend?survival_model=`), four columns on the `phenotype` table (`--survival-model`), and a survival
   curve on the dashboard, plus a held-out concordance leaderboard (`benchmark_survival_models`). Needs
   the `stats` extra (lifelines); estimates are synthetic-trained RGB proxies, not validated prognoses.
+- Per-leaf tracking across frames: a `LeafTracker` (Hungarian assignment on centroid and area) that
+  gives each leaf a stable identity over a plant's sequence, `build_leaf_histories` that turns a
+  leaf-instance pipeline's reports into one observation sequence per leaf (so the forecasters and the
+  survival model run per leaf, not only per plant), and an optional `per_region` field on `Observation`.
+- Skeleton morphology features: a `SkeletonFeatures` extractor (`skeleton` namespace) over the region
+  silhouette (skimage `medial_axis`), reporting skeleton length, branch and endpoint counts, medial
+  thickness, and tortuosity. It is registered but kept out of the default stack, so the shipped feature
+  schema does not drift; it describes the silhouette, not the vein network.
 - New optional extras: `stats` (statsmodels and lifelines, for the statistical forecasters and the
   survival models) and `tracking` (mlflow, for benchmark logging), both added to the `all`
   self-reference and the CI install lists.

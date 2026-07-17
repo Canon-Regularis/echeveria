@@ -25,8 +25,9 @@ machine-learning stack; it runs on the base dependencies alone.
   chroma segmenter for red, purple, or blue plants (`lab-chroma`).
 - Region selection: a whole-plant region by default (`whole-plant`), or per-leaf regions from a
   classical watershed splitter (`leaf-instance`).
-- Feature extraction: four families, namespaced and combinable: geometry, colour, texture, and
-  morphology.
+- Feature extraction: namespaced, combinable families: geometry, colour, texture, and morphology by
+  default, plus an opt-in `skeleton` family (silhouette medial-axis descriptors) that is registered but
+  kept out of the default stack, so it never changes the shipped feature schema.
 - Aggregation: one plant-level feature vector per image (`plant-level`), so the model never depends on
   the region count.
 - Stress model: an interpretable heuristic scorer by default (`heuristic`, no training); a trainable
@@ -71,6 +72,9 @@ Given a timestamped series of images of one plant, echeveria reports how the str
   the observed window (right censoring). A Kaplan-Meier cohort baseline, a Weibull accelerated-failure
   model (default), and a Cox model register under `SURVIVAL_MODELS`; the event is derived from the
   observed stress crossing, and the estimate surfaces on `phenotype`, `/trend`, and the dashboard.
+- Per-leaf tracking: a `LeafTracker` gives each leaf a stable identity across a plant's frames
+  (Hungarian matching on centroid and area), so `build_leaf_histories` produces one trajectory per
+  leaf and the forecasters and the survival model can run on a single leaf, not only the whole plant.
 - High-throughput phenotyping: the `phenotype` command reads a manifest of many plants over time and
   writes one trajectory row per plant, with the per-horizon interval columns and the time-to-wilt band.
 - Synthetic data and benchmarking: no labelled succulent time series exists, so `simulate` generates a

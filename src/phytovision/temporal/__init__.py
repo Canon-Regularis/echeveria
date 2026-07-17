@@ -22,6 +22,11 @@ from phytovision.temporal.ingest import (
     plant_forecasts,
     plant_trends,
 )
+from phytovision.temporal.leaf_tracker import (
+    LeafTracker,
+    LeafTracks,
+    build_leaf_histories,
+)
 from phytovision.temporal.trend import StressTrend, stress_trend
 
 __all__ = [
@@ -30,9 +35,12 @@ __all__ = [
     "EarlyWarning",
     "FeatureHistory",
     "Forecast",
+    "LeafTracker",
+    "LeafTracks",
     "Observation",
     "StressTrend",
     "build_history",
+    "build_leaf_histories",
     "forecast_scores",
     "pigment_early_warning",
     "plant_early_warnings",

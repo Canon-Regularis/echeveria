@@ -23,6 +23,12 @@ class Observation:
     timestamp: str
     stress_score: float
     features: dict[str, float] = field(default_factory=dict)
+    # The per-leaf feature vectors behind this observation, in region order, so a downstream leaf
+    # tracker can recover per-leaf trajectories. Empty for a whole-plant analysis or a hand-built
+    # observation; ``record`` populates it only from a leaf-instance report, where it carries one
+    # vector per leaf. A whole-plant record leaves it empty, since its one vector would only
+    # duplicate ``features``.
+    per_region: tuple[dict[str, float], ...] = ()
 
 
 class FeatureHistory:
@@ -36,11 +42,19 @@ class FeatureHistory:
 
     def record(self, plant_id: str, timestamp: str, report: AnalysisReport) -> Observation:
         """Build an observation from a pipeline report, store it, and return it."""
+        # Store the per-region vectors only when they carry per-leaf information; a whole-plant
+        # report has one region whose vector would only duplicate the aggregated plant features.
+        per_region = (
+            tuple(dict(fv.values) for fv in report.plant_features.per_region)
+            if report.regions.is_per_leaf
+            else ()
+        )
         observation = Observation(
             plant_id=plant_id,
             timestamp=timestamp,
             stress_score=report.stress.score,
             features=report.plant_features.defined(),
+            per_region=per_region,
         )
         self.add(observation)
         return observation

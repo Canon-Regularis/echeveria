@@ -58,6 +58,9 @@ The RGB features stand in for those mechanisms as proxies:
 | Pigment saturation loss | `colour.saturation_mean`, `colour.value_mean` |
 | Turgor loss / leaf deformation | `geometry.solidity`, `morphology.concavity`, `morphology.radial_variation` |
 | Surface texture change | the `texture.*` family |
+| Water status (deficit, RGB proxy) | `physiology.water_potential_proxy` (ordinal deficit index, higher is drier, not MPa) |
+| Stomatal conductance (RGB proxy) | `physiology.stomatal_conductance_proxy` (relative index, not a flux) |
+| Transpiration (RGB proxy) | `physiology.transpiration_proxy` (relative index, not a flux) |
 
 Two optional heads build on this progression: `analyze --drought-stage` names an ordinal stage
 (`well-watered`, `early-stress`, `moderate`, `severe`) from the pattern of markers, and the temporal
@@ -75,6 +78,18 @@ Honesty caveats:
   indicative, not validated.
 - Reddening is confounded: many succulents redden under light stress or are naturally red or purple, so
   `red_fraction` carries a deliberately modest weight.
+- The physiology proxies (`physiology.water_potential_proxy`, `physiology.stomatal_conductance_proxy`,
+  `physiology.transpiration_proxy`) are second-order composites of the same pigment, turgor, and
+  necrosis markers above, so they add interpretive grounding, not independent signal. They are crude
+  RGB proxies, never measurements: the water-potential proxy is an ordinal deficit index, not a
+  pressure in MPa, and the conductance and transpiration proxies are relative indices, not fluxes.
+  They are head-only readings (in the `drought_stage` output), never in the trained feature schema and
+  never fed to the stress model or a forecaster, which would count the same pixels twice.
+- The forecasters take a scalar stress-score series only. Using a physiology proxy as a forecaster
+  covariate was deferred deliberately: each proxy is a deterministic re-weighting of the signals the
+  score already carries, so it would double-count rather than add exogenous information, and a genuinely
+  independent covariate (for example a multispectral water band) would need a covariate-aware forecaster
+  rather than a change to the current per-series contract.
 - Species differ. Tolerant and sensitive species show different signatures, which this single model
   does not yet account for (see the deferred species objective in [docs/OBJECTIVES.md](docs/OBJECTIVES.md)).
 

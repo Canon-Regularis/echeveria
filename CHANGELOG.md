@@ -35,6 +35,12 @@ All notable changes to this project are documented here. The format is based on
   gives each leaf a stable identity over a plant's sequence, `build_leaf_histories` that turns a
   leaf-instance pipeline's reports into one observation sequence per leaf (so the forecasters and the
   survival model run per leaf, not only per plant), and an optional `per_region` field on `Observation`.
+- Physiology proxies: water-potential, stomatal-conductance, and transpiration RGB-proxy indices
+  derived from the existing pigment, turgor, and necrosis markers, surfaced in the `drought_stage` head
+  output (a `physiology` block plus a `physiology_basis` caveat) and grounded with `_PHYSIOLOGY` notes.
+  They are crude proxies, not measurements (the water-potential proxy is ordinal, not MPa; conductance
+  and transpiration are relative indices, not fluxes); they add interpretive grounding, not independent
+  signal, and are never fed to the stress model or the forecaster.
 - Skeleton morphology features: a `SkeletonFeatures` extractor (`skeleton` namespace) over the region
   silhouette (skimage `medial_axis`), reporting skeleton length, branch and endpoint counts, medial
   thickness, and tortuosity. It is registered but kept out of the default stack, so the shipped feature

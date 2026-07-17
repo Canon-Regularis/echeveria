@@ -45,6 +45,14 @@ machine-learning stack; it runs on the base dependencies alone.
 - Conformal prediction: split conformal calibration produces a label set with a coverage guarantee, so
   a borderline case can return both labels.
 
+### Physiology proxies
+
+The drought-stage head also reports three physiology proxies derived from the pigment, turgor, and
+necrosis markers: a water-potential (deficit) index, a stomatal-conductance index, and a transpiration
+index. They are crude RGB proxies, not measurements (the water-potential proxy is ordinal, not MPa;
+the other two are relative indices, not fluxes), and they add interpretive grounding, not independent
+signal, so they are never fed to the stress model or the forecaster.
+
 ### Secondary heads
 
 These run after the stress model over the same plant features. Each one is a literature-motivated

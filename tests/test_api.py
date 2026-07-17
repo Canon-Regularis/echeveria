@@ -150,8 +150,42 @@ def test_trend_sorts_by_timestamp_not_upload_order(healthy_image, stressed_image
     assert plant["direction"] == "rising"
     assert set(plant["early_warning"]) == {"flagged", "pigment_slope", "note"}
     assert isinstance(plant["early_warning"]["flagged"], bool)
-    assert set(plant["forecast"]) == {"projected_scores", "steps_to_stressed", "confidence"}
+    forecast = plant["forecast"]
+    assert set(forecast) == {
+        "method",
+        "projected_scores",
+        "lower",
+        "upper",
+        "interval_level",
+        "steps_to_stressed",
+        "confidence",
+    }
+    assert forecast["method"] == "linear-trend"  # the default forecaster
+    # Each projected horizon carries a bracketing interval.
+    for horizon, score in forecast["projected_scores"].items():
+        assert forecast["lower"][horizon] <= score <= forecast["upper"][horizon]
     assert "disclaimer" in response.json()  # early_warning and forecast are labelled RGB proxies
+
+
+def test_trend_accepts_a_forecaster_choice(healthy_image, stressed_image) -> None:
+    pytest.importorskip("statsmodels")
+    client = TestClient(create_app())
+    files = [
+        ("files", ("a.png", _png_bytes(healthy_image), "image/png")),
+        ("files", ("b.png", _png_bytes(stressed_image), "image/png")),
+    ]
+    data = {"plant_id": ["p1", "p1"], "timestamp": ["2026-03-01", "2026-03-02"]}
+    response = client.post("/trend?forecaster=state-space", files=files, data=data)
+    assert response.status_code == 200
+    assert response.json()["plants"]["p1"]["forecast"]["method"] == "state-space"
+
+
+def test_trend_rejects_an_unknown_forecaster(healthy_image) -> None:
+    client = TestClient(create_app())
+    files = [("files", ("a.png", _png_bytes(healthy_image), "image/png"))]
+    data = {"plant_id": ["p1"], "timestamp": ["2026-03-01"]}
+    response = client.post("/trend?forecaster=does-not-exist", files=files, data=data)
+    assert response.status_code == 400
 
 
 def test_trend_rejects_mismatched_lengths(healthy_image) -> None:

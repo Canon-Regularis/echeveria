@@ -150,6 +150,25 @@ def test_cli_phenotype_writes_a_trajectory_table(tmp_path, healthy_image, stress
     assert p1["trend_direction"] == "rising"  # healthy then stressed
 
 
+def test_cli_phenotype_emits_prediction_intervals(tmp_path, healthy_image, stressed_image) -> None:
+    _save_image(tmp_path / "p1_t1.png", healthy_image)
+    _save_image(tmp_path / "p1_t2.png", stressed_image)
+    manifest = tmp_path / "m.csv"
+    manifest.write_text(
+        "image_path,plant_id,timestamp\np1_t1.png,p1,2026-03-01\np1_t2.png,p1,2026-03-02\n"
+    )
+    out = tmp_path / "traj.csv"
+    argv = ["phenotype", str(manifest), "--out", str(out), "--horizons", "1,3"]
+    assert main([*argv, "--forecaster", "linear-trend"]) == 0
+    row = next(csv.DictReader(out.open()))
+    assert row["forecast_method"] == "linear-trend"
+    for horizon in ("1", "3"):
+        lo = float(row[f"forecast_h{horizon}_lo"])
+        hi = float(row[f"forecast_h{horizon}_hi"])
+        mean = float(row[f"forecast_h{horizon}"])
+        assert lo <= mean <= hi
+
+
 def test_cli_phenotype_json_uses_default_horizons(tmp_path, healthy_image, stressed_image) -> None:
     _save_image(tmp_path / "a.png", healthy_image)
     _save_image(tmp_path / "b.png", stressed_image)

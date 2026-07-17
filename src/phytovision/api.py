@@ -11,6 +11,7 @@ over a batch of tagged images.
 from __future__ import annotations
 
 import io
+from typing import TYPE_CHECKING
 
 import numpy as np
 from fastapi import FastAPI, Form, HTTPException, Response, UploadFile
@@ -19,6 +20,7 @@ from phytovision.exceptions import InvalidImageError, PhytoVisionError
 from phytovision.io import decode_rgb_bytes
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.pipeline import Pipeline
+from phytovision.registries import FORECASTERS
 from phytovision.serving import attach_heads, engine_from_env
 from phytovision.temporal import (
     FeatureHistory,
@@ -28,6 +30,9 @@ from phytovision.temporal import (
 )
 from phytovision.types import AnalysisReport, Image
 from phytovision.visualize import render_overlay, render_saliency_overlay
+
+if TYPE_CHECKING:
+    from phytovision.models.base import TrajectoryForecaster
 
 
 def create_app(
@@ -89,16 +94,27 @@ def create_app(
         files: list[UploadFile],
         plant_id: list[str] = Form(...),
         timestamp: list[str] = Form(...),
+        forecaster: str = "linear-trend",
     ) -> dict[str, object]:
+        """Fit a stress trend over tagged images. ``forecaster`` selects the trajectory model whose
+        prediction intervals appear in each plant's ``forecast`` block; every interval is a
+        synthetic-trained RGB-proxy estimate, not a validated prognosis."""
         if not files or not len(files) == len(plant_id) == len(timestamp):
             raise HTTPException(
                 status_code=400,
                 detail="files, plant_id, and timestamp must be non-empty and the same length",
             )
+        try:
+            chosen = FORECASTERS.create(forecaster)
+        except KeyError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         history = FeatureHistory()
         for upload, pid, when in zip(files, plant_id, timestamp, strict=True):
             history.record(pid, when, _run(engine, await upload.read()))
-        return _trend_payload(history)
+        try:
+            return _trend_payload(history, chosen)
+        except ImportError as exc:  # a forecaster whose optional extra is not installed
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return app
 
@@ -118,10 +134,12 @@ def _decode(data: bytes) -> Image:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def _trend_payload(history: FeatureHistory) -> dict[str, object]:
+def _trend_payload(
+    history: FeatureHistory, forecaster: TrajectoryForecaster | None = None
+) -> dict[str, object]:
     """Serialize per-plant trends, series, the pigment early warning, and the forecast to JSON."""
     warnings = plant_early_warnings(history)
-    forecasts = plant_forecasts(history)
+    forecasts = plant_forecasts(history, forecaster=forecaster)
     plants: dict[str, object] = {}
     for plant_id, trend in plant_trends(history).items():
         warning = warnings[plant_id]
@@ -138,10 +156,14 @@ def _trend_payload(history: FeatureHistory) -> dict[str, object]:
                 "note": warning.note,
             },
             "forecast": {
+                "method": forecast.method,
                 "projected_scores": {
                     str(horizon): round(score, 4)
                     for horizon, score in forecast.projected_scores.items()
                 },
+                "lower": {str(h): round(v, 4) for h, v in forecast.lower.items()},
+                "upper": {str(h): round(v, 4) for h, v in forecast.upper.items()},
+                "interval_level": forecast.interval_level,
                 "steps_to_stressed": forecast.steps_to_stressed,
                 "confidence": round(forecast.confidence, 4),
             },
@@ -152,7 +174,10 @@ def _trend_payload(history: FeatureHistory) -> dict[str, object]:
         }
     return {
         "plants": plants,
-        "disclaimer": "early_warning and forecast are RGB-proxy extrapolations, not predictions",
+        "disclaimer": (
+            "early_warning and forecast are RGB-proxy extrapolations, not predictions; the "
+            "prediction interval is an uncertainty estimate, not a measurement"
+        ),
     }
 
 

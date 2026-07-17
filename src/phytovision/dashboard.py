@@ -100,6 +100,17 @@ def forecast_points(forecast: Forecast) -> tuple[list[int], list[float]]:
     return horizons, [forecast.projected_scores[horizon] for horizon in horizons]
 
 
+def forecast_band(forecast: Forecast) -> tuple[list[int], list[float], list[float]]:
+    """Horizon steps and their lower and upper interval bounds, for the projection's shaded band.
+
+    Only horizons that carry an interval are returned, so a degenerate forecast draws no band.
+    """
+    horizons = [h for h in sorted(forecast.projected_scores) if h in forecast.lower]
+    lower = [forecast.lower[h] for h in horizons]
+    upper = [forecast.upper[h] for h in horizons]
+    return horizons, lower, upper
+
+
 _TERMINAL_CSS = """
 <style>
 .block-container { padding-top: 1.2rem; padding-bottom: 1rem; max-width: 1500px; }
@@ -239,10 +250,11 @@ def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover: Streaml
     import streamlit as st
 
     from phytovision.datasets.manifest import CsvManifestLoader
+    from phytovision.registries import FORECASTERS
     from phytovision.temporal import (
+        DEFAULT_HORIZONS,
         build_history,
         pigment_early_warning,
-        stress_forecast,
         stress_trend,
     )
 
@@ -293,16 +305,33 @@ def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover: Streaml
     figure.update_layout(yaxis={"title": "stress score", "range": [0, 1]}, **_DARK_LAYOUT)
     st.plotly_chart(figure, use_container_width=True)
 
-    forecast = stress_forecast(plant_id, series)
+    method = st.selectbox("Forecaster", FORECASTERS.names(), key="forecaster")
+    scores = [obs.stress_score for obs in series]
+    try:
+        forecast = FORECASTERS.create(method).forecast(scores, DEFAULT_HORIZONS, plant_id)
+    except ImportError as exc:
+        st.warning(f"{exc} Falling back to the linear-trend forecaster.")
+        forecast = FORECASTERS.create("linear-trend").forecast(scores, DEFAULT_HORIZONS, plant_id)
     to_stressed = forecast.steps_to_stressed
     steps_col, confidence_col = st.columns(2)
     steps_col.metric("steps to stressed", to_stressed if to_stressed is not None else "n/a")
     confidence_col.metric("forecast confidence", f"{forecast.confidence:.2f}")
-    st.caption("Forecast is a trend extrapolation of the stress score, not a validated prediction.")
+    band_pct = f"{forecast.interval_level:.0%}"
+    st.caption(
+        f"Forecast ({forecast.method}) is an RGB-proxy extrapolation, not a validated prediction; "
+        f"the shaded band is a {band_pct} prediction interval, not a measurement."
+    )
     steps, projected = forecast_points(forecast)
     if steps:
         # Anchor at the fitted trend level, not the raw last reading, so the line stays on-trend.
-        projection = go.Figure(
+        projection = go.Figure()
+        band_steps, lower, upper = forecast_band(forecast)
+        if band_steps:
+            projection.add_trace(go.Scatter(x=band_steps, y=upper, mode="lines", line={"width": 0}))
+            projection.add_trace(
+                go.Scatter(x=band_steps, y=lower, mode="lines", line={"width": 0}, fill="tonexty")
+            )
+        projection.add_trace(
             go.Scatter(
                 x=[0, *steps],
                 y=[forecast.current_level, *projected],
@@ -313,6 +342,7 @@ def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover: Streaml
         projection.update_layout(
             yaxis={"title": "projected stress", "range": [0, 1]},
             xaxis={"title": "steps ahead"},
+            showlegend=False,
             **_DARK_LAYOUT,
         )
         st.plotly_chart(projection, use_container_width=True)

@@ -14,6 +14,7 @@ from phytovision.dashboard import (
     contribution_series,
     decode_image,
     disease_series,
+    forecast_band,
     forecast_points,
     observation_table,
     quality_banner,
@@ -134,6 +135,29 @@ def test_forecast_points_are_ascending_by_horizon() -> None:
     steps, scores = forecast_points(forecast)
     assert steps == [1, 3, 7]
     assert scores == [0.6, 0.8, 1.0]
+
+
+def test_forecast_band_returns_bounds_for_horizons_with_intervals() -> None:
+    forecast = Forecast(
+        "p",
+        0.1,
+        0.5,
+        {1: 0.6, 3: 0.8},
+        2,
+        0.5,
+        "note",
+        lower={1: 0.55, 3: 0.70},
+        upper={1: 0.65, 3: 0.90},
+    )
+    horizons, lower, upper = forecast_band(forecast)
+    assert horizons == [1, 3]
+    assert lower == [0.55, 0.70]
+    assert upper == [0.65, 0.90]
+
+
+def test_forecast_band_is_empty_without_intervals() -> None:
+    forecast = Forecast("p", 0.1, 0.5, {1: 0.6}, None, 0.1, "note")
+    assert forecast_band(forecast) == ([], [], [])
 
 
 def test_timing_rows_from_a_timed_report(report) -> None:

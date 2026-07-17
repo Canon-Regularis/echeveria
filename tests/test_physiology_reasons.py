@@ -33,3 +33,20 @@ def test_unmapped_feature_description_is_unchanged() -> None:
     empty = PlantFeatures(values={}, region_count=1)
     reasons = build_reasons(model, empty, {"geometry.area_px": 1.0}, top_k=6)
     assert reasons[0].description == "geometry.area_px raises the estimate"
+
+
+def test_physiology_proxy_notes_render_and_ground_the_basis() -> None:
+    from phytovision.models.drought.rule_based import _physiology_basis
+
+    keys = (
+        "physiology.water_potential_proxy",
+        "physiology.stomatal_conductance_proxy",
+        "physiology.transpiration_proxy",
+    )
+    notes = [physiology_note(key) for key in keys]
+    assert all(note is not None and "proxy" in note for note in notes)
+    assert physiology_note("physiology.unmapped_proxy") is None
+
+    basis = _physiology_basis()
+    assert all(note in basis for note in notes if note is not None)  # notes travel with the values
+    assert "not measurements" in basis

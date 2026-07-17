@@ -4,6 +4,12 @@ It reduces the plant features to three bounded marker scores and reads the patte
 study describes: pigment change (greenness loss, yellowing, anthocyanin reddening) appears before
 turgor loss (shape solidity, curling), which appears before necrosis (browning). These are RGB
 proxies, not measured biochemistry, and the thresholds are priors, so treat the stage as indicative.
+
+The module also derives three physiology proxies (water potential, stomatal conductance,
+transpiration) from the same markers. They are second-order composites of the markers above, so they
+add interpretive grounding, not independent signal. Do not feed them to the stress model or the
+forecaster as new inputs; that would count the same pixels twice. Each is a crude RGB proxy, never a
+measured quantity.
 """
 
 from __future__ import annotations
@@ -12,6 +18,7 @@ from collections.abc import Mapping
 from typing import ClassVar
 
 from phytovision._num import clip01, feature_value, normalize01
+from phytovision.explainability.physiology import physiology_note
 from phytovision.models.drought.base import DroughtStageModel
 from phytovision.types import PlantFeatures
 
@@ -55,6 +62,8 @@ def stage_from_values(values: Mapping[str, float | None]) -> dict[str, object]:
         "stage": name,
         "basis": _basis(pigment, turgor, necrosis),
         "markers": {key: round(value, 3) for key, value in markers.items()},
+        "physiology": physiology_proxies(values),
+        "physiology_basis": _physiology_basis(),
     }
 
 
@@ -90,3 +99,59 @@ def turgor_marker(values: Mapping[str, float | None]) -> float:
 def necrosis_marker(values: Mapping[str, float | None]) -> float:
     """Necrosis score in [0,1]: the browning fraction."""
     return normalize01(feature_value(values, "colour.brown_fraction", 0.0), 0.02, 0.50)
+
+
+def water_potential_proxy(values: Mapping[str, float | None]) -> float:
+    """An ordinal water-deficit index in [0,1], not a leaf water potential in MPa.
+
+    Higher means a larger inferred deficit, so a more negative leaf water potential; it rises under
+    a dry-down. Turgor loss is the most direct visible correlate of a falling potential, so it
+    leads, with pigment loss second. Empty values read as no deficit (well-watered).
+    """
+    return clip01(0.60 * turgor_marker(values) + 0.40 * pigment_marker(values))
+
+
+def stomatal_conductance_proxy(values: Mapping[str, float | None]) -> float:
+    """A relative stomatal-conductance index in [0,1], not mmol m-2 s-1.
+
+    Higher means more inferred opening; it falls under a dry-down as guard-cell turgor drops and the
+    stomata close. The closure term is dominated by turgor loss, with pigment and necrosis next.
+    Empty values read as fully open.
+    """
+    closure = (
+        0.60 * turgor_marker(values)
+        + 0.25 * pigment_marker(values)
+        + 0.15 * necrosis_marker(values)
+    )
+    return clip01(1.0 - closure)
+
+
+def transpiration_proxy(values: Mapping[str, float | None]) -> float:
+    """A relative transpiration index in [0,1], not mm/day or a flux.
+
+    Higher means more inferred water loss; it falls under a dry-down. It scales the conductance
+    proxy by a green-canopy factor in [0.40, 1.0], so it never exceeds the conductance proxy. No
+    vapour-pressure deficit or driving gradient is observable from one RGB frame.
+    """
+    greenness = normalize01(feature_value(values, "colour.gcc_mean", 0.42), 0.28, 0.42)
+    return clip01(stomatal_conductance_proxy(values) * (0.40 + 0.60 * greenness))
+
+
+def physiology_proxies(values: Mapping[str, float | None]) -> dict[str, float]:
+    """The three physiology proxies as a compact block. Each is a crude RGB proxy, not measured."""
+    return {
+        "water_potential_proxy": round(water_potential_proxy(values), 3),
+        "stomatal_conductance_proxy": round(stomatal_conductance_proxy(values), 3),
+        "transpiration_proxy": round(transpiration_proxy(values), 3),
+    }
+
+
+def _physiology_basis() -> str:
+    """A caveat naming each proxy's mechanism, so the physiology notes travel with the values."""
+    keys = (
+        "physiology.water_potential_proxy",
+        "physiology.stomatal_conductance_proxy",
+        "physiology.transpiration_proxy",
+    )
+    notes = [physiology_note(key) or "crude RGB proxy" for key in keys]
+    return "; ".join(notes) + ". Crude RGB proxies, not measurements."

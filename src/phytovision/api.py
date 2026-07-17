@@ -67,7 +67,10 @@ def create_app(
             if "disease" in report.head_outputs:
                 notes.append("disease is an unvalidated placeholder, not a diagnostic")
             if "drought_stage" in report.head_outputs:
-                notes.append("drought_stage is a literature-motivated rule set, not a diagnosis")
+                notes.append(
+                    "drought_stage is a literature-motivated rule set, not a diagnosis; its "
+                    "physiology proxies are crude RGB indices, not measurements"
+                )
         if not report.quality.usable:
             notes.append("input quality is low, so the score may be unreliable")
         if notes:

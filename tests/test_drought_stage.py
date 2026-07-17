@@ -92,6 +92,30 @@ def test_attach_and_run_on_a_pipeline(healthy_image, stressed_image) -> None:
     assert stressed["stage"] != "well-watered"
 
 
+def test_stage_output_carries_an_additive_physiology_block() -> None:
+    result = _stage(**{"geometry.solidity": 0.45, "colour.yellow_fraction": 0.4})
+    physiology = result["physiology"]
+    assert set(physiology) == {
+        "water_potential_proxy",
+        "stomatal_conductance_proxy",
+        "transpiration_proxy",
+    }
+    assert all(0.0 <= value <= 1.0 for value in physiology.values())
+    assert result["physiology_basis"] and "not measurements" in result["physiology_basis"]
+    # The existing keys are untouched, so the CLI/API/dashboard marker assertions still hold.
+    assert set(result["markers"]) == {"pigment", "turgor_loss", "necrosis"}
+    assert result["stage"] in {"well-watered", "early-stress", "moderate", "severe"}
+
+
+def test_head_physiology_moves_in_the_documented_direction(healthy_image, stressed_image) -> None:
+    pipeline = attach_heads(Pipeline.default(), drought_stage=True)
+    healthy = pipeline.analyze(healthy_image).head_outputs["drought_stage"]["physiology"]
+    stressed = pipeline.analyze(stressed_image).head_outputs["drought_stage"]["physiology"]
+    assert stressed["water_potential_proxy"] > healthy["water_potential_proxy"]  # deficit rises
+    assert stressed["stomatal_conductance_proxy"] < healthy["stomatal_conductance_proxy"]
+    assert stressed["transpiration_proxy"] < healthy["transpiration_proxy"]
+
+
 def test_dashboard_drought_markers_helper(healthy_image) -> None:
     report = attach_heads(Pipeline.default(), drought_stage=True).analyze(healthy_image)
     names, scores = drought_markers(report)

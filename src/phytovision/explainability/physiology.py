@@ -26,6 +26,18 @@ _PHYSIOLOGY: dict[str, str] = {
     "texture.entropy": "surface texture change",
     "texture.glcm_contrast": "surface texture change",
     "plant.wilted_leaf_ratio": "senescing leaf fraction",
+    # Physiology proxies (drought-head readings, not features). Each phrase states the direction so
+    # it travels wherever the note renders, and marks the value a proxy, never a measured quantity.
+    "physiology.water_potential_proxy": (
+        "water deficit / inferred low leaf water potential (ordinal RGB proxy, higher is drier, "
+        "not MPa)"
+    ),
+    "physiology.stomatal_conductance_proxy": (
+        "inferred stomatal opening / conductance (relative RGB proxy, higher is more open, no flux)"
+    ),
+    "physiology.transpiration_proxy": (
+        "inferred transpiration / water loss (relative RGB proxy, higher is more loss, not a flux)"
+    ),
 }
 
 

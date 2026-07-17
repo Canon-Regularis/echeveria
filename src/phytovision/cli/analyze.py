@@ -13,7 +13,11 @@ from phytovision.models.base import StressModel
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.models.persistence import load_saved
 from phytovision.serving import attach_heads
-from phytovision.visualize import render_overlay, render_saliency_overlay
+from phytovision.visualize import (
+    render_occlusion_overlay,
+    render_overlay,
+    render_saliency_overlay,
+)
 
 
 def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -26,6 +30,11 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
     parser.add_argument(
         "--save-saliency", metavar="PNG", help="write a pigment saliency overlay (an RGB proxy)"
     )
+    parser.add_argument(
+        "--save-occlusion",
+        metavar="PNG",
+        help="write a model-agnostic occlusion overlay (slow: reruns the pipeline per patch)",
+    )
     parser.add_argument("--timing", action="store_true", help="show per-stage wall-clock timing")
     parser.add_argument(
         "--disease",
@@ -36,6 +45,11 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
         "--drought-stage",
         action="store_true",
         help="attach the drought-stage head (a literature-motivated rule set, not a diagnosis)",
+    )
+    parser.add_argument(
+        "--physiology",
+        action="store_true",
+        help="attach the physiology head (crude RGB proxies, e.g. water potential, not measured)",
     )
     parser.add_argument(
         "--counterfactual",
@@ -62,8 +76,13 @@ def run(args: argparse.Namespace) -> int:
                 override = loaded
         if args.conformal and conformal is None:
             return fail("--conformal needs a model saved with train --calibrate")
-        pipeline = build_pipeline(args, model=override)
-        pipeline = attach_heads(pipeline, disease=args.disease, drought_stage=args.drought_stage)
+        base_pipeline = build_pipeline(args, model=override)
+        pipeline = attach_heads(
+            base_pipeline,
+            disease=args.disease,
+            drought_stage=args.drought_stage,
+            physiology=args.physiology,
+        )
         report = pipeline.analyze(args.image)
         changes = (
             counterfactuals(pipeline.model, report.plant_features) if args.counterfactual else []
@@ -73,6 +92,11 @@ def run(args: argparse.Namespace) -> int:
         if args.save_saliency:
             render_saliency_overlay(load_image(args.image), report, pipeline.model).save(
                 args.save_saliency
+            )
+        if args.save_occlusion:
+            # The occlusion map reruns the pipeline per patch, so it uses the head-free pipeline.
+            render_occlusion_overlay(load_image(args.image), base_pipeline).save(
+                args.save_occlusion
             )
     except (OSError, ImportError, PhytoVisionError) as exc:
         return fail(str(exc))
@@ -146,4 +170,6 @@ def run(args: argparse.Namespace) -> int:
         print(f"Overlay written to {args.save_overlay}")
     if args.save_saliency:
         print(f"Saliency written to {args.save_saliency}")
+    if args.save_occlusion:
+        print(f"Occlusion saliency written to {args.save_occlusion}")
     return 0

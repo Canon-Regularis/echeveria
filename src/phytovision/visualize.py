@@ -7,6 +7,8 @@ does not.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 from PIL import Image as PILImage
 from PIL import ImageDraw
@@ -14,8 +16,12 @@ from skimage.segmentation import find_boundaries
 from skimage.transform import resize
 
 from phytovision.models.base import StressModel
+from phytovision.occlusion import occlusion_saliency
 from phytovision.saliency import pigment_saliency
 from phytovision.types import AnalysisReport, Image, Mask
+
+if TYPE_CHECKING:
+    from phytovision.pipeline import Pipeline
 
 _HEALTHY = np.array([40, 170, 60], dtype=np.float32)  # green
 _STRESSED = np.array([210, 50, 40], dtype=np.float32)  # red
@@ -48,14 +54,41 @@ def render_saliency_overlay(
     """Tint the photo by a pigment saliency map: red where colour pixels raised the score, green
     where they lowered it. It localizes colour drivers only, so treat it as an RGB proxy of the
     score's source."""
+    saliency = pigment_saliency(image, report, model)
+    return _signed_overlay(image, saliency, "PIGMENT SALIENCY (RGB proxy)", alpha)
+
+
+def render_occlusion_overlay(
+    image: Image,
+    pipeline: Pipeline,
+    alpha: float = 0.5,
+    *,
+    patch: int = 24,
+    stride: int = 12,
+) -> PILImage.Image:
+    """Tint the photo by a model-agnostic occlusion map: red where hiding a patch lowered the score
+    (the patch was raising it), green where hiding it raised the score. It reruns the pipeline once
+    per patch, so it is far slower than the pigment overlay; treat it as an RGB proxy, not a
+    measurement."""
+    saliency = occlusion_saliency(image, pipeline, patch=patch, stride=stride)
+    return _signed_overlay(image, saliency, "OCCLUSION SALIENCY (model-agnostic)", alpha)
+
+
+def _signed_overlay(
+    image: Image, saliency: np.ndarray, caption: str, alpha: float
+) -> PILImage.Image:
+    """Paint a signed map in ``[-1, 1]`` onto the photo: red for positive, green for negative, at
+    a strength-scaled opacity, with a caption. Shared by the pigment and occlusion overlays."""
     base = _to_uint8_rgb(image).astype(np.float32)
     height, width = base.shape[:2]
-    saliency = pigment_saliency(image, report, model)
     if saliency.shape != (height, width):
         saliency = resize(saliency, (height, width), order=1)
 
-    positive = np.clip(saliency, 0.0, 1.0)[..., None]
-    negative = np.clip(-saliency, 0.0, 1.0)[..., None]
+    # The colour is the pure sign tint and the opacity carries the strength. Scaling the tint by the
+    # magnitude as well would apply strength twice, pulling mid-strength pixels toward grey rather
+    # than a true (lighter) red or green.
+    positive = (saliency > 0.0).astype(np.float32)[..., None]
+    negative = (saliency < 0.0).astype(np.float32)[..., None]
     tint = _STRESSED * positive + _HEALTHY * negative
     strength = np.abs(saliency)[..., None]
     out = base * (1.0 - alpha * strength) + alpha * strength * tint
@@ -63,7 +96,7 @@ def render_saliency_overlay(
     rendered = PILImage.fromarray(np.clip(out, 0, 255).astype(np.uint8))
     draw = ImageDraw.Draw(rendered, "RGBA")
     draw.rectangle([(0, 0), (rendered.width, 18)], fill=(0, 0, 0, 170))
-    draw.text((4, 3), "PIGMENT SALIENCY (RGB proxy)", fill=(255, 255, 255))
+    draw.text((4, 3), caption, fill=(255, 255, 255))
     return rendered
 
 

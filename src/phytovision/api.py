@@ -19,8 +19,9 @@ from fastapi import FastAPI, Form, HTTPException, Response, UploadFile
 from phytovision.exceptions import InvalidImageError, PhytoVisionError
 from phytovision.io import decode_rgb_bytes
 from phytovision.models.conformal import SplitConformalClassifier
+from phytovision.models.survival import fit_cohort_survival
 from phytovision.pipeline import Pipeline
-from phytovision.registries import FORECASTERS
+from phytovision.registries import FORECASTERS, SURVIVAL_MODELS
 from phytovision.serving import attach_heads, engine_from_env
 from phytovision.temporal import (
     FeatureHistory,
@@ -33,6 +34,7 @@ from phytovision.visualize import render_overlay, render_saliency_overlay
 
 if TYPE_CHECKING:
     from phytovision.models.base import TrajectoryForecaster
+    from phytovision.models.survival import SurvivalFit
 
 
 def create_app(
@@ -95,10 +97,11 @@ def create_app(
         plant_id: list[str] = Form(...),
         timestamp: list[str] = Form(...),
         forecaster: str = "linear-trend",
+        survival_model: str = "weibull-aft",
     ) -> dict[str, object]:
-        """Fit a stress trend over tagged images. ``forecaster`` selects the trajectory model whose
-        prediction intervals appear in each plant's ``forecast`` block; every interval is a
-        synthetic-trained RGB-proxy estimate, not a validated prognosis."""
+        """Fit a stress trend over tagged images. ``forecaster`` picks the trajectory model behind
+        each plant's ``forecast`` block; ``survival_model`` picks the time-to-wilt model behind the
+        ``survival`` blocks. Every estimate is a synthetic-trained RGB proxy, not a prognosis."""
         if not files or not len(files) == len(plant_id) == len(timestamp):
             raise HTTPException(
                 status_code=400,
@@ -108,11 +111,17 @@ def create_app(
             chosen = FORECASTERS.create(forecaster)
         except KeyError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if survival_model and survival_model not in SURVIVAL_MODELS:
+            available = SURVIVAL_MODELS.names()
+            raise HTTPException(
+                status_code=400,
+                detail=f"unknown survival model {survival_model!r}; available: {available}",
+            )
         history = FeatureHistory()
         for upload, pid, when in zip(files, plant_id, timestamp, strict=True):
             history.record(pid, when, _run(engine, await upload.read()))
         try:
-            return _trend_payload(history, chosen)
+            return _trend_payload(history, chosen, survival_model or None)
         except ImportError as exc:  # a forecaster whose optional extra is not installed
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -135,16 +144,20 @@ def _decode(data: bytes) -> Image:
 
 
 def _trend_payload(
-    history: FeatureHistory, forecaster: TrajectoryForecaster | None = None
+    history: FeatureHistory,
+    forecaster: TrajectoryForecaster | None = None,
+    survival_model: str | None = "weibull-aft",
 ) -> dict[str, object]:
-    """Serialize per-plant trends, series, the pigment early warning, and the forecast to JSON."""
+    """Serialize per-plant trends, series, the early warning, the forecast, and survival to JSON."""
     warnings = plant_early_warnings(history)
     forecasts = plant_forecasts(history, forecaster=forecaster)
+    survival_fit, survival_note = _survival_fit(history, survival_model)
+    per_plant = survival_fit.per_plant if survival_fit is not None else {}
     plants: dict[str, object] = {}
     for plant_id, trend in plant_trends(history).items():
         warning = warnings[plant_id]
         forecast = forecasts[plant_id]
-        plants[plant_id] = {
+        entry: dict[str, object] = {
             "direction": trend.direction,
             "slope": round(trend.slope, 6),
             "n": trend.n,
@@ -172,12 +185,64 @@ def _trend_payload(
                 for obs in history.series_for(plant_id)
             ],
         }
-    return {
+        if plant_id in per_plant:
+            plant_survival = per_plant[plant_id]
+            entry["survival"] = {
+                "basis": plant_survival.basis,
+                "median": plant_survival.median,
+                "lower": plant_survival.lower,
+                "upper": plant_survival.upper,
+            }
+        plants[plant_id] = entry
+
+    disclaimer = (
+        "early_warning and forecast are RGB-proxy extrapolations, not predictions; the "
+        "prediction interval is an uncertainty estimate, not a measurement"
+    )
+    payload: dict[str, object] = {
         "plants": plants,
-        "disclaimer": (
-            "early_warning and forecast are RGB-proxy extrapolations, not predictions; the "
-            "prediction interval is an uncertainty estimate, not a measurement"
-        ),
+        "survival": _survival_summary(survival_fit),
+        "disclaimer": disclaimer + _SURVIVAL_DISCLAIMER_SUFFIX if survival_fit else disclaimer,
+    }
+    if survival_note is not None:
+        payload["survival_note"] = survival_note
+    return payload
+
+
+_SURVIVAL_DISCLAIMER_SUFFIX = (
+    "; the survival estimate is a synthetic-trained RGB-proxy indication of time-to-wilt, not a "
+    "validated prognosis"
+)
+
+
+def _survival_fit(
+    history: FeatureHistory, survival_model: str | None
+) -> tuple[SurvivalFit | None, str | None]:
+    """Fit the cohort survival, or degrade to no survival when the stats extra is absent."""
+    if not survival_model:
+        return None, None
+    try:
+        return fit_cohort_survival(history, survival_model), None
+    except ImportError as exc:  # survival is additive: keep the forecast, note the omission
+        return None, str(exc)
+
+
+def _survival_summary(fit: SurvivalFit | None) -> dict[str, object] | None:
+    if fit is None:
+        return None
+    return {
+        "model": fit.model_name,
+        "cohort_median": fit.cohort_median,
+        "cohort_median_ci": list(fit.cohort_median_ci),
+        "concordance_index": fit.concordance_index,
+        "concordance_note": "in-sample, optimistic; see the survival benchmark for held-out scores",
+        "curve": [
+            {"t": t, "survival": s, "lower": lo, "upper": hi}
+            for t, s, lo, hi in zip(
+                fit.curve.times, fit.curve.survival, fit.curve.lower, fit.curve.upper, strict=True
+            )
+        ],
+        "disclaimer": fit.disclaimer,
     }
 
 

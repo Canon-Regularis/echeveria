@@ -16,10 +16,12 @@ importable, and therefore testable, with only the base dependencies installed.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from phytovision.exceptions import PhytoVisionError
 from phytovision.io import decode_rgb_bytes
 from phytovision.models.conformal import SplitConformalClassifier
+from phytovision.models.survival import SurvivalFit
 from phytovision.pipeline import Pipeline
 from phytovision.serving import attach_heads, engine_from_env
 from phytovision.temporal import Forecast, Observation
@@ -109,6 +111,35 @@ def forecast_band(forecast: Forecast) -> tuple[list[int], list[float], list[floa
     lower = [forecast.lower[h] for h in horizons]
     upper = [forecast.upper[h] for h in horizons]
     return horizons, lower, upper
+
+
+def survival_curve_points(
+    fit: SurvivalFit,
+) -> tuple[list[float], list[float], list[float], list[float]]:
+    """The cohort survival curve as four aligned lists: times, survival, lower band, upper band.
+
+    The band lists are empty when the curve carries no confidence interval.
+    """
+    curve = fit.curve
+    return (
+        list(curve.times),
+        list(curve.survival),
+        list(curve.lower),
+        list(curve.upper),
+    )
+
+
+def plant_survival_metrics(fit: SurvivalFit, plant_id: str) -> dict[str, object]:
+    """One plant's median time-to-wilt, its band, and the basis, for a dashboard metric."""
+    plant = fit.per_plant.get(plant_id)
+    if plant is None:
+        return {"median": None, "lower": None, "upper": None, "basis": "unavailable"}
+    return {
+        "median": plant.median,
+        "lower": plant.lower,
+        "upper": plant.upper,
+        "basis": plant.basis,
+    }
 
 
 _TERMINAL_CSS = """
@@ -250,7 +281,8 @@ def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover: Streaml
     import streamlit as st
 
     from phytovision.datasets.manifest import CsvManifestLoader
-    from phytovision.registries import FORECASTERS
+    from phytovision.models.survival import fit_cohort_survival
+    from phytovision.registries import FORECASTERS, SURVIVAL_MODELS
     from phytovision.temporal import (
         DEFAULT_HORIZONS,
         build_history,
@@ -347,7 +379,58 @@ def _render_temporal_tab(engine: Pipeline) -> None:  # pragma: no cover: Streaml
         )
         st.plotly_chart(projection, use_container_width=True)
 
+    _render_survival(st, go, history, plant_id, SURVIVAL_MODELS, fit_cohort_survival)
+
     st.dataframe(observation_table(series), use_container_width=True, hide_index=True)
+
+
+def _render_survival(
+    st: Any, go: Any, history: Any, plant_id: str, registry: Any, fit_cohort: Any
+) -> None:  # pragma: no cover: Streamlit UI
+    st.markdown("#### SURVIVAL")
+    model = st.selectbox("Survival model", registry.names(), key="survival_model")
+    try:
+        fit = fit_cohort(history, model)
+    except ImportError:
+        st.warning('Survival needs the stats extra: pip install -e ".[stats]"')
+        return
+
+    metrics = plant_survival_metrics(fit, plant_id)
+    median = metrics["median"]
+    band = f"{metrics['lower']} to {metrics['upper']} ({metrics['basis']})"
+    # A cohort-km row broadcasts the Kaplan-Meier 95% median CI; only the covariate models report an
+    # interquartile time band. Labelling both "central 50%" would understate the KM interval.
+    band_kind = (
+        "cohort 95% CI (Kaplan-Meier)" if metrics["basis"] == "cohort-km" else "central 50% band"
+    )
+    st.metric(
+        "median time to wilt (obs steps)",
+        "n/a" if median is None else f"{median:.1f}",
+        help=f"{band_kind}: {band}",
+    )
+
+    times, survival, lower, upper = survival_curve_points(fit)
+    figure = go.Figure()
+    if lower and upper:
+        figure.add_trace(go.Scatter(x=times, y=upper, mode="lines", line={"width": 0}))
+        figure.add_trace(
+            go.Scatter(x=times, y=lower, mode="lines", line={"width": 0}, fill="tonexty")
+        )
+    figure.add_trace(go.Scatter(x=times, y=survival, mode="lines", line={"shape": "hv"}))
+    if median is not None:
+        figure.add_vline(x=median, line={"dash": "dash"})
+    figure.update_layout(
+        yaxis={"title": "cohort survival", "range": [0, 1]},
+        xaxis={"title": "observation steps"},
+        showlegend=False,
+        **_DARK_LAYOUT,
+    )
+    st.plotly_chart(figure, use_container_width=True)
+    st.caption(
+        "Median time-to-wilt is a synthetic-trained, RGB-proxy distribution over time-to-event; "
+        "the shaded band is the Kaplan-Meier confidence interval, not a measurement; the reported "
+        "concordance is in-sample and optimistic; it is indicative, not a validated prognosis."
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover: the streamlit runner sets __name__ to __main__

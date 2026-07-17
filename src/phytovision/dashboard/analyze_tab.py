@@ -38,8 +38,8 @@ def render_analyze_tab(
         st.info("Waiting for an image.")
         return
 
-    # The terminal always shows the disease and drought-stage panels.
-    engine = attach_heads(engine, disease=True, drought_stage=True)
+    # The terminal always shows the disease, drought-stage, and physiology panels.
+    engine = attach_heads(engine, disease=True, drought_stage=True, physiology=True)
     try:
         image = decode_image(upload.getvalue())
         report = engine.analyze(image)
@@ -78,6 +78,22 @@ def render_analyze_tab(
                     xaxis={"range": [0, 1]}, height=32 * len(names) + 120, **DARK_LAYOUT
                 )
                 st.plotly_chart(figure, use_container_width=True)
+
+    physiology = report.head_outputs.get("physiology")
+    if isinstance(physiology, dict):
+        with st.container(border=True):
+            st.markdown("**PHYSIOLOGY**: crude RGB proxies, not measured physiology")
+            potential, conductance, transpiration = st.columns(3)
+            potential.metric(
+                "water potential", f"{physiology.get('water_potential_proxy', 0.0):.2f}"
+            )
+            conductance.metric(
+                "stomatal conductance", f"{physiology.get('stomatal_conductance_proxy', 0.0):.2f}"
+            )
+            transpiration.metric(
+                "transpiration", f"{physiology.get('transpiration_proxy', 0.0):.2f}"
+            )
+            st.caption(f"basis: {physiology.get('basis', '')}")
 
     left, right = st.columns(2)
     with left.container(border=True):

@@ -15,6 +15,7 @@ from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.models.disease.head import DiseaseHead
 from phytovision.models.drought.head import DroughtStageHead
 from phytovision.models.persistence import load_saved
+from phytovision.models.physiology.head import PhysiologyHead
 from phytovision.pipeline import Pipeline
 from phytovision.registries import DISEASE_MODELS, DROUGHT_STAGE_MODELS
 
@@ -80,16 +81,22 @@ def serving_env(config: str | None, model_path: str | None) -> dict[str, str]:
 
 
 def attach_heads(
-    pipeline: Pipeline, *, disease: bool = False, drought_stage: bool = False
+    pipeline: Pipeline,
+    *,
+    disease: bool = False,
+    drought_stage: bool = False,
+    physiology: bool = False,
 ) -> Pipeline:
     """Return a copy of ``pipeline`` with the requested optional heads attached.
 
     One place for the CLI, API, and dashboard to opt into the secondary heads, so they cannot wire
-    them up three different ways. Both shipped heads are unvalidated placeholders / priors, not
-    diagnostics.
+    them up three different ways. Every shipped head is an unvalidated placeholder or prior, not a
+    diagnostic: the physiology head reports crude RGB proxies, not measured physiology.
     """
     if disease:
         pipeline = pipeline.add_head(DiseaseHead(DISEASE_MODELS.create("heuristic")))
     if drought_stage:
         pipeline = pipeline.add_head(DroughtStageHead(DROUGHT_STAGE_MODELS.create("rule-based")))
+    if physiology:
+        pipeline = pipeline.add_head(PhysiologyHead())
     return pipeline

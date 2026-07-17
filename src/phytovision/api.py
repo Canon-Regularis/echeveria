@@ -40,12 +40,19 @@ def create_app(
 
     @app.post("/analyze")
     async def analyze(
-        file: UploadFile, disease: bool = False, drought_stage: bool = False
+        file: UploadFile,
+        disease: bool = False,
+        drought_stage: bool = False,
+        physiology: bool = False,
     ) -> dict[str, object]:
-        """Analyze one image. ``disease=true`` and ``drought_stage=true`` attach optional heads that
-        are unvalidated placeholders, not diagnostics; their outputs carry a ``disclaimer``."""
+        """Analyze one image. ``disease``, ``drought_stage``, and ``physiology`` query flags attach
+        optional heads that are unvalidated placeholders or proxies, not diagnostics; their outputs
+        carry a ``disclaimer``."""
         report = _run(
-            attach_heads(engine, disease=disease, drought_stage=drought_stage), await file.read()
+            attach_heads(
+                engine, disease=disease, drought_stage=drought_stage, physiology=physiology
+            ),
+            await file.read(),
         )
         payload = report.summary()
         if conformal is not None:
@@ -60,6 +67,11 @@ def create_app(
                 notes.append(
                     "drought_stage is a literature-motivated rule set, not a diagnosis; its "
                     "physiology proxies are crude RGB indices, not measurements"
+                )
+            if "physiology" in report.head_outputs:
+                notes.append(
+                    "physiology reports crude RGB proxies for water potential, stomatal "
+                    "conductance, and transpiration, not measured physiology"
                 )
         if not report.quality.usable:
             notes.append("input quality is low, so the score may be unreliable")

@@ -63,7 +63,7 @@ def stage_from_values(values: Mapping[str, float | None]) -> dict[str, object]:
         "basis": _basis(pigment, turgor, necrosis),
         "markers": {key: round(value, 3) for key, value in markers.items()},
         "physiology": physiology_proxies(values),
-        "physiology_basis": _physiology_basis(),
+        "physiology_basis": physiology_basis(),
     }
 
 
@@ -146,7 +146,7 @@ def physiology_proxies(values: Mapping[str, float | None]) -> dict[str, float]:
     }
 
 
-def _physiology_basis() -> str:
+def physiology_basis() -> str:
     """A caveat naming each proxy's mechanism, so the physiology notes travel with the values."""
     keys = (
         "physiology.water_potential_proxy",

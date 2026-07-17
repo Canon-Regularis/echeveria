@@ -12,6 +12,7 @@ forecasters and the benchmark run on synthetic data with no image files on disk.
 from __future__ import annotations
 
 import csv
+import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -105,7 +106,9 @@ def event_rows(cohort: SyntheticCohort) -> Iterator[dict[str, object]]:
         yield {
             "plant_id": plant.plant_id,
             "decline_rate": round(plant.decline_rate, 6),
-            "duration": plant.duration,
+            # +1 to match the survival contract: duration is a 1-based observation count (>= 1), the
+            # same convention derive_records uses, so a crossing at the first step is 1, never 0.
+            "duration": plant.duration + 1,
             "event_time": plant.event_time,
             "event_observed": int(not plant.censored),
             "censored": int(plant.censored),
@@ -140,17 +143,32 @@ def load_history(manifest_path: str | Path) -> FeatureHistory:
         feature_columns = [name for name in fields if "." in name]
         for row in reader:
             features = {
-                name: float(row[name]) for name in feature_columns if (row.get(name) or "").strip()
+                name: _numeric(manifest, name, row[name])
+                for name in feature_columns
+                if (row.get(name) or "").strip()
             }
             history.add(
                 Observation(
                     plant_id=row["plant_id"],
                     timestamp=row["timestamp"],
-                    stress_score=float(row["stress_score"]),
+                    stress_score=_numeric(manifest, "stress_score", row["stress_score"]),
                     features=features,
                 )
             )
     return history
+
+
+def _numeric(manifest: Path, column: str, value: str) -> float:
+    """Parse a manifest cell to a finite float, or raise a clean ConfigError naming the column."""
+    try:
+        parsed = float(value)
+    except ValueError:
+        raise ConfigError(
+            f"manifest {manifest} has a non-numeric {column!r} value: {value!r}"
+        ) from None
+    if not math.isfinite(parsed):
+        raise ConfigError(f"manifest {manifest} has a non-finite {column!r} value: {value!r}")
+    return parsed
 
 
 def _write_csv(path: str | Path, fieldnames: list[str], rows: Iterator[dict[str, object]]) -> Path:

@@ -22,7 +22,9 @@ _EPS = 1e-6
 
 class ExGThresholdSegmenter(ThresholdSegmenter):
     def _score_field(self, image: Image) -> np.ndarray:
-        r, g, b = image[..., 0], image[..., 1], image[..., 2]
+        # Work in float: a uint8 image would overflow (r + g + b wraps past 255) before _EPS lands.
+        rgb = image.astype(np.float64)
+        r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
         total = r + g + b + _EPS
         rn, gn, bn = r / total, g / total, b / total
         return 2.0 * gn - rn - bn

@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import ClassVar
 
+from phytovision.exceptions import ConfigError
 from phytovision.models.base import TrajectoryForecaster
 from phytovision.temporal.forecast import (
     DEFAULT_HORIZONS,
@@ -25,6 +26,8 @@ class LinearTrendForecaster(TrajectoryForecaster):
     name: ClassVar[str] = "linear-trend"
 
     def __init__(self, interval_level: float = DEFAULT_INTERVAL_LEVEL) -> None:
+        if not 0.0 < interval_level < 1.0:  # match SeriesForecaster: reject at construction
+            raise ConfigError(f"interval_level must be in (0, 1), got {interval_level}")
         self.interval_level = interval_level
 
     def forecast(

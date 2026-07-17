@@ -19,7 +19,7 @@ import numpy as np
 
 from phytovision._num import feature_value
 from phytovision.exceptions import ConfigError, ModelNotFittedError, ModelSchemaError
-from phytovision.models.base import ShapResult, StressModel
+from phytovision.models.base import ShapResult, StressModel, bucket_label
 from phytovision.types import PlantFeatures, StressAssessment
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,8 @@ class GradientBoostedStressModel(StressModel):
         score = self._score(x)
         # Confidence: distance of the winning class probability from a coin flip.
         confidence = min(1.0, 2.0 * abs(score - 0.5))
-        label = "stressed" if score >= 0.5 else "healthy"
+        # Bucket via the shared cuts so this model's verdict agrees with every other one at a score.
+        label = bucket_label(score)
         return StressAssessment(score, confidence, label, self.name)
 
     def _check_schema(self, features: PlantFeatures) -> None:

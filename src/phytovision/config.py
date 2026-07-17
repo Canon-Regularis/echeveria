@@ -18,10 +18,13 @@ from phytovision.exceptions import ConfigError
 def read_config(path: str | os.PathLike[str]) -> dict[str, object]:
     """Parse a .toml or .json config file into a dict, raising ConfigError on any problem."""
     file = Path(path)
-    text = file.read_text(encoding="utf-8")  # a missing file raises FileNotFoundError
     suffix = file.suffix.lower()
-    if suffix not in {".toml", ".json"}:
+    if suffix not in {".toml", ".json"}:  # reject the extension before reading the bytes
         raise ConfigError(f"config must be .toml or .json: {file}")
+    try:
+        text = file.read_text(encoding="utf-8")  # a missing file raises FileNotFoundError
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"config {file} is not valid UTF-8 text: {exc}") from exc
     try:
         data = tomllib.loads(text) if suffix == ".toml" else json.loads(text)
     except (tomllib.TOMLDecodeError, json.JSONDecodeError) as exc:

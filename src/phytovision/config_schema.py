@@ -101,6 +101,7 @@ def _normalize_spec(spec: object, default_name: str | None) -> ComponentSpec:
         if not isinstance(name, str):
             raise ConfigError(f"component spec needs a string 'name': {spec!r}")
         raw_params = spec.get("params", {})
-        params = dict(raw_params) if isinstance(raw_params, Mapping) else {}
-        return ComponentSpec(name, params)
+        if not isinstance(raw_params, Mapping):
+            raise ConfigError(f"component spec 'params' must be a mapping: {spec!r}")
+        return ComponentSpec(name, dict(raw_params))
     raise ConfigError(f"invalid component spec: {spec!r}")

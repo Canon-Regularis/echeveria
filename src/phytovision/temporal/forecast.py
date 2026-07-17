@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from statistics import NormalDist
 
 from phytovision._num import clip01
+from phytovision.exceptions import ConfigError
 from phytovision.models.base import STRESSED_THRESHOLD
 from phytovision.temporal._fit import fit_line
 from phytovision.temporal.history import Observation
@@ -66,6 +67,8 @@ def forecast_scores(
     interval_level: float = DEFAULT_INTERVAL_LEVEL,
 ) -> Forecast:
     """The linear-trend forecast over a raw score sequence, with a residual prediction interval."""
+    if not 0.0 < interval_level < 1.0:  # an out-of-range level otherwise crashes inside NormalDist
+        raise ConfigError(f"interval_level must be in (0, 1), got {interval_level}")
     steps = [h for h in horizons if h > 0]
     if len(scores) < 2:
         level = clip01(scores[-1]) if scores else 0.0

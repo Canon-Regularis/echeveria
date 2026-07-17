@@ -40,6 +40,8 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
 
 
 def run(args: argparse.Namespace) -> int:
+    if args.bins < 1:
+        return fail("--bins must be at least 1")
     try:
         pipeline = build_pipeline(args)
         loader = CsvManifestLoader(

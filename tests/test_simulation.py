@@ -129,7 +129,10 @@ def test_events_table_records_duration_and_censoring(tmp_path) -> None:
     assert len(rows) == 4
     for row, plant in zip(rows, cohort.series, strict=True):
         assert row["plant_id"] == plant.plant_id
-        assert int(row["duration"]) == plant.duration
+        # The events table carries the 1-based survival duration (a positive observation count), so
+        # it matches derive_records and never hands a parametric fitter a duration of 0.
+        assert int(row["duration"]) == plant.duration + 1
+        assert int(row["duration"]) >= 1
         assert int(row["event_observed"]) == int(not plant.censored)
 
 

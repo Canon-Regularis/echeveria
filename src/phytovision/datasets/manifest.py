@@ -7,6 +7,7 @@ provenance. Column names are configurable so it reads exports from other tools w
 from __future__ import annotations
 
 import csv
+import math
 from pathlib import Path
 
 from phytovision.datasets.base import InMemoryDataset, Sample, resolve_root
@@ -61,13 +62,18 @@ def _clean(value: str | None) -> str | None:
 
 
 def _clean_float(value: str | None, manifest: Path, column: str) -> float | None:
-    """Parse a numeric column, tolerating a blank cell; a non-numeric value is a clean error."""
+    """Parse a numeric column, tolerating a blank cell; a non-numeric or non-finite value is a clean
+    error. ``float`` accepts ``nan``/``inf``, which would silently poison a whole regression report,
+    so those are rejected here too."""
     text = (value or "").strip()
     if not text:
         return None
     try:
-        return float(text)
+        parsed = float(text)
     except ValueError:
         raise ConfigError(
             f"manifest {manifest} has a non-numeric {column!r} value: {text!r}"
         ) from None
+    if not math.isfinite(parsed):
+        raise ConfigError(f"manifest {manifest} has a non-finite {column!r} value: {text!r}")
+    return parsed

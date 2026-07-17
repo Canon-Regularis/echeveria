@@ -128,7 +128,12 @@ def _pandas() -> Any:
 def _column_stats(
     frame: list[dict[str, float]], names: tuple[str, ...]
 ) -> tuple[dict[str, float], dict[str, float]]:
-    """Per-covariate mean and population standard deviation over the cohort."""
+    """Per-covariate mean and true population standard deviation over the cohort.
+
+    The std is unfloored, so ``fit`` can tell a constant column (std ~ 0) from a varying one and
+    drop it. Flooring here would make every column look varying and defeat that drop; the
+    divide-by-zero it guarded against cannot happen, since only kept columns are standardized.
+    """
     means: dict[str, float] = {}
     stds: dict[str, float] = {}
     for name in names:
@@ -136,7 +141,7 @@ def _column_stats(
         mean = sum(column) / len(column)
         variance = sum((value - mean) ** 2 for value in column) / len(column)
         means[name] = mean
-        stds[name] = max(variance**0.5, _MIN_STD)
+        stds[name] = variance**0.5
     return means, stds
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from phytovision.exceptions import InsufficientDataError
 from phytovision.models.survival import fit_cohort_survival
 from phytovision.temporal import (
     FeatureHistory,
@@ -102,7 +103,9 @@ def _survival_fit(
         return None, None
     try:
         return fit_cohort_survival(history, survival_model), None
-    except ImportError as exc:  # survival is additive: keep the forecast, note the omission
+    except (ImportError, InsufficientDataError) as exc:
+        # Survival is additive: a missing stats extra or a cohort with no repeated observations
+        # keeps the forecast and just notes the omission, rather than failing the whole response.
         return None, str(exc)
 
 

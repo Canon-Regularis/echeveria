@@ -9,6 +9,7 @@ this plant wilt".
 
 from __future__ import annotations
 
+from phytovision.exceptions import InsufficientDataError
 from phytovision.models.base import STRESSED_THRESHOLD
 from phytovision.models.survival.base import (
     SurvivalDataset,
@@ -90,6 +91,10 @@ def fit_cohort_survival(
     from phytovision.registries import SURVIVAL_MODELS
 
     dataset = derive_records(history, warmup)
+    if not dataset.records:  # every plant has a single observation: nothing to fit a curve on
+        raise InsufficientDataError(
+            "survival needs at least one plant with two or more observations"
+        )
     baseline = KaplanMeierSurvival().fit(dataset)
 
     chosen = SURVIVAL_MODELS.create(model)

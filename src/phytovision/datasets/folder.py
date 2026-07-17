@@ -34,7 +34,7 @@ class FolderClassificationLoader(InMemoryDataset):
         samples: list[Sample] = []
         for class_dir in sorted(p for p in self.root.iterdir() if p.is_dir()):
             for img in sorted(class_dir.iterdir()):
-                if img.suffix.lower() in IMAGE_SUFFIXES:
+                if img.is_file() and img.suffix.lower() in IMAGE_SUFFIXES:
                     samples.append(
                         Sample(
                             image_path=str(img),

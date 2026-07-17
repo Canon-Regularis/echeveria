@@ -124,13 +124,16 @@ class SeriesForecaster(TrajectoryForecaster, ABC):
 def _first_crossing(current_level: float, means: dict[int, float]) -> int | None:
     """The first future step whose mean reaches the stressed cut, or None.
 
-    None when the plant is already at or above the cut (there is no time-to-stressed to report), or
-    when no projected mean reaches it within the search window.
+    The search is confined to the contiguous ``1.._MAX_LOOKAHEAD`` window that ``forecast`` always
+    samples. ``means`` may also carry sparse user horizons beyond the cap; those are skipped, as a
+    gap between them (steps the projection never evaluated) could otherwise hide the true first
+    crossing and report a later sampled step. Returns None when the plant is already at or above the
+    cut, or when no mean in the window reaches it (beyond the cap the forecast declines to guess).
     """
     if current_level >= STRESSED_THRESHOLD:
         return None
-    for step in sorted(means):
-        if means[step] >= STRESSED_THRESHOLD:
+    for step in range(1, _MAX_LOOKAHEAD + 1):
+        if step in means and means[step] >= STRESSED_THRESHOLD:
             return step
     return None
 

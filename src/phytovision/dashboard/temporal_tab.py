@@ -16,7 +16,7 @@ from phytovision.dashboard.helpers import (
     survival_curve_points,
 )
 from phytovision.dashboard.theme import DARK_LAYOUT
-from phytovision.exceptions import PhytoVisionError
+from phytovision.exceptions import InsufficientDataError, PhytoVisionError
 from phytovision.pipeline import Pipeline
 
 
@@ -137,6 +137,9 @@ def _render_survival(
         fit = fit_cohort(history, model)
     except ImportError:
         st.warning('Survival needs the stats extra: pip install -e ".[stats]"')
+        return
+    except InsufficientDataError:
+        st.info("Survival needs at least one plant with two or more observations.")
         return
 
     metrics = plant_survival_metrics(fit, plant_id)

@@ -35,3 +35,7 @@ class ModelSchemaError(PhytoVisionError, ValueError):
 
 class ConfigError(PhytoVisionError, ValueError):
     """A pipeline configuration referenced an unknown component or bad parameters."""
+
+
+class InsufficientDataError(PhytoVisionError, ValueError):
+    """Not enough data to compute a result, e.g. a survival cohort with no repeated observations."""

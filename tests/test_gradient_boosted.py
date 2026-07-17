@@ -70,6 +70,22 @@ def test_gbm_is_a_substitutable_stress_model() -> None:
         assert 0.0 <= assessment.confidence <= 1.0
 
 
+def test_label_uses_the_shared_bucket_cuts_not_a_binary_split() -> None:
+    from phytovision.models.base import bucket_label
+
+    dicts, labels = _training_data()
+    model = GradientBoostedStressModel(feature_keys=_KEYS).fit(dicts, labels)
+    # Every verdict must agree with bucket_label at its score, so this model does not drift from the
+    # heuristic/ensemble (which would happen with a hardcoded 0.5 cut that never says "mild").
+    for gcc in (0.28, 0.32, 0.36, 0.40):
+        features = PlantFeatures(
+            values={"colour.gcc_mean": gcc, "colour.yellow_fraction": 0.2, "texture.entropy": 3.5},
+            region_count=1,
+        )
+        assessment = model.predict(features)
+        assert assessment.label == bucket_label(assessment.score)
+
+
 def test_seeded_fit_is_reproducible() -> None:
     dicts, labels = _training_data()
     probe = PlantFeatures(

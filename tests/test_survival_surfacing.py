@@ -78,9 +78,9 @@ def test_survival_row_names_the_dropped_plant_honestly() -> None:
 
 @_needs_lifelines
 def test_trend_payload_carries_a_survival_block() -> None:
-    from phytovision.api import _trend_payload
+    from phytovision.api_payloads import trend_payload
 
-    payload = _trend_payload(_history(), None, "weibull-aft")
+    payload = trend_payload(_history(), None, "weibull-aft")
     summary = payload["survival"]
     assert isinstance(summary, dict)
     assert {"model", "cohort_median", "cohort_median_ci", "concordance_index", "curve"} <= set(
@@ -92,14 +92,13 @@ def test_trend_payload_carries_a_survival_block() -> None:
 
 
 def test_trend_payload_degrades_without_the_stats_extra(monkeypatch) -> None:
-    pytest.importorskip("fastapi")
-    import phytovision.api as api
+    import phytovision.api_payloads as payloads
 
     def _no_extra(*_args: object, **_kwargs: object) -> object:
         raise ImportError("survival needs the stats extra")
 
-    monkeypatch.setattr(api, "fit_cohort_survival", _no_extra)
-    payload = api._trend_payload(_history(), None, "weibull-aft")
+    monkeypatch.setattr(payloads, "fit_cohort_survival", _no_extra)
+    payload = payloads.trend_payload(_history(), None, "weibull-aft")
     assert payload["survival"] is None
     assert "survival_note" in payload
     assert payload["plants"]  # the forecast is still delivered

@@ -83,6 +83,24 @@ All notable changes to this project are documented here. The format is based on
   raising; the folder loader skips a directory whose name ends in an image suffix; and the saliency and
   occlusion overlays tint a mid-strength pixel with its true colour at a strength-scaled opacity, rather
   than applying the magnitude twice and pulling it toward grey.
+- A second sweep closed the deferred findings: the GLCM and edge-density texture descriptors now measure
+  interior surface texture only (foreground-to-foreground co-occurrences, and an eroded interior for the
+  edge density), so a concave silhouette no longer leaks into them; the quality and preprocessing scalers
+  are dtype-aware, so a uint8 near-black frame and a higher-bit-depth image are normalized by their true
+  range rather than a value guess or a hard-coded 255; the model reader reports an unreadable or
+  incompatible file as a clean error instead of mislabelling it a missing extra; `analyze` emits the
+  conformal set only when `--conformal` is passed; the survival leaderboard names a model it could not
+  score instead of dropping it; and `normalize01` collapses a degenerate range to its clamp rather than
+  dividing by zero.
+- An intensive multi-round hunt closed a further set: the GLCM descriptor averages only scan directions
+  that carry foreground pairs, so a thin (single-row or single-column) region is no longer deflated; a
+  degenerate single-observation forecast now carries an empty interval, matching its contract, and
+  `phenotype` omits survival with a notice instead of crashing when no plant has two observations; the
+  forecaster benchmark builds each model at the requested coverage level rather than the default; the
+  YOLO loader skips a directory whose name ends in an image suffix; the mask cleanup keeps a component
+  exactly at the size threshold instead of deleting it; `hue_mean` is a circular mean, so a red hue
+  split across the wraparound no longer averages to its opposite; and `benchmark --min-train` is
+  validated.
 
 ## [0.2.0] (2026-07-16)
 

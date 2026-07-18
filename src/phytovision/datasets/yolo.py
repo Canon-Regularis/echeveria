@@ -35,7 +35,9 @@ class YoloDetectionLoader(InMemoryDataset):
         self._categories = names
 
         self._samples: list[Sample] = []
-        for image_path in sorted(p for p in images.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES):
+        for image_path in sorted(
+            p for p in images.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_SUFFIXES
+        ):
             label_file = labels / f"{image_path.stem}.txt"
             boxes = _parse_labels(label_file, names) if label_file.exists() else []
             self._samples.append(

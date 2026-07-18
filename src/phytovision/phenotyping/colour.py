@@ -14,6 +14,17 @@ from phytovision.phenotyping.base import FeatureExtractor
 from phytovision.types import Image, Region
 
 
+def circular_hue_mean(hue: np.ndarray) -> float:
+    """The mean of hue as a circular quantity on ``[0, 1)``.
+
+    Hue wraps at 1.0, so a linear mean is meaningless: a coherent red split near 0.02 and 0.97 would
+    average to ~0.5 (cyan), the visual opposite. Averaging the unit vectors and reading the angle
+    back keeps the mean on the same side of the wraparound as the pixels.
+    """
+    angle = np.arctan2(np.sin(2.0 * np.pi * hue).mean(), np.cos(2.0 * np.pi * hue).mean())
+    return float((angle / (2.0 * np.pi)) % 1.0)
+
+
 def pixel_class_masks(
     r: np.ndarray, g: np.ndarray, b: np.ndarray, hue: np.ndarray, sat: np.ndarray, val: np.ndarray
 ) -> dict[str, np.ndarray]:
@@ -57,7 +68,7 @@ class ColourFeatures(FeatureExtractor):
             "exg_mean": float(exg.mean()),
             "gcc_mean": float(gcc.mean()),
             "greenness_ratio": float(classes["green"].mean()),
-            "hue_mean": float(hue.mean()),
+            "hue_mean": circular_hue_mean(hue),
             "saturation_mean": float(sat.mean()),
             "saturation_std": float(sat.std()),
             "value_mean": float(val.mean()),

@@ -27,7 +27,9 @@ class ResizeNormalizePreprocessor(Preprocessor):
         validate_rgb_image(image)
 
         img = image.astype(np.float32)
-        if img.max() > 1.0:  # assume 0..255 input
+        if np.issubdtype(image.dtype, np.integer):  # scale by the dtype's range, not a hard 255
+            img = img / float(np.iinfo(image.dtype).max)
+        elif img.max() > 1.0:  # a float image outside [0, 1]: treat it as an 8-bit range
             img = img / 255.0
 
         h, w = img.shape[:2]

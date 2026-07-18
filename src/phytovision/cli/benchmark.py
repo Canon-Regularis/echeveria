@@ -55,6 +55,8 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
 def run(args: argparse.Namespace) -> int:
     if not 0.0 < args.interval_level < 1.0:
         return fail("--interval-level must be in (0, 1)")
+    if args.min_train < 2:
+        return fail("--min-train must be at least 2")
     horizons = parse_horizons(args.horizons)
     names = _selected_names(args.forecasters)
     if names is not None and (unknown := [name for name in names if name not in FORECASTERS]):

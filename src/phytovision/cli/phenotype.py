@@ -14,7 +14,7 @@ from phytovision.cli._shared import (
     write_table,
 )
 from phytovision.datasets.manifest import CsvManifestLoader
-from phytovision.exceptions import PhytoVisionError
+from phytovision.exceptions import InsufficientDataError, PhytoVisionError
 from phytovision.models.survival import fit_cohort_survival
 from phytovision.registries import DROUGHT_STAGE_MODELS, FORECASTERS, SURVIVAL_MODELS
 from phytovision.temporal import (
@@ -143,6 +143,9 @@ def _survival_or_notice(history: object, model: str, window: int) -> SurvivalFit
         return fit_cohort_survival(history, model, window)  # type: ignore[arg-type]
     except ImportError:
         print('survival omitted: install the stats extra (pip install -e ".[stats]")')
+        return None
+    except InsufficientDataError:
+        print("survival omitted: no plant has two or more observations")
         return None
 
 

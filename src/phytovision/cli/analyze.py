@@ -101,7 +101,11 @@ def run(args: argparse.Namespace) -> int:
     except (OSError, ImportError, PhytoVisionError) as exc:
         return fail(str(exc))
 
-    conformal_set = conformal.predict_set(report.plant_features) if conformal else None
+    # Only emit the conformal set when it was actually asked for, so loading a calibrated model to
+    # use its underlying classifier does not inject a conformal block the caller never requested.
+    conformal_set = (
+        conformal.predict_set(report.plant_features) if (args.conformal and conformal) else None
+    )
 
     if args.json:
         payload = report.summary()

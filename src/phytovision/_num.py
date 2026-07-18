@@ -18,8 +18,15 @@ def clip01(value: float) -> float:
 
 
 def normalize01(value: float, lo: float, hi: float) -> float:
-    """Scale ``value`` from the range [lo, hi] into [0, 1], clamped at both ends."""
-    return clip01((value - lo) / (hi - lo))
+    """Scale ``value`` from the range [lo, hi] into [0, 1], clamped at both ends.
+
+    A degenerate range (``hi <= lo``) has no interior to scale into, so it collapses to the clamp:
+    below ``lo`` reads 0, at or above it reads 1, rather than dividing by zero.
+    """
+    span = hi - lo
+    if span <= 0.0:
+        return 0.0 if value < lo else 1.0
+    return clip01((value - lo) / span)
 
 
 def as_float(value: object, default: float) -> float:

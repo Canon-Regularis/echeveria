@@ -169,6 +169,25 @@ def test_cli_phenotype_emits_prediction_intervals(tmp_path, healthy_image, stres
         assert lo <= mean <= hi
 
 
+def test_cli_phenotype_survives_single_observation_cohort(tmp_path, healthy_image) -> None:
+    _save_image(tmp_path / "p1.png", healthy_image)
+    _save_image(tmp_path / "p2.png", healthy_image)
+    manifest = tmp_path / "m.csv"
+    manifest.write_text(
+        "image_path,plant_id,timestamp\np1.png,p1,2026-03-01\np2.png,p2,2026-03-01\n"
+    )
+    out = tmp_path / "traj.csv"
+    # Every plant has a single observation, so the survival fit raises InsufficientDataError;
+    # phenotype must omit survival and still write the table rather than crash.
+    assert main(["phenotype", str(manifest), "--out", str(out)]) == 0
+    assert out.exists()
+
+
+def test_cli_benchmark_rejects_min_train_below_two() -> None:
+    # The guard fires before the manifest is read, so a clean exit 2 results, not a traceback.
+    assert main(["benchmark", "unused.csv", "--min-train", "1"]) == 2
+
+
 def test_cli_phenotype_json_uses_default_horizons(tmp_path, healthy_image, stressed_image) -> None:
     _save_image(tmp_path / "a.png", healthy_image)
     _save_image(tmp_path / "b.png", stressed_image)
@@ -336,6 +355,25 @@ def test_cli_train_calibrate_then_analyze_conformal(
 def test_cli_analyze_conformal_without_calibrated_model_errors(image_path, capsys) -> None:
     assert main(["analyze", str(image_path), "--conformal"]) == 2
     assert "train --calibrate" in capsys.readouterr().err
+
+
+def test_cli_analyze_omits_conformal_without_the_flag(
+    training_dir, image_path, tmp_path, capsys
+) -> None:
+    pytest.importorskip("sklearn")
+    out = tmp_path / "calibrated.joblib"
+    assert (
+        main(
+            ["train", str(training_dir), "--calibrate", "0.3", "--alpha", "0.1", "--out", str(out)]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    # Loading the calibrated model without --conformal uses its classifier but must not inject a
+    # conformal block into the output the caller never asked for.
+    assert main(["analyze", str(image_path), "--model-path", str(out), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "conformal" not in payload
 
 
 def test_cli_train_calibrate_rejects_bad_fraction(training_dir, tmp_path, capsys) -> None:

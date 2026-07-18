@@ -81,8 +81,8 @@ def forecast_scores(
             None,
             0.1,
             "need two observations to project a trend",
-            dict(flat),
-            dict(flat),
+            {},  # a degenerate series carries no interval, matching linear_prediction_interval
+            {},
             interval_level,
             "linear-trend",
         )

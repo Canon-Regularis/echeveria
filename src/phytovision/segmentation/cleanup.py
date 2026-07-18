@@ -22,9 +22,11 @@ def clean_mask(
     """Drop specks and holes below ``min_object_fraction`` of the image, close, and optionally keep
     only the largest connected region."""
     min_size = max(1, int(min_object_fraction * image_shape[0] * image_shape[1]))
-    # scikit-image >=0.26: max_size removes objects/holes up to that size.
-    mask = remove_small_objects(mask, max_size=min_size)
-    mask = remove_small_holes(mask, max_size=min_size)
+    # scikit-image >=0.26: max_size removes objects/holes up to AND INCLUDING that size, so pass
+    # min_size - 1 to drop only components strictly below the fraction and keep one exactly at it.
+    threshold = max(0, min_size - 1)
+    mask = remove_small_objects(mask, max_size=threshold)
+    mask = remove_small_holes(mask, max_size=threshold)
     if closing_radius > 0 and mask.any():
         mask = closing(mask, disk(closing_radius))
     if keep_largest and mask.any():

@@ -85,11 +85,14 @@ def write_envelope(
 
 def read_envelope(path: str | Path) -> dict[str, Any]:
     """Read a joblib envelope, normalizing a legacy gradient-boosted dict into the new shape."""
+    joblib = _joblib()  # an ImportError here means the ml extra is absent: callers handle it
     try:
-        data = _joblib().load(path)
-    except (OSError, ImportError):
-        raise  # missing file, or the ml extra is absent: callers handle these
-    except Exception as exc:  # a corrupt or non-joblib file: give a clean domain error
+        data = joblib.load(path)
+    except OSError:
+        raise  # a missing or unreadable file: callers handle it
+    except Exception as exc:  # a corrupt, non-joblib, or unimportable-class pickle: a clean error
+        # An ImportError raised while unpickling is a bad file, not a missing extra, so it must not
+        # escape as ImportError and be mislabelled "install the ml extra".
         raise ConfigError(f"could not read model file {path}: {exc}") from exc
     if isinstance(data, Mapping) and "model_type" in data:
         return {

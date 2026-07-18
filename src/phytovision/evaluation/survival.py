@@ -3,8 +3,9 @@
 The concordance index on the surface is in-sample and optimistic, because the model is fitted and
 scored on the same cohort. This is the honest counterpart: k-fold over plant ids, fit each covariate
 model on the training plants, and score its discrimination on the held-out plants, aggregated to a
-mean with a confidence interval, the shape the forecaster benchmark reports. A model whose extra is
-missing is named in ``skipped`` rather than silently dropped.
+mean with a confidence interval, the shape the forecaster benchmark reports. A model that could not
+be scored, because its extra is missing or no fold had enough events, is named in ``skipped`` rather
+than silently dropped.
 """
 
 from __future__ import annotations
@@ -39,7 +40,8 @@ class SurvivalScore:
 
 @dataclass(frozen=True, slots=True)
 class SurvivalLeaderboard:
-    """Every covariate model's held-out concordance, plus any skipped for a missing extra."""
+    """Every covariate model's held-out concordance, plus any that could not be scored (``skipped``:
+    a missing extra, or no fold with enough events)."""
 
     scores: tuple[SurvivalScore, ...]
     n_folds: int
@@ -111,10 +113,12 @@ def benchmark_survival_models(
         if fold_scores is None:
             logger.warning("skipping survival model %s: needs an extra that is not installed", name)
             skipped.append(name)
-            continue
-        if fold_scores:
+        elif fold_scores:
             mean = float(np.mean(fold_scores))
             scores.append(SurvivalScore(name, mean, mean_ci95(fold_scores), len(fold_scores)))
+        else:  # no fold had enough events to score: surface it rather than dropping it silently
+            logger.warning("skipping survival model %s: no fold had enough events to score", name)
+            skipped.append(name)
     return SurvivalLeaderboard(tuple(scores), len(splits), tuple(skipped))
 
 

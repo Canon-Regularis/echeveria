@@ -114,8 +114,8 @@ class SeriesForecaster(TrajectoryForecaster, ABC):
             None,
             0.1,
             "need two observations to project a trend",
-            dict(flat),
-            dict(flat),
+            {},  # a degenerate series carries no interval, matching linear_prediction_interval
+            {},
             self.interval_level,
             self.name,
         )

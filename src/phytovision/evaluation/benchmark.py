@@ -127,7 +127,9 @@ def benchmark_forecasters(
     scores: list[ForecasterScore] = []
     skipped: list[str] = []
     for name in names:
-        forecaster = FORECASTERS.create(name)
+        # Build each forecaster at the requested coverage so the interval it produces and the level
+        # the scorer inverts to recover sigma agree; a default-level producer would distort CRPS.
+        forecaster = FORECASTERS.create(name, interval_level=interval_level)
         accumulator = _Accumulator(steps)
         try:
             _run_forecaster(forecaster, series_by_plant, steps, min_train, accumulator)

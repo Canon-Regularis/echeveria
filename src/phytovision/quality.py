@@ -42,9 +42,11 @@ class QualityAssessment:
 
 
 def _luminance(image: np.ndarray) -> np.ndarray:
-    arr = np.asarray(image, dtype=np.float64)
-    if float(arr.max(initial=0.0)) > 1.0:  # accept uint8 or float; work in [0, 1]
-        arr = arr / 255.0
+    arr = np.asarray(image)
+    if np.issubdtype(arr.dtype, np.integer):  # scale by the dtype's full range, not a value guess
+        arr = arr.astype(np.float64) / float(np.iinfo(arr.dtype).max)
+    else:  # a float image is already in [0, 1]; a near-black one is not mistaken for uint8
+        arr = arr.astype(np.float64)
     return arr[..., :3] @ _LUMA
 
 

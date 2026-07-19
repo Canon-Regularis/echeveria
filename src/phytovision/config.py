@@ -22,7 +22,9 @@ def read_config(path: str | os.PathLike[str]) -> dict[str, object]:
     if suffix not in {".toml", ".json"}:  # reject the extension before reading the bytes
         raise ConfigError(f"config must be .toml or .json: {file}")
     try:
-        text = file.read_text(encoding="utf-8")  # a missing file raises FileNotFoundError
+        # utf-8-sig strips a byte-order mark if present (editors like Notepad add one), so a valid
+        # BOM-prefixed config is not rejected as unparseable; plain UTF-8 is read unchanged.
+        text = file.read_text(encoding="utf-8-sig")  # a missing file raises FileNotFoundError
     except UnicodeDecodeError as exc:
         raise ConfigError(f"config {file} is not valid UTF-8 text: {exc}") from exc
     try:

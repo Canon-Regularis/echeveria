@@ -86,8 +86,11 @@ class SeriesForecaster(TrajectoryForecaster, ABC):
         projected = {h: prediction.mean[h] for h in steps}
         lower = {h: prediction.lower[h] for h in steps}
         upper = {h: prediction.upper[h] for h in steps}
-        slope, intercept, r2 = fit_line(scores)
-        current_level = clip01(intercept + slope * (len(scores) - 1))
+        slope, _intercept, r2 = fit_line(scores)
+        # The current level is the last observation, not a global linear fit that a non-linear model
+        # ignores: it must agree with prediction.mean so _first_crossing does not short-circuit on a
+        # "stressed now" reading the model's own projection contradicts.
+        current_level = clip01(scores[-1])
         return Forecast(
             plant_id,
             slope,

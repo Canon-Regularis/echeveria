@@ -87,14 +87,17 @@ def manifest_rows(cohort: SyntheticCohort) -> Iterator[dict[str, object]]:
     """One row per observation, with the loader columns plus the score and feature columns."""
     for plant in cohort.series:
         for step, observation in enumerate(plant.observations):
+            # Bucket the rounded score that the row stores, not the full-precision one, so the label
+            # and the stress_score column never straddle a cut (e.g. 0.6599996 stored as 0.66).
+            score = round(observation.stress_score, 6)
             row: dict[str, object] = {
                 "image_path": f"synthetic/{plant.plant_id}/{step:03d}.png",
-                "label": bucket_label(observation.stress_score),
+                "label": bucket_label(score),
                 "plant_id": plant.plant_id,
                 "timestamp": observation.timestamp,
                 "source": SYNTHETIC_SOURCE,
                 "target": round(plant.latent[step], 6),
-                "stress_score": round(observation.stress_score, 6),
+                "stress_score": score,
             }
             row.update({key: round(value, 6) for key, value in observation.features.items()})
             yield row

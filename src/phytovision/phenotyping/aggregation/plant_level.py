@@ -17,6 +17,20 @@ logger = logging.getLogger(__name__)
 _DEFAULT_SENESCENCE_KEYS = ("colour.yellow_fraction", "colour.brown_fraction")
 
 
+def _circular_mean(vals: list[float], weights: list[float]) -> float:
+    """Area-weighted mean of a circular quantity in ``[0, 1)`` (e.g. hue).
+
+    Averaging the values linearly across leaves would break at the wraparound (0.02 and 0.98, both
+    red, average to 0.5, cyan). Averaging the unit vectors and reading the angle back keeps the mean
+    on the correct side of the seam. A single region returns its own value unchanged.
+    """
+    angles = np.asarray(vals, dtype=float) * 2.0 * np.pi
+    weight_array = np.asarray(weights, dtype=float)
+    sin = float(np.average(np.sin(angles), weights=weight_array))
+    cos = float(np.average(np.cos(angles), weights=weight_array))
+    return float((np.arctan2(sin, cos) / (2.0 * np.pi)) % 1.0)
+
+
 class PlantLevelAggregator(FeatureAggregator):
     """Reduce per-region features to a plant vector.
 
@@ -97,12 +111,17 @@ class PlantLevelAggregator(FeatureAggregator):
     def _reduce(
         self, key: str, vals: list[float], weights: list[float], policy: Mapping[str, str]
     ) -> float:
-        if policy.get(key) == "sum":
+        kind = policy.get(key)
+        if kind == "sum":
             return float(sum(vals))
-        weight_sum = sum(weights)
-        if weight_sum <= 0:  # pragma: no cover: regions always have area > 0; defensive only
-            logger.warning("region areas sum to 0 for %r; falling back to unweighted mean", key)
-            return float(np.mean(vals)) if vals else 0.0
+        if not vals:  # a key always comes from at least one region; defensive only
+            return 0.0
+        if sum(weights) <= 0:  # pragma: no cover: regions always have area > 0; defensive only
+            logger.warning("region areas sum to 0 for %r; using an unweighted mean", key)
+            weights = [1.0] * len(vals)
+        # a wrapping quantity (hue): average the unit vectors on the circle, not the values
+        if kind == "circular":
+            return _circular_mean(vals, weights)
         return float(np.average(vals, weights=weights))
 
     def _wilted_ratio(self, features: Sequence[FeatureVector]) -> float | None:

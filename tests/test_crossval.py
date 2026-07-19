@@ -65,6 +65,21 @@ def test_falls_back_to_stratified_with_one_source() -> None:
     assert result.mean_accuracy > 0.8  # the data is separable
 
 
+def test_grouped_cv_handles_dataset_specific_features_without_leak_or_crash() -> None:
+    rng = np.random.default_rng(0)
+    rows: list[AnalysisRow] = []
+    for _ in range(20):  # each dataset carries a feature the other lacks
+        rows.append(_row({"a": float(rng.normal(0.40, 0.02)), "d1_only": 1.0}, "healthy", "d1"))
+        rows.append(_row({"a": float(rng.normal(0.30, 0.02)), "d1_only": 1.0}, "wilted", "d1"))
+        rows.append(_row({"a": float(rng.normal(0.41, 0.02)), "d2_only": 1.0}, "healthy", "d2"))
+        rows.append(_row({"a": float(rng.normal(0.29, 0.02)), "d2_only": 1.0}, "wilted", "d2"))
+    # The schema comes from the training rows per fold, so holding out a dataset whose feature is
+    # absent from training no longer leaks that column into the model or crashes the fit.
+    result = grouped_stratified_cv(rows, n_splits=2)
+    assert result.strategy == "stratified-group"
+    assert result.fold_accuracies
+
+
 def test_seeded_run_is_deterministic() -> None:
     rows = _rows(per_class=50)
     first = grouped_stratified_cv(rows, n_splits=5, seed=3)

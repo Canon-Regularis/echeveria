@@ -146,14 +146,21 @@ class GradientBoostedStressModel(StressModel):
         idx = classes.index(self.positive_label)
         explainer = shap.TreeExplainer(estimator)
         raw = explainer.shap_values(x)
-        if isinstance(raw, list):  # older shap returns one array per class
+        if isinstance(raw, list):  # older shap: one array per class, oriented to positive_label
             row = np.asarray(raw[idx])[0]
+            per_class = True
         else:
             arr = np.asarray(raw)
-            row = arr[0, :, idx] if arr.ndim == 3 else arr[0]
+            per_class = arr.ndim == 3  # 3D is per-class; 2D is the single (class-1) margin array
+            row = arr[0, :, idx] if per_class else arr[0]
         base_values = np.ravel(explainer.expected_value)
         base = float(base_values[idx] if base_values.size > 1 else base_values[0])
-        output = float(np.ravel(estimator.decision_function(x))[0])  # type: ignore[attr-defined]
+        margin = float(np.ravel(estimator.decision_function(x))[0])  # type: ignore[attr-defined]
+        # Orient the output to what the values and base describe. decision_function is the second
+        # class's margin. With per-class values (oriented to positive_label), flip the sign for the
+        # first class so completeness (base + sum(values) == output) holds. With the single class-1
+        # margin array, the values are already class-1, so use the margin unchanged.
+        output = -margin if (per_class and idx != len(classes) - 1) else margin
         return ShapResult(
             values=dict(zip(self.feature_keys, (float(v) for v in row), strict=True)),
             base_value=base,

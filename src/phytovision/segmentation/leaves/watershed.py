@@ -38,6 +38,20 @@ class WatershedLeafSegmenter(LeafInstanceSegmenter):
         labels = watershed(-distance, markers, mask=plant_mask)
 
         min_size = max(1, int(self.min_leaf_fraction * int(plant_mask.sum())))
-        leaves = [labels == label for label in range(1, int(labels.max()) + 1)]
-        leaves = [leaf for leaf in leaves if int(leaf.sum()) >= min_size]
-        return leaves or [plant_mask.copy()]
+        surviving = [
+            label
+            for label in range(1, int(labels.max()) + 1)
+            if int((labels == label).sum()) >= min_size
+        ]
+        if not surviving:
+            return [plant_mask.copy()]
+
+        kept = np.where(np.isin(labels, surviving), labels, 0)
+        orphan = plant_mask & (kept == 0)  # pixels of the dropped (sub-threshold) basins
+        if orphan.any():
+            # Reassign each orphan to the nearest surviving leaf so the leaves still tile the plant
+            # instead of dropping the pixels (which would undercount area and canopy coverage). This
+            # works even for a disconnected sub-threshold lobe, which re-seeding could not reach.
+            _, (rows, cols) = ndimage.distance_transform_edt(kept == 0, return_indices=True)
+            kept = np.where(orphan, kept[rows, cols], kept)
+        return [kept == label for label in surviving]

@@ -67,6 +67,8 @@ class FeatureExtractor(ABC):
     namespace: ClassVar[str] = ""
     # Local (un-namespaced) trait names that are extensive and should be summed across regions.
     extensive: ClassVar[frozenset[str]] = frozenset()
+    # Local trait names that are circular quantities (e.g. hue), averaged on the circle.
+    circular: ClassVar[frozenset[str]] = frozenset()
 
     @abstractmethod
     def _compute(self, image: Image, region: Region) -> dict[str, float]: ...
@@ -96,7 +98,9 @@ class FeatureExtractor(ABC):
         return FeatureVector(region_id=region.id, values=values)
 
     def reduction_policy(self) -> dict[str, str]:
-        return {f"{self.namespace}.{name}": "sum" for name in self.extensive}
+        policy = {f"{self.namespace}.{name}": "sum" for name in self.extensive}
+        policy.update({f"{self.namespace}.{name}": "circular" for name in self.circular})
+        return policy
 
 
 class CompositeFeatureExtractor:

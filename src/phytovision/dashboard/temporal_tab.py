@@ -159,9 +159,15 @@ def _render_survival(
     times, survival, lower, upper = survival_curve_points(fit)
     figure = go.Figure()
     if lower and upper:
-        figure.add_trace(go.Scatter(x=times, y=upper, mode="lines", line={"width": 0}))
+        # Step the band ("hv") like the survival curve; a linear band would slope between event
+        # times where the Kaplan-Meier estimate actually holds flat.
         figure.add_trace(
-            go.Scatter(x=times, y=lower, mode="lines", line={"width": 0}, fill="tonexty")
+            go.Scatter(x=times, y=upper, mode="lines", line={"width": 0, "shape": "hv"})
+        )
+        figure.add_trace(
+            go.Scatter(
+                x=times, y=lower, mode="lines", line={"width": 0, "shape": "hv"}, fill="tonexty"
+            )
         )
     figure.add_trace(go.Scatter(x=times, y=survival, mode="lines", line={"shape": "hv"}))
     if median is not None:

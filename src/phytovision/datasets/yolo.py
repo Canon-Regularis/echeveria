@@ -65,8 +65,9 @@ def _parse_labels(path: Path, names: list[str] | None) -> list[dict[str, object]
         try:
             class_id = int(float(parts[0]))
             bbox = [float(value) for value in parts[1:5]]  # normalized centre x, y, width, height
-        except ValueError:
-            continue  # skip a line with non-numeric tokens, as a too-short line is skipped
+        except (ValueError, OverflowError):
+            # ValueError: a non-numeric token; OverflowError: int(inf) on a non-finite class id.
+            continue  # skip the malformed line, as a too-short line is skipped
         if names is not None and 0 <= class_id < len(names):
             category = names[class_id]
         else:

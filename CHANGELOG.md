@@ -101,6 +101,19 @@ All notable changes to this project are documented here. The format is based on
   exactly at the size threshold instead of deleting it; `hue_mean` is a circular mean, so a red hue
   split across the wraparound no longer averages to its opposite; and `benchmark --min-train` is
   validated.
+- A third hunt closed nine more: the watershed leaves reassign a dropped sub-threshold basin to the
+  nearest kept leaf, so per-leaf regions still tile the plant and the aggregate area and canopy
+  coverage no longer undercount; the aggregator averages hue on the circle across leaves (a new
+  `circular` reduction policy), completing the `hue_mean` fix for the multi-leaf case; the
+  gradient-boosted SHAP output is oriented to match its values and base, so completeness holds when
+  the positive label is class 0; a model forecaster reports its current level from the last
+  observation rather than an unrelated linear fit, keeping it consistent with its own projection;
+  grouped cross-validation derives each fold's feature schema from the training rows only, so a
+  dataset-specific feature no longer leaks into the model or breaks the fit; the YOLO loader skips a
+  non-finite class id instead of crashing with an `OverflowError`; `read_config` accepts a UTF-8 byte
+  order mark; the simulator buckets the label from the rounded score it stores, so the two never
+  straddle a cut; and the dashboard survival band steps like the Kaplan-Meier curve rather than
+  sloping between event times.
 
 ## [0.2.0] (2026-07-16)
 

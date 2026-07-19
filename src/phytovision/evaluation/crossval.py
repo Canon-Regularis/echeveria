@@ -88,7 +88,6 @@ def grouped_stratified_cv(
 
     feature_dicts = [row.features for row in rows]
     groups = [row.source for row in rows]
-    keys = feature_keys_of(feature_dicts)
     splits, strategy = _make_splits(labels, groups, n_splits, seed)
 
     accuracies: list[float] = []
@@ -98,8 +97,13 @@ def grouped_stratified_cv(
         if len(set(train_labels)) < 2:  # a stratified fold can still be single-class on tiny data
             logger.warning("skipping a fold whose training split has a single class")
             continue
+        train_dicts = [feature_dicts[i] for i in train_idx]
+        # Derive the feature schema from the training rows only. Taking it over all rows leaks the
+        # held-out fold's columns into the model and, when a feature is unique to that fold, breaks
+        # the fit; a feature the model never trained on cannot help a held-out prediction anyway.
+        keys = feature_keys_of(train_dicts)
         predictions = fit_predict_labels(
-            [feature_dicts[i] for i in train_idx],
+            train_dicts,
             train_labels,
             [feature_dicts[i] for i in test_idx],
             keys,

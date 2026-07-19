@@ -44,6 +44,7 @@ def pixel_class_masks(
 
 class ColourFeatures(FeatureExtractor):
     namespace = "colour"
+    circular = frozenset({"hue_mean"})  # hue wraps at 1.0, so it is averaged on the circle
 
     def _compute(self, image: Image, region: Region) -> dict[str, float]:
         mask = region.mask

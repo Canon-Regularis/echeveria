@@ -70,6 +70,20 @@ def test_gbm_is_a_substitutable_stress_model() -> None:
         assert 0.0 <= assessment.confidence <= 1.0
 
 
+def test_shap_completeness_holds_when_positive_label_is_class_zero() -> None:
+    pytest.importorskip("shap")
+    dicts, labels = _training_data()
+    model = GradientBoostedStressModel(feature_keys=_KEYS, positive_label=0).fit(dicts, labels)
+    probe = PlantFeatures(
+        values={"colour.gcc_mean": 0.34, "colour.yellow_fraction": 0.2, "texture.entropy": 3.5},
+        region_count=1,
+    )
+    result = model.shap_attribution(probe)
+    # Completeness: base + sum(values) == model output, kept consistent with the SHAP orientation
+    # even when the positive label is class 0 (the output is oriented to match the values and base).
+    assert abs(result.base_value + sum(result.values.values()) - result.model_output) < 1e-4
+
+
 def test_label_uses_the_shared_bucket_cuts_not_a_binary_split() -> None:
     from phytovision.models.base import bucket_label
 

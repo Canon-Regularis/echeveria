@@ -114,6 +114,15 @@ All notable changes to this project are documented here. The format is based on
   order mark; the simulator buckets the label from the rounded score it stores, so the two never
   straddle a cut; and the dashboard survival band steps like the Kaplan-Meier curve rather than
   sloping between event times.
+- Forecasting and survival correctness: the Gaussian-process forecaster folds the detrending line's
+  extrapolation uncertainty into its band, so a far horizon is no longer overconfident; the
+  state-space reader coerces a degenerate (two-point) forecast to the expected shape rather than
+  silently falling back to a mislabelled linear interval; the survival covariate window is capped at
+  the crossing, so a plant that wilts within the warmup window no longer leaks its outcome into the
+  "early" covariates and the held-out concordance; the concordance sentinel for a plant with no
+  in-window median now sits above every finite predicted median, so it ranks as the longest-surviving
+  instead of below an over-extrapolated one; and `load_history` reports a clean error on a truncated
+  manifest row rather than crashing with a `TypeError`.
 
 ## [0.2.0] (2026-07-16)
 

@@ -81,11 +81,12 @@ def survival_concordance(
         raise ImportError(hint) from exc
 
     durations = dataset.durations()
-    sentinel = float(max(durations) + 1)
-    scores = [
-        sentinel if (m := _finite_or_none(medians.get(pid))) is None else m
-        for pid in dataset.plant_ids()
-    ]
+    resolved = {pid: _finite_or_none(medians.get(pid)) for pid in dataset.plant_ids()}
+    finite = [m for m in resolved.values() if m is not None]
+    # The sentinel must outrank every finite median (some extrapolate past the longest duration), so
+    # a plant with no in-window median reads as longest-surviving, not shorter than a finite one.
+    sentinel = float(max([*durations, *finite]) + 1)
+    scores = [sentinel if resolved[pid] is None else resolved[pid] for pid in dataset.plant_ids()]
     try:
         return float(concordance_index(durations, scores, dataset.events()))
     except (ZeroDivisionError, ValueError):

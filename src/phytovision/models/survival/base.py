@@ -132,9 +132,9 @@ class SurvivalModel(ABC):
         """Held-out-capable concordance of the predicted medians against the observed times.
 
         A larger predicted median means longer survival, so it is passed to lifelines without
-        negation. Medians that are None or infinite become a finite sentinel just past the longest
-        duration, which ranks a plant with no in-window median as long-surviving. Returns None when
-        the cohort has no events, or when no comparable pair exists.
+        negation. Medians that are None or infinite become a finite sentinel above every finite
+        median, which ranks a plant with no in-window median as the longest-surviving. Returns None
+        when the cohort has no events, or when no comparable pair exists.
         """
         if dataset.n_events == 0:
             return None
@@ -145,12 +145,14 @@ class SurvivalModel(ABC):
 
         durations = dataset.durations()
         events = dataset.events()
-        sentinel = float(max(durations) + 1)
         predictions = self.predict(dataset)
-        scores = [
-            sentinel if (m := _finite_or_none(predictions[pid].median)) is None else m
-            for pid in dataset.plant_ids()
-        ]
+        medians = {pid: _finite_or_none(predictions[pid].median) for pid in dataset.plant_ids()}
+        finite = [m for m in medians.values() if m is not None]
+        # The sentinel for a plant with no in-window median must outrank every actual predicted
+        # median (some extrapolate past the longest duration), so a no-median plant reads as the
+        # longest-surviving rather than shorter than a finite extrapolated median.
+        sentinel = float(max([*durations, *finite]) + 1)
+        scores = [sentinel if medians[pid] is None else medians[pid] for pid in dataset.plant_ids()]
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")

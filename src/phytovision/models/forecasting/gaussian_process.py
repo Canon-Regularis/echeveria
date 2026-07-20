@@ -18,6 +18,7 @@ import numpy as np
 from phytovision._num import clip01
 from phytovision.models.forecasting.base import Prediction, SeriesForecaster, z_for
 from phytovision.temporal._fit import fit_line
+from phytovision.temporal.forecast import _MIN_RESIDUAL_STD
 
 
 class GaussianProcessForecaster(SeriesForecaster):
@@ -49,6 +50,13 @@ class GaussianProcessForecaster(SeriesForecaster):
             gp.fit(t.reshape(-1, 1), residual)
 
         end = n - 1
+        mean_x = (n - 1) / 2.0
+        sxx = float(sum((x - mean_x) ** 2 for x in range(n)))
+        # The GP models the residual, but the detrending line is extrapolated, so its OLS parameter
+        # uncertainty (growing with the horizon) must be added in quadrature, or the band ignores
+        # the extrapolation risk and is overconfident far from the window. The residual std is
+        # floored like the linear interval, so a near-perfect fit does not claim near-zero spread.
+        resid_std = max(_MIN_RESIDUAL_STD, (float(np.sum(residual**2)) / max(1, n - 2)) ** 0.5)
         future = np.array([[end + h] for h in steps], dtype=float)
         mean_residual, std = gp.predict(future, return_std=True)
         z = z_for(self.interval_level)
@@ -57,8 +65,11 @@ class GaussianProcessForecaster(SeriesForecaster):
         lower: dict[int, float] = {}
         upper: dict[int, float] = {}
         for h, residual_mean, spread in zip(steps, mean_residual, std, strict=True):
-            centre = intercept + slope * (end + h) + float(residual_mean)
-            half = z * float(spread)
+            x0 = end + h
+            leverage = 1.0 / n + ((x0 - mean_x) ** 2 / sxx if sxx > 0 else 0.0)
+            total_std = (float(spread) ** 2 + resid_std**2 * leverage) ** 0.5
+            centre = intercept + slope * x0 + float(residual_mean)
+            half = z * total_std
             mean[h] = clip01(centre)
             lower[h] = clip01(centre - half)
             upper[h] = clip01(centre + half)

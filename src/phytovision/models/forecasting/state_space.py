@@ -23,8 +23,10 @@ def forecast_with_intervals(result: Any, steps: Sequence[int], level: float) -> 
     """Read a statsmodels forecast result into per-step mean and interval dicts, each in [0, 1]."""
     horizon = max(steps)
     forecast = result.get_forecast(steps=horizon)
-    mean_all = np.asarray(forecast.predicted_mean, dtype=float)
-    conf = np.asarray(forecast.conf_int(alpha=1.0 - level), dtype=float)
+    # A degenerate fit (e.g. a two-point series) can return a 0-d mean or a 1-d interval; coerce to
+    # the expected shapes so indexing does not raise and fall back to a mislabelled linear interval.
+    mean_all = np.atleast_1d(np.asarray(forecast.predicted_mean, dtype=float))
+    conf = np.atleast_2d(np.asarray(forecast.conf_int(alpha=1.0 - level), dtype=float))
     mean: dict[int, float] = {}
     lower: dict[int, float] = {}
     upper: dict[int, float] = {}

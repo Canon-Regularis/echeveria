@@ -68,12 +68,16 @@ def derive_records(history: FeatureHistory, warmup: int = _DEFAULT_WARMUP) -> Su
         if len(scores) < 2:
             continue
         step_position, event = observed_event(scores)
+        # Cap the covariate window at the crossing for a plant that wilts within the warmup window,
+        # so the "early" covariates cannot include post-event observations and leak the outcome into
+        # the held-out concordance. A censored plant never crosses, so it keeps the full warmup.
+        covariate_warmup = min(warmup, step_position) if event else warmup
         records.append(
             SurvivalRecord(
                 plant_id=plant_id,
                 duration=step_position + 1,
                 event_observed=event,
-                covariates=early_covariates(scores, warmup),
+                covariates=early_covariates(scores, covariate_warmup),
             )
         )
     return SurvivalDataset(tuple(records))

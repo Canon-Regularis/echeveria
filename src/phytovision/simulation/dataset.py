@@ -161,8 +161,10 @@ def load_history(manifest_path: str | Path) -> FeatureHistory:
     return history
 
 
-def _numeric(manifest: Path, column: str, value: str) -> float:
+def _numeric(manifest: Path, column: str, value: str | None) -> float:
     """Parse a manifest cell to a finite float, or raise a clean ConfigError naming the column."""
+    if value is None or not value.strip():  # a truncated row yields None, and float(None) crashes
+        raise ConfigError(f"manifest {manifest} is missing a {column!r} value")
     try:
         parsed = float(value)
     except ValueError:

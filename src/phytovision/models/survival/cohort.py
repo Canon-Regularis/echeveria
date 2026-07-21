@@ -68,6 +68,10 @@ def derive_records(history: FeatureHistory, warmup: int = _DEFAULT_WARMUP) -> Su
         if len(scores) < 2:
             continue
         step_position, event = observed_event(scores)
+        if event and step_position == 0:
+            # Already over the cut at the first frame: a prevalent case with no pre-event
+            # observation to build an honest covariate from, so it is excluded, not seeded from it.
+            continue
         # Cap the covariate window at the crossing for a plant that wilts within the warmup window,
         # so the "early" covariates cannot include post-event observations and leak the outcome into
         # the held-out concordance. A censored plant never crosses, so it keeps the full warmup.

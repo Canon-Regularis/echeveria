@@ -136,7 +136,9 @@ def conformal_quantile(scores: Sequence[float], alpha: float) -> float:
     n = len(scores)
     if n == 0:
         raise ConfigError("cannot take a conformal quantile of an empty set")
-    k = math.ceil((n + 1) * (1.0 - alpha))
+    # Subtract a tiny epsilon before the ceil so float error on an exact integer (n+1)(1-alpha)
+    # landing at e.g. 941.0000000000001 cannot push k one rank too high and widen every set.
+    k = math.ceil((n + 1) * (1.0 - alpha) - 1e-9)
     if k > n:
         return float("inf")
     return float(sorted(scores)[k - 1])

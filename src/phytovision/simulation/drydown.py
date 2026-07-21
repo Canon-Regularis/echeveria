@@ -130,7 +130,10 @@ def simulate_plant(
     rate = decline_rate if decline_rate is not None else _draw_rate(params, rng)
     watering = set(params.watering_steps)
 
-    latent: list[float] = [clip01(params.initial_stress)]
+    # Watering at step 0 acts on the initial state; the update loop below starts at step 1, so a
+    # step-0 watering event would otherwise be silently ignored.
+    initial = params.initial_stress - (params.watering_amount if 0 in watering else 0.0)
+    latent: list[float] = [clip01(initial)]
     for step in range(1, params.n_steps):
         previous = latent[-1]
         drift = rate * (1.0 - previous)

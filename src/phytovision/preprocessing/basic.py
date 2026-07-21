@@ -29,7 +29,7 @@ class ResizeNormalizePreprocessor(Preprocessor):
         img = image.astype(np.float32)
         if np.issubdtype(image.dtype, np.integer):  # scale by the dtype's range, not a hard 255
             img = img / float(np.iinfo(image.dtype).max)
-        elif img.max() > 1.0:  # a float image outside [0, 1]: treat it as an 8-bit range
+        elif img.max() > 1.5:  # clearly an 8-bit range; a stray pixel just over 1.0 stays [0, 1]
             img = img / 255.0
 
         h, w = img.shape[:2]

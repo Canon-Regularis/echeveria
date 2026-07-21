@@ -100,6 +100,34 @@ def test_label_uses_the_shared_bucket_cuts_not_a_binary_split() -> None:
         assert assessment.label == bucket_label(assessment.score)
 
 
+def test_contributions_skip_a_missing_feature() -> None:
+    dicts, labels = _training_data()
+    model = GradientBoostedStressModel(feature_keys=_KEYS).fit(dicts, labels)
+    partial = PlantFeatures(
+        values={"colour.gcc_mean": 0.35, "texture.entropy": 3.0}, region_count=1
+    )  # colour.yellow_fraction is absent (schema drift)
+    contributions = model.contributions(partial)
+    assert "colour.yellow_fraction" not in contributions  # the absent feature earns no attribution
+    assert all(np.isfinite(value) for value in contributions.values())  # and no NaN leaks
+
+
+def test_shap_completeness_holds_for_a_flipped_positive_label() -> None:
+    pytest.importorskip("shap")
+    dicts, labels = _training_data()
+    model = GradientBoostedStressModel(feature_keys=_KEYS, positive_label=0).fit(
+        dicts, [1 - y for y in labels]
+    )
+    features = PlantFeatures(
+        values={"colour.gcc_mean": 0.30, "colour.yellow_fraction": 0.4, "texture.entropy": 4.0},
+        region_count=1,
+    )
+    result = model.shap_attribution(features)
+    total = result.base_value + sum(result.values.values())
+    # Completeness must hold for positive_label=0 too: the 2-D single-margin SHAP path is now
+    # oriented to the positive label rather than left in class-1 terms.
+    assert abs(total - result.model_output) < 1e-6
+
+
 def test_seeded_fit_is_reproducible() -> None:
     dicts, labels = _training_data()
     probe = PlantFeatures(

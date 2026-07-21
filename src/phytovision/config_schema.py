@@ -97,6 +97,9 @@ def _normalize_spec(spec: object, default_name: str | None) -> ComponentSpec:
     if isinstance(spec, str):
         return ComponentSpec(spec, {})
     if isinstance(spec, Mapping):
+        unknown = set(spec) - {"name", "params"}
+        if unknown:  # a forgotten params wrapper or a typo would otherwise be silently dropped
+            raise ConfigError(f"unknown key(s) in component spec {spec!r}: {sorted(unknown)}")
         name = spec.get("name", default_name)
         if not isinstance(name, str):
             raise ConfigError(f"component spec needs a string 'name': {spec!r}")

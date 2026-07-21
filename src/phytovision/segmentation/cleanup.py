@@ -25,8 +25,10 @@ def clean_mask(
     # scikit-image >=0.26: max_size removes objects/holes up to AND INCLUDING that size, so pass
     # min_size - 1 to drop only components strictly below the fraction and keep one exactly at it.
     threshold = max(0, min_size - 1)
-    mask = remove_small_objects(mask, max_size=threshold)
-    mask = remove_small_holes(mask, max_size=threshold)
+    # connectivity=2 (8-connected) matches label/largest_component, so a thin diagonal structure is
+    # one object rather than many size-1 pixels that would each fall below the threshold and vanish.
+    mask = remove_small_objects(mask, max_size=threshold, connectivity=2)
+    mask = remove_small_holes(mask, max_size=threshold, connectivity=2)
     if closing_radius > 0 and mask.any():
         mask = closing(mask, disk(closing_radius))
     if keep_largest and mask.any():

@@ -118,6 +118,8 @@ class GradientBoostedStressModel(StressModel):
         base = self._score(x)
         out: dict[str, float] = {}
         for i, key in enumerate(self.feature_keys):
+            if features.values.get(key) is None:  # a schema-drifted feature has no live value
+                continue  # otherwise it earns a spurious contribution and a NaN reason value
             perturbed = x.copy()
             perturbed[i] = self._background[i]
             out[key] = base - self._score(perturbed)  # effect of this feature vs its baseline
@@ -144,23 +146,30 @@ class GradientBoostedStressModel(StressModel):
         x = self._vector(features.values).reshape(1, -1)
         classes = list(estimator.classes_)  # type: ignore[attr-defined]
         idx = classes.index(self.positive_label)
+        flip = idx != len(classes) - 1  # positive_label is the first class: flip the class-1 view
         explainer = shap.TreeExplainer(estimator)
         raw = explainer.shap_values(x)
+        base_values = np.ravel(explainer.expected_value)
+        margin = float(np.ravel(estimator.decision_function(x))[0])  # type: ignore[attr-defined]
+        # decision_function is the second class's margin, so completeness (base + sum(values) ==
+        # output) is expressed in class-1 terms. When positive_label is the first class, flip the
+        # sign of the whole attribution so the values, base, and output all describe positive_label.
         if isinstance(raw, list):  # older shap: one array per class, oriented to positive_label
             row = np.asarray(raw[idx])[0]
-            per_class = True
+            base = float(base_values[idx] if base_values.size > 1 else base_values[0])
+            output = -margin if flip else margin
         else:
             arr = np.asarray(raw)
-            per_class = arr.ndim == 3  # 3D is per-class; 2D is the single (class-1) margin array
-            row = arr[0, :, idx] if per_class else arr[0]
-        base_values = np.ravel(explainer.expected_value)
-        base = float(base_values[idx] if base_values.size > 1 else base_values[0])
-        margin = float(np.ravel(estimator.decision_function(x))[0])  # type: ignore[attr-defined]
-        # Orient the output to what the values and base describe. decision_function is the second
-        # class's margin. With per-class values (oriented to positive_label), flip the sign for the
-        # first class so completeness (base + sum(values) == output) holds. With the single class-1
-        # margin array, the values are already class-1, so use the margin unchanged.
-        output = -margin if (per_class and idx != len(classes) - 1) else margin
+            if arr.ndim == 3:  # per-class values: pick positive_label's slice
+                row = arr[0, :, idx]
+                base = float(base_values[idx] if base_values.size > 1 else base_values[0])
+                output = -margin if flip else margin
+            else:  # a single class-1 margin array: flip the whole view when positive_label is 0
+                row = arr[0]
+                base = float(base_values[idx] if base_values.size > 1 else base_values[0])
+                output = margin
+                if flip:
+                    row, base, output = -row, -base, -output
         return ShapResult(
             values=dict(zip(self.feature_keys, (float(v) for v in row), strict=True)),
             base_value=base,

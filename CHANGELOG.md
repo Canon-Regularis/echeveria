@@ -123,6 +123,15 @@ All notable changes to this project are documented here. The format is based on
   in-window median now sits above every finite predicted median, so it ranks as the longest-surviving
   instead of below an over-extrapolated one; and `load_history` reports a clean error on a truncated
   manifest row rather than crashing with a `TypeError`.
+- Edge-case robustness across the codebase: the preprocessor no longer misreads a normalized float
+  image with a stray over-one pixel as 8-bit and darkens the whole frame; mask cleanup uses
+  8-connectivity, so a thin diagonal structure is kept as one object instead of vanishing; the config
+  schema rejects an unknown key inside a component spec (a forgotten `params` wrapper or a typo) rather
+  than silently dropping the override; the split-conformal quantile subtracts a rounding epsilon so an
+  exact rank does not widen every set by one; the gradient-boosted model gives no attribution to a
+  schema-drifted (absent) feature and orients its SHAP output for a class-0 positive label; the
+  simulator applies a step-zero watering event instead of ignoring it; and the survival cohort excludes
+  a prevalent plant (already over the cut at its first frame) that has no pre-event window.
 
 ## [0.2.0] (2026-07-16)
 

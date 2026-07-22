@@ -188,6 +188,25 @@ def test_cli_benchmark_rejects_min_train_below_two() -> None:
     assert main(["benchmark", "unused.csv", "--min-train", "1"]) == 2
 
 
+def test_cli_phenotype_fails_cleanly_on_missing_forecaster_extra(
+    tmp_path, healthy_image, monkeypatch
+) -> None:
+    import phytovision.cli.phenotype as phenotype
+
+    def _missing_extra(*args, **kwargs):
+        raise ImportError('the forecaster needs the stats extra: pip install -e ".[stats]"')
+
+    monkeypatch.setattr(phenotype, "plant_forecasts", _missing_extra)
+    _save_image(tmp_path / "p1_t1.png", healthy_image)
+    _save_image(tmp_path / "p1_t2.png", healthy_image)
+    manifest = tmp_path / "m.csv"
+    manifest.write_text(
+        "image_path,plant_id,timestamp\np1_t1.png,p1,2026-03-01\np1_t2.png,p1,2026-03-02\n"
+    )
+    # A forecaster whose optional extra is absent must fail cleanly (exit 2), not crash the command.
+    assert main(["phenotype", str(manifest), "--out", str(tmp_path / "traj.csv")]) == 2
+
+
 def test_cli_phenotype_json_uses_default_horizons(tmp_path, healthy_image, stressed_image) -> None:
     _save_image(tmp_path / "a.png", healthy_image)
     _save_image(tmp_path / "b.png", stressed_image)

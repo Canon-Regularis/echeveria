@@ -58,7 +58,9 @@ class YoloDetectionLoader(InMemoryDataset):
 
 def _parse_labels(path: Path, names: list[str] | None) -> list[dict[str, object]]:
     boxes: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    # A stray non-UTF-8 byte becomes a replacement char rather than crashing the file; the affected
+    # line then fails the numeric parse below and is skipped, preserving per-line robustness.
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         parts = line.split()
         if len(parts) < 5:
             continue

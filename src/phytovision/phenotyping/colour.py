@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 from skimage.color import rgb2hsv, rgb2lab
+from skimage.util import img_as_float
 
 from phytovision._num import EPS
 from phytovision.phenotyping.base import FeatureExtractor
@@ -48,7 +49,7 @@ class ColourFeatures(FeatureExtractor):
 
     def _compute(self, image: Image, region: Region) -> dict[str, float]:
         mask = region.mask
-        rgb = image[mask]  # (N, 3) foreground pixels
+        rgb = img_as_float(image[mask])  # (N, 3) foreground in [0, 1], so uint8 sums never overflow
         r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
         total = r + g + b + EPS
 

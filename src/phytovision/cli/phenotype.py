@@ -77,7 +77,10 @@ def run(args: argparse.Namespace) -> int:
 
     trends = plant_trends(history)
     warnings = plant_early_warnings(history)
-    forecasts = plant_forecasts(history, horizons, forecaster)
+    try:
+        forecasts = plant_forecasts(history, horizons, forecaster)
+    except ImportError as exc:  # a statistical forecaster whose optional extra is not installed
+        return fail(str(exc))
     stage_model = DROUGHT_STAGE_MODELS.create("rule-based")
     survival_fit = _survival_or_notice(history, args.survival_model, args.survival_window)
 

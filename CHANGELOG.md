@@ -132,6 +132,17 @@ All notable changes to this project are documented here. The format is based on
   schema-drifted (absent) feature and orients its SHAP output for a class-0 positive label; the
   simulator applies a step-zero watering event instead of ignoring it; and the survival cohort excludes
   a prevalent plant (already over the cut at its first frame) that has no pre-event window.
+- IO, dtype, and numeric hardening: a non-finite (NaN/inf) image is rejected loudly at validation
+  rather than silently corrupting the analysis; the colour features normalize their pixels so a uint8
+  image no longer overflows the green-chromatic denominator; the interior edge density erodes with a
+  3x3 element matching the Sobel support, so a curved silhouette no longer leaks into it; the COCO and
+  CSV manifest loaders raise a clean error on a non-UTF-8 file and the YOLO loader tolerates a stray
+  byte per line; an empty `images_root` falls back to the default folder instead of the working
+  directory; the default linear forecast caps its time-to-stressed like the richer forecasters and
+  centres its interval on the clipped projection so the band never collapses to zero width at the
+  ceiling; the `/trend` unknown-forecaster error drops its stray quotes; `phenotype` fails cleanly when
+  a selected forecaster's extra is absent; and a corrupt or truncated model file is wrapped in a clean
+  error instead of leaking a decompressor `OSError`.
 
 ## [0.2.0] (2026-07-16)
 

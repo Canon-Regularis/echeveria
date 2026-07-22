@@ -115,7 +115,9 @@ def create_app(
         try:
             chosen = FORECASTERS.create(forecaster)
         except KeyError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            # KeyError.__str__ repr-quotes its message, so read the raw text to keep it clean.
+            detail = str(exc.args[0]) if exc.args else str(exc)
+            raise HTTPException(status_code=400, detail=detail) from exc
         if survival_model and survival_model not in SURVIVAL_MODELS:
             available = SURVIVAL_MODELS.names()
             raise HTTPException(

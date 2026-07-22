@@ -84,7 +84,10 @@ def _interior_edge_density(edges: np.ndarray, mask: np.ndarray) -> float:
     measure internal surface texture. Eroding by one pixel drops that boundary ring; a region too
     thin to have an interior keeps its full mask so the value stays defined.
     """
-    interior = binary_erosion(mask)
+    # A full 3x3 structuring element matches the Sobel operator's 3x3 support, so every retained
+    # pixel's gradient reads foreground only; the default cross element leaves the diagonal boundary
+    # neighbours in and lets the silhouette leak into the interior-texture measure.
+    interior = binary_erosion(mask, structure=np.ones((3, 3), dtype=bool))
     region = interior if interior.any() else mask
     return float(edges[region].mean())
 

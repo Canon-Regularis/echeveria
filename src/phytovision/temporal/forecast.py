@@ -29,6 +29,11 @@ DEFAULT_INTERVAL_LEVEL = 0.9
 # that would claim more certainty than two observations can support.
 _MIN_RESIDUAL_STD = 0.02
 
+# The horizon cap for the time-to-stressed search. It matches the forecasters' _MAX_LOOKAHEAD so the
+# default linear forecast and the richer ones agree: beyond this, report no crossing rather than a
+# meaningless far-future step from a near-flat slope.
+_MAX_STEPS_TO_STRESSED = 30
+
 
 @dataclass(frozen=True, slots=True)
 class Forecast:
@@ -147,7 +152,10 @@ def linear_prediction_interval(
         x0 = end + h
         leverage = 1.0 + 1.0 / n + ((x0 - mean_x) ** 2 / sxx if sxx > 0 else 0.0)
         half = z * resid_std * leverage**0.5
-        mean = intercept + slope * x0
+        # Centre the band on the reported (clipped) projection. Centring on the raw mean lets a
+        # projection past the ceiling clip both bounds to 1.0, collapsing the band to zero width and
+        # feeding the probabilistic scorer a sigma of 0.
+        mean = clip01(intercept + slope * x0)
         lower[h] = clip01(mean - half)
         upper[h] = clip01(mean + half)
     return lower, upper
@@ -164,9 +172,11 @@ def _steps_to_threshold(intercept: float, slope: float, end: int) -> int | None:
     if slope <= 0.0 or intercept + slope * end >= STRESSED_THRESHOLD:
         return None
     step = max(1, int(math.ceil((STRESSED_THRESHOLD - (intercept + slope * end)) / slope)))
+    if step > _MAX_STEPS_TO_STRESSED:
+        return None  # beyond the search window: report no crossing, matching the richer forecasters
     while intercept + slope * (end + step) < STRESSED_THRESHOLD:  # walk off any float undershoot
         step += 1
-    return step
+    return step if step <= _MAX_STEPS_TO_STRESSED else None
 
 
 def trend_confidence(n: int, r2: float, horizons: Sequence[int]) -> float:

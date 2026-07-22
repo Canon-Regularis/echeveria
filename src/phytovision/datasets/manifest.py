@@ -32,28 +32,31 @@ class CsvManifestLoader(InMemoryDataset):
         root = resolve_root(images_root, manifest.parent)
         delimiter = "\t" if manifest.suffix.lower() in {".tsv", ".tab"} else ","
         # utf-8-sig drops the BOM that Excel and pandas prepend, so the first column name matches.
-        with manifest.open(newline="", encoding="utf-8-sig") as handle:
-            reader = csv.DictReader(handle, delimiter=delimiter)
-            header = reader.fieldnames
-            if header is not None:
-                # Strip header whitespace so "image_path, plant_id" (spaces after commas) maps.
-                reader.fieldnames = [name.strip() for name in header]
-            if reader.fieldnames is None or image_column not in reader.fieldnames:
-                raise ConfigError(f"manifest {manifest} has no {image_column!r} column")
-            self._samples = [
-                Sample(
-                    image_path=str(root / image_value),
-                    label=_clean(row.get(label_column)),
-                    split=_clean(row.get(split_column)),
-                    source=_clean(row.get(source_column)),
-                    license=_clean(row.get(license_column)),
-                    plant_id=_clean(row.get(plant_id_column)),
-                    timestamp=_clean(row.get(timestamp_column)),
-                    target=_clean_float(row.get(target_column), manifest, target_column),
-                )
-                for row in reader
-                if (image_value := _clean(row.get(image_column)))
-            ]
+        try:
+            with manifest.open(newline="", encoding="utf-8-sig") as handle:
+                reader = csv.DictReader(handle, delimiter=delimiter)
+                header = reader.fieldnames
+                if header is not None:
+                    # Strip header whitespace so "image_path, plant_id" (spaces after commas) maps.
+                    reader.fieldnames = [name.strip() for name in header]
+                if reader.fieldnames is None or image_column not in reader.fieldnames:
+                    raise ConfigError(f"manifest {manifest} has no {image_column!r} column")
+                self._samples = [
+                    Sample(
+                        image_path=str(root / image_value),
+                        label=_clean(row.get(label_column)),
+                        split=_clean(row.get(split_column)),
+                        source=_clean(row.get(source_column)),
+                        license=_clean(row.get(license_column)),
+                        plant_id=_clean(row.get(plant_id_column)),
+                        timestamp=_clean(row.get(timestamp_column)),
+                        target=_clean_float(row.get(target_column), manifest, target_column),
+                    )
+                    for row in reader
+                    if (image_value := _clean(row.get(image_column)))
+                ]
+        except UnicodeDecodeError as exc:  # a non-UTF-8 export fails cleanly, not with a raw crash
+            raise ConfigError(f"manifest {manifest} is not valid UTF-8 text: {exc}") from exc
 
 
 def _clean(value: str | None) -> str | None:

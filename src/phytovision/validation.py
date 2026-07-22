@@ -19,3 +19,7 @@ def validate_rgb_image(image: object) -> None:
         raise InvalidImageError(f"expected an H x W x 3 RGB image, got shape {image.shape}")
     if image.size == 0:
         raise InvalidImageError("image is empty")
+    # A NaN/inf pixel defeats the preprocessor's max-based range check and the quality thresholds,
+    # silently corrupting the analysis, so it is rejected loudly here rather than propagated.
+    if not np.isfinite(image).all():
+        raise InvalidImageError("image contains non-finite pixels (NaN or inf)")

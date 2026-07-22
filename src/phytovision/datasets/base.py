@@ -25,8 +25,12 @@ def require_directory(path: str | Path, description: str) -> Path:
 
 
 def resolve_root(images_root: str | Path | None, default: Path) -> Path:
-    """Return ``images_root`` as a path, or ``default`` when no explicit root is given."""
-    return Path(images_root) if images_root is not None else default
+    """Return ``images_root`` as a path, or ``default`` when no explicit root is given.
+
+    An empty string counts as no root (rather than the current directory), so an unset CLI or config
+    value falls back to the manifest/annotation folder instead of resolving image paths against CWD.
+    """
+    return Path(images_root) if images_root else default
 
 
 @dataclass(frozen=True, slots=True)

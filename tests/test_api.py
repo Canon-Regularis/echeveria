@@ -131,6 +131,17 @@ def test_analyze_drought_stage_exposes_the_head(healthy_image) -> None:
     assert "disclaimer" in payload  # the placeholder is labelled for API clients
 
 
+def test_trend_unknown_forecaster_detail_has_no_stray_quotes(healthy_image) -> None:
+    client = TestClient(create_app())
+    files = [("files", ("a.png", _png_bytes(healthy_image), "image/png"))]
+    data = {"plant_id": ["p1"], "timestamp": ["2026-03-01"]}
+    response = client.post("/trend", files=files, data=data, params={"forecaster": "nope"})
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "unknown forecaster" in detail
+    assert not detail.startswith('"')  # the KeyError repr quotes are stripped
+
+
 def test_trend_sorts_by_timestamp_not_upload_order(healthy_image, stressed_image) -> None:
     client = TestClient(create_app())
     # Upload in reverse chronological order, so a correct response proves the timestamp sort rather

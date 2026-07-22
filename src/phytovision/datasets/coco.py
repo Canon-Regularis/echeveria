@@ -27,7 +27,7 @@ class CocoDetectionLoader(InMemoryDataset):
         annotations = Path(annotations_path)
         try:
             data = json.loads(annotations.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ConfigError(f"could not parse COCO file {annotations}: {exc}") from exc
         if not isinstance(data, dict):
             raise ConfigError(f"COCO file {annotations} must be a JSON object at the top level")

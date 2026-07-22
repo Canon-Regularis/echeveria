@@ -143,6 +143,20 @@ All notable changes to this project are documented here. The format is based on
   ceiling; the `/trend` unknown-forecaster error drops its stray quotes; `phenotype` fails cleanly when
   a selected forecaster's extra is absent; and a corrupt or truncated model file is wrapped in a clean
   error instead of leaking a decompressor `OSError`.
+- Interval, aggregation, and contract hardening: the Gaussian-process, Bayesian-ridge, and state-space
+  forecasters centre their prediction band on the clipped mean, so a projection past the [0, 1] ceiling
+  no longer collapses the band to zero width and hands the probabilistic scorer a near-certain sigma,
+  the same fix the linear baseline already carries; plant-level orientation reduces as an axial angle (a
+  new `axial` reduction policy), so leaves straddling the plus-or-minus 90-degree seam no longer average
+  to the wrong axis; the SHAP explainer skips a schema-drifted feature instead of citing it with a NaN
+  value that would reach the JSON digest; image validation rejects a non-numeric dtype as a clean
+  `InvalidImageError` rather than a raw `TypeError`; `add_head` rejects a duplicate head name and the
+  config schema rejects duplicate feature extractors, so a name collision fails loudly at build time
+  instead of silently dropping a head output or crashing every `analyze`; grouped cross-validation keeps
+  rows with no source together in one synthetic group rather than crashing on a mix of `None` and string
+  sources; image loading applies the EXIF orientation tag, so a portrait photo is analysed upright and
+  its orientation feature matches the photo as viewed; and a loadable-but-malformed model envelope (a
+  non-mapping state or manifest) is wrapped in a clean `ConfigError` rather than leaking a `TypeError`.
 
 ## [0.2.0] (2026-07-16)
 

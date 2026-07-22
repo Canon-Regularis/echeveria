@@ -30,8 +30,8 @@ def test_reason_descriptions_are_grounded_in_physiology() -> None:
 def test_unmapped_feature_description_is_unchanged() -> None:
     # A feature with no physiology note keeps the plain template (geometry.area_px is unmapped).
     model = HeuristicStressModel()
-    empty = PlantFeatures(values={}, region_count=1)
-    reasons = build_reasons(model, empty, {"geometry.area_px": 1.0}, top_k=6)
+    features = PlantFeatures(values={"geometry.area_px": 12.0}, region_count=1)
+    reasons = build_reasons(model, features, {"geometry.area_px": 1.0}, top_k=6)
     assert reasons[0].description == "geometry.area_px raises the estimate"
 
 

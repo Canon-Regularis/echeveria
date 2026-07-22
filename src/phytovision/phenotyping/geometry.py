@@ -14,6 +14,8 @@ from phytovision.types import Image, Region
 class GeometryFeatures(FeatureExtractor):
     namespace = "geometry"
     extensive = frozenset({"area_px", "convex_area"})  # summed across regions, not averaged
+    # orientation is an undirected axis in [-pi/2, pi/2]: averaged on the doubled angle, not linear
+    axial = frozenset({"orientation"})
 
     def _compute(self, image: Image, region: Region) -> dict[str, float]:
         props = single_region_props(region)

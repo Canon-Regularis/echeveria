@@ -162,3 +162,12 @@ def test_corrupt_file_raises_clean_error(tmp_path) -> None:
     path.write_bytes(b"this is not a joblib file at all")
     with pytest.raises(ConfigError, match="could not read model file"):
         read_envelope(path)
+
+
+def test_malformed_but_loadable_envelope_raises_clean_error(tmp_path) -> None:
+    # A loadable envelope whose state is not a mapping would crash dict(...) with a raw TypeError;
+    # it must surface as a ConfigError like every other bad-file path.
+    path = tmp_path / "malformed.joblib"
+    joblib.dump({"model_type": "heuristic", "state": 5}, path)
+    with pytest.raises(ConfigError, match="malformed model file"):
+        read_envelope(path)

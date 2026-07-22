@@ -210,7 +210,13 @@ class Pipeline:
         return replace(self, explainer=explainer)
 
     def add_head(self, head: Head) -> Pipeline:
-        """Return a copy with an additional post-model head attached."""
+        """Return a copy with an additional post-model head attached.
+
+        :raises ConfigError: if a head with the same name is already attached: ``head_outputs`` is
+            keyed by name, so a duplicate would silently overwrite the earlier head's result.
+        """
+        if any(existing.name == head.name for existing in self.heads):
+            raise ConfigError(f"a head named {head.name!r} is already attached")
         return replace(self, heads=(*self.heads, head))
 
 

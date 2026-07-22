@@ -20,6 +20,12 @@ def build_reasons(
         if contribution == 0.0:
             continue
         value = features.values.get(key)
+        # A schema-drifted feature carries no live value, yet a SHAP attribution over the full
+        # trained vector can still score it. Skip it rather than cite an unmeasured feature with a
+        # NaN value, which would otherwise reach the JSON digest as invalid NaN. The contributions
+        # path already drops these upstream; guarding here covers the SHAP path too.
+        if value is None:
+            continue
         increases = contribution > 0.0
         verb = "raises" if increases else "lowers"
         # Cite the physiological mechanism when the feature has one, so the reason is grounded.

@@ -105,6 +105,16 @@ def test_grouped_folds_never_share_a_source() -> None:
         assert train_groups.isdisjoint(test_groups)
 
 
+def test_grouped_split_tolerates_rows_with_no_source() -> None:
+    # StratifiedGroupKFold sorts the group labels, which raises a TypeError on a mix of None and
+    # str. Rows with no source share one synthetic group, so the split succeeds instead of crashing.
+    labels = [0, 1, 0, 1, 0, 1]
+    groups = ["a", "a", "b", "b", None, None]
+    splits, strategy = _make_splits(labels, groups, n_splits=2)
+    assert strategy == "stratified-group"
+    assert len(splits) == 2
+
+
 def test_needs_both_classes() -> None:
     rows = [_row({"a": 0.4, "b": 0.0}, "healthy") for _ in range(6)]
     with pytest.raises(ConfigError, match="both classes"):

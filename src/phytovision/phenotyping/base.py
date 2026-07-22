@@ -69,6 +69,9 @@ class FeatureExtractor(ABC):
     extensive: ClassVar[frozenset[str]] = frozenset()
     # Local trait names that are circular quantities (e.g. hue), averaged on the circle.
     circular: ClassVar[frozenset[str]] = frozenset()
+    # Local trait names that are axial angles (an undirected orientation), averaged with the
+    # doubled-angle circular mean so the +-pi/2 seam does not corrupt the reduction.
+    axial: ClassVar[frozenset[str]] = frozenset()
 
     @abstractmethod
     def _compute(self, image: Image, region: Region) -> dict[str, float]: ...
@@ -100,6 +103,7 @@ class FeatureExtractor(ABC):
     def reduction_policy(self) -> dict[str, str]:
         policy = {f"{self.namespace}.{name}": "sum" for name in self.extensive}
         policy.update({f"{self.namespace}.{name}": "circular" for name in self.circular})
+        policy.update({f"{self.namespace}.{name}": "axial" for name in self.axial})
         return policy
 
 

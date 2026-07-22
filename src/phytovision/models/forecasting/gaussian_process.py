@@ -70,7 +70,11 @@ class GaussianProcessForecaster(SeriesForecaster):
             total_std = (float(spread) ** 2 + resid_std**2 * leverage) ** 0.5
             centre = intercept + slope * x0 + float(residual_mean)
             half = z * total_std
-            mean[h] = clip01(centre)
-            lower[h] = clip01(centre - half)
-            upper[h] = clip01(centre + half)
+            # Centre the band on the reported (clipped) mean. Centring on the raw projection lets a
+            # forecast past the ceiling clip both bounds to 1.0, collapsing the band to zero width
+            # and handing the probabilistic scorer a near-zero sigma it reads as near-certain.
+            point = clip01(centre)
+            mean[h] = point
+            lower[h] = clip01(point - half)
+            upper[h] = clip01(point + half)
         return Prediction(mean, lower, upper)

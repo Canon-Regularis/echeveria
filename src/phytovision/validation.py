@@ -20,6 +20,12 @@ def validate_rgb_image(image: object) -> None:
     if image.size == 0:
         raise InvalidImageError("image is empty")
     # A NaN/inf pixel defeats the preprocessor's max-based range check and the quality thresholds,
-    # silently corrupting the analysis, so it is rejected loudly here rather than propagated.
-    if not np.isfinite(image).all():
+    # silently corrupting the analysis, so it is rejected loudly here rather than propagated. A
+    # non-numeric dtype (object, string) cannot be finite-checked at all: numpy raises a TypeError,
+    # re-raised as an InvalidImageError so the entry-point contract stays a single exception type.
+    try:
+        finite = bool(np.isfinite(image).all())
+    except TypeError as exc:
+        raise InvalidImageError(f"image has a non-numeric dtype: {image.dtype}") from exc
+    if not finite:
         raise InvalidImageError("image contains non-finite pixels (NaN or inf)")

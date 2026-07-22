@@ -78,6 +78,13 @@ class PipelineConfig:
         if not isinstance(extractor_specs, Sequence) or isinstance(extractor_specs, str):
             raise ConfigError("`feature_extractors` must be a list of component specs")
         extractors = tuple(_normalize_spec(spec, None) for spec in extractor_specs)
+        # A repeated extractor produces the same feature namespace twice, which collides at the
+        # aggregator and crashes every analyze(). Reject it here so the config fails at build time,
+        # not on the first image, matching the fail-early role of this validation layer.
+        names = [spec.name for spec in extractors]
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ConfigError(f"duplicate feature_extractors: {duplicates}; each may appear once")
 
         return cls(feature_extractors=extractors, **slots)
 

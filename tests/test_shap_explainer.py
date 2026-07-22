@@ -71,6 +71,20 @@ def test_shap_is_registered_and_buildable() -> None:
     assert isinstance(EXPLAINERS.create("shap"), ShapExplainer)
 
 
+def test_shap_reasons_skip_a_schema_drifted_feature() -> None:
+    # A feature the model trained on but the live extractor did not produce (schema drift) is scored
+    # by SHAP over the full vector, yet it must not surface as a reason with a NaN observed value:
+    # build_reasons cites only measured features, so the digest never carries a NaN.
+    model = _fitted()
+    # _KEYS[2] is trained on but absent from the live features (extractor drift).
+    drifted = PlantFeatures(values={_KEYS[0]: 0.30, _KEYS[1]: 0.45}, region_count=1)
+    explanation = ShapExplainer().explain(model, drifted, model.predict(drifted))
+
+    cited = {reason.feature for reason in explanation.reasons}
+    assert _KEYS[2] not in cited  # the unmeasured feature is not cited
+    assert all(not np.isnan(reason.value) for reason in explanation.reasons)
+
+
 def test_shap_reasons_are_ranked_by_magnitude() -> None:
     # The reported reasons must be ordered by the strength of their SHAP attribution.
     model = _fitted()

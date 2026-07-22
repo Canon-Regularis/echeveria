@@ -30,6 +30,9 @@ logger = logging.getLogger(__name__)
 
 Split = tuple[Sequence[int], Sequence[int]]
 
+# The synthetic group for rows carrying no source, so a mixed cohort can still be split by group.
+_UNGROUPED = "__ungrouped__"
+
 
 @dataclass(frozen=True, slots=True)
 class CrossValResult:
@@ -133,8 +136,14 @@ def _make_splits(
 
     if len(distinct_groups) >= 2:
         k = min(n_splits, len(distinct_groups))
+        # StratifiedGroupKFold sorts the group labels, which raises a TypeError on a mix of None and
+        # str. Rows with no source share one synthetic group, so an unlabelled row is kept together
+        # in a single fold rather than crashing the split or being dropped.
+        if None in groups:
+            logger.warning("some rows have no source; grouping them together for the split")
+        safe_groups = [_UNGROUPED if group is None else group for group in groups]
         splitter = group_kfold(n_splits=k, shuffle=shuffle, random_state=seed)
-        splits = list(splitter.split(dummy_x, labels, groups))
+        splits = list(splitter.split(dummy_x, labels, safe_groups))
         return splits, "stratified-group"
 
     k = min(n_splits, min(labels.count(0), labels.count(1)))

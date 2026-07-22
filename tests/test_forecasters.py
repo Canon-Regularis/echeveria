@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 
+import numpy as np
 import pytest
 
 from phytovision.models.forecasting.base import SeriesForecaster
@@ -63,6 +64,42 @@ def test_intervals_widen_with_horizon() -> None:
     near = forecast.upper[1] - forecast.lower[1]
     far = forecast.upper[7] - forecast.lower[7]
     assert far > near
+
+
+@pytest.mark.parametrize("name", _available())
+def test_interval_keeps_width_when_the_projection_passes_the_ceiling(name: str) -> None:
+    # A steep series projects past the [0, 1] ceiling at the far horizon. Centring the band on the
+    # clipped mean keeps a finite width there, so the probabilistic scorer is never handed a
+    # zero-width interval it would read as near-certain.
+    forecast = FORECASTERS.create(name).forecast([0.1, 0.3, 0.5, 0.7, 0.9], (1, 7), "p")
+    assert forecast.projected_scores[7] == pytest.approx(1.0)  # clipped to the ceiling
+    assert forecast.upper[7] - forecast.lower[7] > 0.0
+
+
+def test_state_space_reader_recentres_on_the_clipped_mean() -> None:
+    # forecast_with_intervals recentres the model's band on the clipped mean. Clipping the raw mean
+    # and both interval columns independently would collapse a projection past the ceiling to a
+    # zero-width [1.0, 1.0] band, so this covers the reader even when statsmodels is absent.
+    from phytovision.models.forecasting.state_space import forecast_with_intervals
+
+    mean_all = np.array([0.6, 0.8, 1.0, 1.4, 1.8, 2.1, 2.3])
+    conf = np.column_stack([mean_all - 0.2, mean_all + 0.2])
+
+    class _Forecast:
+        def __init__(self, mean: np.ndarray, band: np.ndarray) -> None:
+            self.predicted_mean = mean
+            self._band = band
+
+        def conf_int(self, alpha: float) -> np.ndarray:
+            return self._band
+
+    class _Result:
+        def get_forecast(self, steps: int) -> _Forecast:
+            return _Forecast(mean_all[:steps], conf[:steps])
+
+    prediction = forecast_with_intervals(_Result(), [7], level=0.8)
+    assert prediction.mean[7] == 1.0  # clipped to the ceiling
+    assert prediction.upper[7] - prediction.lower[7] == pytest.approx(0.2)  # width preserved
 
 
 @pytest.mark.parametrize("name", _available())

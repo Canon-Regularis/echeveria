@@ -19,6 +19,7 @@ def test_validate_accepts_rgb() -> None:
         np.zeros((4, 4), dtype=np.uint8),  # grayscale
         np.zeros((4, 4, 4), dtype=np.uint8),  # RGBA
         np.zeros((0, 0, 3), dtype=np.uint8),  # empty
+        np.zeros((4, 4, 3), dtype=object),  # a non-numeric dtype cannot be finite-checked
         "not an array",
     ],
 )

@@ -31,6 +31,22 @@ def _circular_mean(vals: list[float], weights: list[float]) -> float:
     return float((np.arctan2(sin, cos) / (2.0 * np.pi)) % 1.0)
 
 
+def _axial_mean(vals: list[float], weights: list[float]) -> float:
+    """Area-weighted mean of an axial angle in ``[-pi/2, pi/2]`` (an undirected orientation).
+
+    An orientation and its 180-degree rotation describe the same axis, so the value wraps at the
+    +-pi/2 seam: two near-horizontal leaves at +1.42 and -1.42 rad average linearly to 0.0
+    (vertical), the wrong axis. Doubling the angle folds the two equivalent directions together;
+    averaging the unit vectors at twice the angle and halving the result keeps the mean on the
+    correct axis and back in the original range. A single region returns its own value unchanged.
+    """
+    angles = np.asarray(vals, dtype=float) * 2.0
+    weight_array = np.asarray(weights, dtype=float)
+    sin = float(np.average(np.sin(angles), weights=weight_array))
+    cos = float(np.average(np.cos(angles), weights=weight_array))
+    return float(np.arctan2(sin, cos) / 2.0)
+
+
 class PlantLevelAggregator(FeatureAggregator):
     """Reduce per-region features to a plant vector.
 
@@ -122,6 +138,9 @@ class PlantLevelAggregator(FeatureAggregator):
         # a wrapping quantity (hue): average the unit vectors on the circle, not the values
         if kind == "circular":
             return _circular_mean(vals, weights)
+        # an axial angle (orientation): average on the doubled angle so the +-pi/2 seam is respected
+        if kind == "axial":
+            return _axial_mean(vals, weights)
         return float(np.average(vals, weights=weights))
 
     def _wilted_ratio(self, features: Sequence[FeatureVector]) -> float | None:

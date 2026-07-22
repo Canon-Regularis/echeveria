@@ -32,9 +32,14 @@ def forecast_with_intervals(result: Any, steps: Sequence[int], level: float) -> 
     upper: dict[int, float] = {}
     for h in steps:
         index = h - 1  # statsmodels forecasts step 1 at position 0
-        mean[h] = clip01(float(mean_all[index]))
-        lower[h] = clip01(float(conf[index, 0]))
-        upper[h] = clip01(float(conf[index, 1]))
+        # Recentre the model's band on the clipped mean before clipping the bounds. Clipping the raw
+        # mean and both interval columns independently lets a projection past the ceiling collapse
+        # the band to [1.0, 1.0], a zero-width interval the scorer reads as near-certain.
+        point = clip01(float(mean_all[index]))
+        half = abs(float(conf[index, 1]) - float(conf[index, 0])) / 2.0
+        mean[h] = point
+        lower[h] = clip01(point - half)
+        upper[h] = clip01(point + half)
     return Prediction(mean, lower, upper)
 
 

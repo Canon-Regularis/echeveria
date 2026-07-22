@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from phytovision.phenotyping.aggregation.plant_level import PlantLevelAggregator
+from phytovision.phenotyping.geometry import GeometryFeatures
 from phytovision.regions.base import region_from_mask
 from phytovision.types import FeatureVector, RegionSet
 
@@ -32,6 +33,24 @@ def test_reduction_policy_sum_vs_weighted_mean() -> None:
     meaned = agg.aggregate(regions, features, reduction_policy={})
     # area-weighted mean of [40, 20] weighted by [40, 20] = 2000 / 60
     assert meaned.values["geometry.area_px"] == np.average([40.0, 20.0], weights=[40, 20])
+
+
+def test_orientation_reduces_as_an_axial_angle() -> None:
+    # orientation is an undirected axis in [-pi/2, pi/2]: two near-horizontal leaves tilted to
+    # opposite sides of the seam average linearly to 0.0 (vertical, the wrong axis). The axial
+    # reduction on the doubled angle keeps the aggregate on the horizontal axis near +-pi/2.
+    assert GeometryFeatures().reduction_policy()["geometry.orientation"] == "axial"
+
+    mask = np.ones((4, 4), dtype=bool)
+    regions = _leaf_regions([mask, mask])
+    features = [
+        FeatureVector(0, {"geometry.orientation": 1.4237}),
+        FeatureVector(1, {"geometry.orientation": -1.4237}),
+    ]
+    out = PlantLevelAggregator().aggregate(
+        regions, features, reduction_policy={"geometry.orientation": "axial"}
+    )
+    assert abs(abs(out.values["geometry.orientation"]) - np.pi / 2) < 1e-9
 
 
 def test_wilted_ratio_uses_configured_keys() -> None:

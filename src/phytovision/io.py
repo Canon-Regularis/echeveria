@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image as _PILImage
-from PIL import UnidentifiedImageError
+from PIL import ImageOps, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 
 from phytovision.exceptions import InvalidImageError
@@ -28,7 +28,10 @@ def load_image(path: str | Path) -> Image:
         raise FileNotFoundError(f"image not found: {p}")
     try:
         with _PILImage.open(p) as im:
-            return np.asarray(im.convert("RGB"))
+            # Honour the EXIF orientation tag so a portrait phone photo is analysed upright, not
+            # sideways: geometry.orientation and every orientation-aware feature otherwise depend on
+            # how the camera happened to store the pixels rather than on the plant as viewed.
+            return np.asarray(ImageOps.exif_transpose(im).convert("RGB"))
     except _DECODE_ERRORS as exc:
         raise InvalidImageError(f"could not decode image: {p} ({exc})") from exc
 
@@ -42,6 +45,8 @@ def decode_rgb_bytes(data: bytes) -> Image:
     """
     try:
         with _PILImage.open(io.BytesIO(data)) as im:
-            return np.asarray(im.convert("RGB"))
+            # Apply the EXIF orientation before conversion, matching load_image, so an uploaded
+            # portrait photo is decoded upright rather than rotated.
+            return np.asarray(ImageOps.exif_transpose(im).convert("RGB"))
     except _DECODE_ERRORS as exc:
         raise InvalidImageError(f"invalid image: {exc}") from exc

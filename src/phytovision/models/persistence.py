@@ -96,10 +96,17 @@ def read_envelope(path: str | Path) -> dict[str, Any]:
         # rather than escaping as a raw OSError/ImportError that callers would mislabel.
         raise ConfigError(f"could not read model file {path}: {exc}") from exc
     if isinstance(data, Mapping) and "model_type" in data:
+        state = data.get("state", {})
+        manifest = data.get("manifest", {})
+        # A loadable-but-malformed envelope (a non-mapping state or manifest) would otherwise crash
+        # dict(...) with a raw TypeError that escapes callers catching only PhytoVisionError; map it
+        # to the same clean ConfigError every other bad-file path uses.
+        if not isinstance(state, Mapping) or not isinstance(manifest, Mapping):
+            raise ConfigError(f"malformed model file {path}: state and manifest must be mappings")
         return {
             "model_type": str(data["model_type"]),
-            "state": dict(data.get("state", {})),
-            "manifest": dict(data.get("manifest", {})),
+            "state": dict(state),
+            "manifest": dict(manifest),
         }
     if isinstance(data, Mapping) and "estimator" in data:  # legacy gradient-boosted save
         return {"model_type": "gradient-boosted", "state": dict(data), "manifest": {}}

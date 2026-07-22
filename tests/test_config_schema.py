@@ -39,6 +39,13 @@ def test_non_list_feature_extractors_is_rejected() -> None:
         PipelineConfig.from_mapping({"feature_extractors": "geometry"})
 
 
+def test_duplicate_feature_extractors_are_rejected() -> None:
+    # A repeated extractor produces the same namespace twice and would crash every analyze(); it is
+    # rejected here so the config fails at build time, not on the first image.
+    with pytest.raises(ConfigError, match="duplicate feature_extractors"):
+        PipelineConfig.from_mapping({"feature_extractors": ["geometry", "geometry"]})
+
+
 def test_malformed_specs_are_rejected() -> None:
     with pytest.raises(ConfigError, match="string 'name'"):
         PipelineConfig.from_mapping({"model": {"name": 5}})

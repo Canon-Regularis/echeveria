@@ -43,7 +43,11 @@ class BayesianRidgeForecaster(SeriesForecaster):
         upper: dict[int, float] = {}
         for h, point, spread in zip(steps, centre, std, strict=True):
             half = z * float(spread)
-            mean[h] = clip01(float(point))
-            lower[h] = clip01(float(point) - half)
-            upper[h] = clip01(float(point) + half)
+            # Centre the band on the clipped mean: a projection past the ceiling otherwise clips
+            # both bounds to 1.0, so the recovered sigma degenerates to near-zero and overstates
+            # confidence.
+            projected = clip01(float(point))
+            mean[h] = projected
+            lower[h] = clip01(projected - half)
+            upper[h] = clip01(projected + half)
         return Prediction(mean, lower, upper)

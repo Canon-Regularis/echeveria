@@ -12,6 +12,7 @@ crashes a whole benchmark.
 from __future__ import annotations
 
 import logging
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ from statistics import NormalDist
 from typing import ClassVar
 
 from phytovision._num import clip01
-from phytovision.exceptions import ConfigError
+from phytovision.exceptions import ConfigError, ContractViolationError
 from phytovision.models.base import STRESSED_THRESHOLD, TrajectoryForecaster
 from phytovision.temporal._fit import fit_line
 from phytovision.temporal.forecast import (
@@ -72,10 +73,15 @@ class SeriesForecaster(TrajectoryForecaster, ABC):
         """Fit this forecaster to ``series`` and project it forward to each horizon."""
         scores = list(series)
         steps = [h for h in horizons if h > 0]
+        if any(not math.isfinite(score) for score in scores):
+            # A non-finite score silently projects a confident 0.0; the pipeline only ever produces
+            # finite, clipped scores, so an invalid series is rejected rather than papered over.
+            raise ContractViolationError("forecast series has a non-finite score (NaN or inf)")
         if len(scores) < 2:
             return self._flat(plant_id, scores, steps)
 
         lookahead = sorted(set(steps) | set(range(1, _MAX_LOOKAHEAD + 1)))
+        degraded = False
         try:
             prediction = self._predict(scores, lookahead)
         except ImportError:
@@ -83,6 +89,8 @@ class SeriesForecaster(TrajectoryForecaster, ABC):
         except Exception as exc:  # numeric backends raise many types; degrade cleanly on any
             logger.warning("%s fell back to the linear interval: %s", self.name, exc)
             prediction = _linear_prediction(scores, lookahead, self.interval_level)
+            # flag it so the benchmark can report these numbers as the fallback, not this model
+            degraded = True
 
         projected = {h: prediction.mean[h] for h in steps}
         lower = {h: prediction.lower[h] for h in steps}
@@ -104,6 +112,7 @@ class SeriesForecaster(TrajectoryForecaster, ABC):
             upper,
             self.interval_level,
             self.name,
+            degraded,
         )
 
     def _flat(self, plant_id: str, scores: Sequence[float], steps: Sequence[int]) -> Forecast:

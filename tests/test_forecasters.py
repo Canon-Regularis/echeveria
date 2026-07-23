@@ -140,6 +140,15 @@ def test_linear_interval_brackets_held_out_truth_most_of_the_time() -> None:
     assert sum(widths) / len(widths) < 0.6  # yet stays sharp, not a vacuous [0, 1] band
 
 
+def test_a_non_finite_score_is_rejected() -> None:
+    from phytovision.exceptions import ContractViolationError
+    from phytovision.models.forecasting.baseline import LinearTrendForecaster
+
+    # A non-finite score silently projected a confident, tight 0.0; it is now rejected loudly.
+    with pytest.raises(ContractViolationError):
+        LinearTrendForecaster().forecast([0.2, 0.3, float("nan"), 0.5, 0.6], (1, 3, 7))
+
+
 def test_an_interval_level_that_rounds_to_one_is_rejected() -> None:
     from phytovision.exceptions import ConfigError
     from phytovision.models.forecasting.baseline import LinearTrendForecaster
@@ -182,6 +191,12 @@ def test_a_numeric_failure_degrades_to_the_linear_interval() -> None:
     forecast = _NumericFailure().forecast([0.1, 0.2, 0.3, 0.4], (1, 3), "p")
     assert forecast.projected_scores  # produced by the linear fallback, not a crash
     assert forecast.lower and forecast.upper
+    assert forecast.degraded is True  # the fallback is flagged so the benchmark can surface it
+
+
+def test_a_successful_forecast_is_not_flagged_degraded() -> None:
+    forecast = FORECASTERS.create("linear-trend").forecast(_rising_series(), (1, 3), "p")
+    assert forecast.degraded is False
 
 
 def test_a_missing_extra_raises_rather_than_silently_degrading() -> None:

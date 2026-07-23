@@ -31,6 +31,21 @@ def crossing_index(scores: list[float]) -> int | None:
     return None
 
 
+def exclusion_reason(scores: list[float]) -> str | None:
+    """Why a plant is excluded from the survival cohort, or None when it is kept.
+
+    Two things disqualify a plant, and they are different facts about it: fewer than two
+    observations leaves no slope to fit, and a prevalent plant, already over the stressed cut at its
+    first frame, has no pre-event window to build an honest covariate from. Naming them apart lets a
+    surface say "already stressed" rather than falsely blaming an observation count.
+    """
+    if len(scores) < 2:
+        return "insufficient-observations"
+    if scores[0] >= STRESSED_THRESHOLD:
+        return "already-stressed-at-first-observation"
+    return None
+
+
 def observed_event(scores: list[float]) -> tuple[int, int]:
     """The observed (step_position, event_observed): the crossing step and its flag, else censored.
 
@@ -65,13 +80,11 @@ def derive_records(history: FeatureHistory, warmup: int = _DEFAULT_WARMUP) -> Su
     records: list[SurvivalRecord] = []
     for plant_id in history.plant_ids:
         scores = [observation.stress_score for observation in history.series_for(plant_id)]
-        if len(scores) < 2:
+        # A short series (no slope) and a prevalent plant (no pre-event window) are both excluded;
+        # exclusion_reason names which, so a surface never conflates the two.
+        if exclusion_reason(scores) is not None:
             continue
         step_position, event = observed_event(scores)
-        if event and step_position == 0:
-            # Already over the cut at the first frame: a prevalent case with no pre-event
-            # observation to build an honest covariate from, so it is excluded, not seeded from it.
-            continue
         # Cap the covariate window at the crossing for a plant that wilts within the warmup window,
         # so the "early" covariates cannot include post-event observations and leak the outcome into
         # the held-out concordance. A censored plant never crosses, so it keeps the full warmup.
@@ -99,7 +112,16 @@ def fit_cohort_survival(
     from phytovision.registries import SURVIVAL_MODELS
 
     dataset = derive_records(history, warmup)
-    if not dataset.records:  # every plant has a single observation: nothing to fit a curve on
+    if not dataset.records:  # every plant was excluded: name the actual reason, not a guessed one
+        reasons = {
+            exclusion_reason([obs.stress_score for obs in history.series_for(plant_id)])
+            for plant_id in history.plant_ids
+        }
+        if reasons == {"already-stressed-at-first-observation"}:
+            raise InsufficientDataError(
+                "every plant was already over the stressed cut at its first observation, so there "
+                "is no pre-event window to model"
+            )
         raise InsufficientDataError(
             "survival needs at least one plant with two or more observations"
         )

@@ -20,6 +20,7 @@ from phytovision.models.survival.cohort import (
     crossing_index,
     derive_records,
     early_covariates,
+    exclusion_reason,
     fit_cohort_survival,
     observed_event,
 )
@@ -41,6 +42,7 @@ __all__ = [
     "crossing_index",
     "derive_records",
     "early_covariates",
+    "exclusion_reason",
     "fit_cohort_survival",
     "observed_event",
 ]

@@ -52,6 +52,7 @@ class CovariateSurvival(SurvivalModel):
         self._stds: dict[str, float] = {}
         self._kept: tuple[str, ...] = ()
         self._fallback: KaplanMeierSurvival | None = None
+        self._train_dataset: SurvivalDataset | None = None
 
     @abstractmethod
     def _make_fitter(self) -> Any:
@@ -76,6 +77,9 @@ class CovariateSurvival(SurvivalModel):
                 self._fitter = fitter.fit(fit_frame, duration_col="_duration", event_col="_event")
         except Exception as exc:  # numeric non-convergence: degrade to the honest cohort baseline
             return self._degrade(dataset, f"fit did not converge ({type(exc).__name__})")
+        # Keep the training cohort so a predict-time failure can degrade to a baseline fitted on it,
+        # rather than on the (often held-out) cohort being predicted.
+        self._train_dataset = dataset
         return self
 
     def predict(self, dataset: SurvivalDataset) -> dict[str, PlantSurvival]:
@@ -90,10 +94,16 @@ class CovariateSurvival(SurvivalModel):
                 lower = self._fitter.predict_percentile(frame, p=_LOWER_PERCENTILE)
                 upper = self._fitter.predict_percentile(frame, p=_UPPER_PERCENTILE)
         except Exception as exc:  # a degenerate covariate profile at predict time
-            logger.warning("%s prediction fell back to the cohort baseline: %s", self.name, exc)
-            self._fallback = KaplanMeierSurvival().fit(dataset)
-            self._fitter = None
-            return self._fallback_predict(dataset)
+            # Degrade only this call, and to a baseline fitted on the TRAINING cohort. The old path
+            # fitted the baseline on the predict-time argument and nulled the trained fitter, so a
+            # later prediction on any cohort returned that (often held-out) cohort's median.
+            logger.warning(
+                "%s prediction fell back to the cohort baseline once: %s", self.name, exc
+            )
+            train = self._train_dataset if self._train_dataset is not None else dataset
+            if self._fallback is None:
+                self._fallback = KaplanMeierSurvival().fit(train)
+            return self._fallback.predict(dataset)
 
         return {
             plant_id: PlantSurvival(

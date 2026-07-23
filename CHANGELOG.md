@@ -182,6 +182,24 @@ All notable changes to this project are documented here. The format is based on
   construction rather than crashing inside `NormalDist`; and the state-space forecaster floors its band
   width like the other forecasters, so a boundary-solution fit on a smooth series no longer reports a
   near-zero-width interval.
+- Honest reporting and state hygiene across survival, forecasting, and the CLI: a prevalent plant
+  (already over the stressed cut at its first frame) and an all-prevalent cohort are named distinctly
+  from a genuinely too-short series, in the `phenotype` `survival_basis` column and the
+  `InsufficientDataError` message, so a ten-observation plant is never mislabelled "insufficient
+  observations"; the survival leaderboard distinguishes "no fold had enough events" from "no fold had a
+  comparable pair" (all durations tied); a covariate survival model that fails at predict time degrades
+  only that one call to a baseline fitted on its training cohort and keeps the trained fitter, rather
+  than refitting on the predict-time cohort and nulling the fitter so every later prediction returned
+  that cohort's median; a statistical forecaster that could not fit and fell back to the linear
+  interval is flagged (`Forecast.degraded`) and surfaced in the benchmark's `fallbacks`, so a row whose
+  numbers are partly the fallback is visible rather than read as pure model output; a non-finite score
+  in a forecast series is rejected with a `ContractViolationError` instead of silently projecting a
+  confident 0.0; the `phenotype` JSON output carries the same column set on every object (`null` where
+  a value is absent) as the CSV does, rather than objects whose keys vary by row; the `--strict-schema`
+  flag is tri-state, so an unset flag keeps a loaded model's own drift policy instead of silently
+  resetting it to lenient; and `benchmark --mlflow` reports a tracking-store failure (a read-only
+  directory or an unreachable server) as a clean error rather than a traceback that discards the ranked
+  table.
 
 ## [0.2.0] (2026-07-16)
 

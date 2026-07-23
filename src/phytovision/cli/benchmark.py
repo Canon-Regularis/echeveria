@@ -79,6 +79,9 @@ def run(args: argparse.Namespace) -> int:
     _print_table(rows)
     if result.skipped:
         print(f"skipped (missing extra): {', '.join(result.skipped)}")
+    if result.fallbacks:
+        mixed = ", ".join(result.fallbacks)
+        print(f"linear fallback on some origins (row mixes the fallback): {mixed}")
 
     if args.out:
         try:
@@ -94,6 +97,10 @@ def run(args: argparse.Namespace) -> int:
             log_benchmark(result, {"plants": len(history.plant_ids), "min_train": args.min_train})
         except ImportError as exc:
             return fail(str(exc))
+        except Exception as exc:  # a tracking-store failure (read-only dir, unreachable URI) after
+            # the benchmark already ran should be a clean error, not a traceback that discards the
+            # ranked table the command exists to produce.
+            return fail(f"MLflow logging failed: {exc}")
         print("logged the benchmark to MLflow")
     return 0
 

@@ -51,11 +51,17 @@ class ForecasterScore:
 
 @dataclass(frozen=True, slots=True)
 class BenchmarkResult:
-    """Every forecaster's per-horizon scores, plus any skipped for a missing extra."""
+    """Every forecaster's per-horizon scores, plus any skipped for a missing extra.
+
+    ``fallbacks`` names any forecaster that could not fit on one or more origins and silently scored
+    the linear interval there, so a row whose numbers are partly the fallback is visible rather than
+    read as pure model output.
+    """
 
     scores: tuple[ForecasterScore, ...]
     interval_level: float
     skipped: tuple[str, ...] = ()
+    fallbacks: tuple[str, ...] = ()
 
     def horizons(self) -> list[int]:
         return sorted({score.horizon for score in self.scores})
@@ -126,19 +132,30 @@ def benchmark_forecasters(
 
     scores: list[ForecasterScore] = []
     skipped: list[str] = []
+    fallbacks: list[str] = []
     for name in names:
         # Build each forecaster at the requested coverage so the interval it produces and the level
         # the scorer inverts to recover sigma agree; a default-level producer would distort CRPS.
         forecaster = FORECASTERS.create(name, interval_level=interval_level)
         accumulator = _Accumulator(steps)
         try:
-            _run_forecaster(forecaster, series_by_plant, steps, min_train, accumulator)
+            n_fallbacks = _run_forecaster(
+                forecaster, series_by_plant, steps, min_train, accumulator
+            )
         except ImportError as exc:
             logger.warning("skipping forecaster %s: %s", name, exc)
             skipped.append(name)
             continue
+        if n_fallbacks:
+            logger.warning(
+                "forecaster %s fell back to the linear interval on %d origin(s); its row mixes the "
+                "fallback with its own forecasts",
+                name,
+                n_fallbacks,
+            )
+            fallbacks.append(name)
         scores.extend(accumulator.score(name, interval_level))
-    return BenchmarkResult(tuple(scores), interval_level, tuple(skipped))
+    return BenchmarkResult(tuple(scores), interval_level, tuple(skipped), tuple(fallbacks))
 
 
 def _run_forecaster(
@@ -147,12 +164,16 @@ def _run_forecaster(
     steps: Sequence[int],
     min_train: int,
     accumulator: _Accumulator,
-) -> None:
+) -> int:
+    """Accumulate held-out tuples for one forecaster; return how many origins fell to linear."""
     max_horizon = max(steps)
+    fallbacks = 0
     for series in series_by_plant.values():
         for train_index, _ in expanding_window_splits(len(series), min_train, max_horizon):
             origin = len(train_index)
             forecast = forecaster.forecast([series[i] for i in train_index], steps)  # type: ignore[attr-defined]
+            if forecast.degraded:
+                fallbacks += 1
             for horizon in steps:
                 actual_index = origin + horizon - 1
                 if actual_index >= len(series):
@@ -165,6 +186,7 @@ def _run_forecaster(
                     forecast.lower.get(horizon, mean),
                     forecast.upper.get(horizon, mean),
                 )
+    return fallbacks
 
 
 def _score_horizon(

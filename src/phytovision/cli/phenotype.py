@@ -15,7 +15,7 @@ from phytovision.cli._shared import (
 )
 from phytovision.datasets.manifest import CsvManifestLoader
 from phytovision.exceptions import InsufficientDataError, PhytoVisionError
-from phytovision.models.survival import fit_cohort_survival
+from phytovision.models.survival import exclusion_reason, fit_cohort_survival
 from phytovision.registries import DROUGHT_STAGE_MODELS, FORECASTERS, SURVIVAL_MODELS
 from phytovision.temporal import (
     build_history,
@@ -122,7 +122,7 @@ def run(args: argparse.Namespace) -> int:
             "steps_to_stressed": forecast.steps_to_stressed,
             "forecast_method": forecast.method,
             "forecast_confidence": round(forecast.confidence, 4),
-            **survival_row(survival_fit, plant_id),
+            **survival_row(survival_fit, plant_id, [obs.stress_score for obs in series]),
         }
         for h in horizons:
             row[f"forecast_h{h}"] = round(forecast.projected_scores.get(h, 0.0), 4)
@@ -152,27 +152,29 @@ def _survival_or_notice(history: object, model: str, window: int) -> SurvivalFit
         return None
 
 
-def survival_row(fit: SurvivalFit | None, plant_id: str) -> dict[str, object]:
+def survival_row(fit: SurvivalFit | None, plant_id: str, scores: list[float]) -> dict[str, object]:
     """The four survival columns for one plant: blanks and a basis when survival is unavailable.
 
-    The two unavailable cases are named honestly: ``unavailable-stats-extra`` when the fit could not
-    run at all, ``insufficient-observations`` when the fit ran but this plant was dropped for having
-    fewer than two observations, so the missing extra is never falsely implicated.
+    Every unavailable case is named honestly: ``unavailable-stats-extra`` when the fit could not run
+    at all, and when the fit ran but this plant was dropped, the plant's own scores say which reason
+    (``insufficient-observations`` or ``already-stressed-at-first-observation``), so a prevalent
+    plant with plenty of observations is never mislabelled as too short. A missing value is
+    ``None``, which a CSV renders as a blank cell and a JSON payload as ``null``.
     """
     if fit is None:
         return _blank_survival("unavailable-stats-extra")
     if plant_id not in fit.per_plant:
-        return _blank_survival("insufficient-observations")
+        return _blank_survival(exclusion_reason(scores) or "insufficient-observations")
     plant = fit.per_plant[plant_id]
     return {
-        "median_time_to_wilt": "" if plant.median is None else round(plant.median, 3),
-        "time_to_wilt_lo": "" if plant.lower is None else round(plant.lower, 3),
-        "time_to_wilt_hi": "" if plant.upper is None else round(plant.upper, 3),
+        "median_time_to_wilt": None if plant.median is None else round(plant.median, 3),
+        "time_to_wilt_lo": None if plant.lower is None else round(plant.lower, 3),
+        "time_to_wilt_hi": None if plant.upper is None else round(plant.upper, 3),
         "survival_basis": plant.basis,
     }
 
 
 def _blank_survival(basis: str) -> dict[str, object]:
-    blanks: dict[str, object] = dict.fromkeys(_SURVIVAL_FIELDS[:3], "")
+    blanks: dict[str, object] = dict.fromkeys(_SURVIVAL_FIELDS[:3], None)
     blanks["survival_basis"] = basis
     return blanks

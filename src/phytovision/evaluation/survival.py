@@ -110,29 +110,45 @@ def benchmark_survival_models(
     scores: list[SurvivalScore] = []
     skipped: list[str] = []
     for name in chosen:
-        fold_scores = _score_model(name, dataset, splits, min_events)
-        if fold_scores is None:
+        result = _score_model(name, dataset, splits, min_events)
+        if result is None:
             logger.warning("skipping survival model %s: needs an extra that is not installed", name)
             skipped.append(name)
-        elif fold_scores:
+            continue
+        fold_scores, eligible_folds = result
+        if fold_scores:
             mean = float(np.mean(fold_scores))
             scores.append(SurvivalScore(name, mean, mean_ci95(fold_scores), len(fold_scores)))
-        else:  # no fold had enough events to score: surface it rather than dropping it silently
+        elif eligible_folds == 0:  # every fold was too small to hold enough events
             logger.warning("skipping survival model %s: no fold had enough events to score", name)
+            skipped.append(name)
+        else:  # folds had events but no admissible (strictly-ordered) pair, e.g. all durations tied
+            logger.warning(
+                "skipping survival model %s: no fold had a comparable pair (all durations tied)",
+                name,
+            )
             skipped.append(name)
     return SurvivalLeaderboard(tuple(scores), len(splits), tuple(skipped))
 
 
 def _score_model(
     name: str, dataset: SurvivalDataset, splits: list[tuple[list[int], list[int]]], min_events: int
-) -> list[float] | None:
-    """Held-out concordance per fold for one model, or None if its extra is missing."""
+) -> tuple[list[float], int] | None:
+    """Held-out concordance per fold plus the count of event-eligible folds, or None if the extra
+    is missing.
+
+    The eligible-fold count separates the two ways a model ends up unscored: no fold had enough
+    events (eligible == 0), versus folds that had events but no strictly-ordered pair to compare
+    (eligible > 0 with an empty score list), so the caller can report the accurate reason.
+    """
     fold_scores: list[float] = []
+    eligible_folds = 0
     for train_index, test_index in splits:
         train = dataset.subset(train_index)
         test = dataset.subset(test_index)
         if train.n_events < min_events or test.n_events < min_events:
             continue
+        eligible_folds += 1
         model = SURVIVAL_MODELS.create(name)
         try:
             model.fit(train)
@@ -141,7 +157,7 @@ def _score_model(
         score = model.concordance_index(test)
         if score is not None:
             fold_scores.append(score)
-    return fold_scores
+    return fold_scores, eligible_folds
 
 
 def _covariate_model_names() -> list[str]:

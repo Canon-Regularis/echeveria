@@ -170,13 +170,38 @@ def test_cli_phenotype_writes_a_trajectory_table(tmp_path, healthy_image, stress
     )
     out = tmp_path / "traj.csv"
     assert main(["phenotype", str(manifest), "--out", str(out), "--horizons", "1,3"]) == 0
-
     rows = list(csv.DictReader(out.open()))
     assert {row["plant_id"] for row in rows} == {"p1", "p2"}
     p1 = next(row for row in rows if row["plant_id"] == "p1")
     assert p1["latest_stage"] in {"well-watered", "early-stress", "moderate", "severe"}
     assert {"forecast_h1", "forecast_h3", "forecast_confidence"} <= set(p1)
     assert p1["trend_direction"] == "rising"  # healthy then stressed
+
+
+def test_cli_phenotype_json_has_a_uniform_schema(tmp_path, healthy_image, stressed_image) -> None:
+    # A single-observation plant has a degenerate forecast (no interval columns) and is dropped from
+    # survival; its JSON object must still carry every column, null where absent, matching the
+    # richer plant, so a consumer reads one stable schema, not objects whose keys vary by row.
+    _save_image(tmp_path / "p1_t1.png", healthy_image)
+    _save_image(tmp_path / "p1_t2.png", stressed_image)
+    _save_image(tmp_path / "solo_t1.png", healthy_image)
+    manifest = tmp_path / "m.csv"
+    manifest.write_text(
+        "image_path,plant_id,timestamp\n"
+        "p1_t1.png,p1,2026-03-01\n"
+        "p1_t2.png,p1,2026-03-02\n"
+        "solo_t1.png,solo,2026-03-01\n"
+    )
+    out = tmp_path / "traj.json"
+    assert main(["phenotype", str(manifest), "--out", str(out), "--horizons", "1,3"]) == 0
+    records = json.loads(out.read_text())
+    assert len(records) == 2
+    assert len({frozenset(record) for record in records}) == 1  # every object has identical keys
+    solo = next(record for record in records if record["plant_id"] == "solo")
+    assert (
+        "forecast_h1_lo" in solo and solo["forecast_h1_lo"] is None
+    )  # present as null, not absent
+    assert solo["survival_basis"] == "insufficient-observations"
 
 
 def test_cli_phenotype_emits_prediction_intervals(tmp_path, healthy_image, stressed_image) -> None:
@@ -534,3 +559,27 @@ def test_cli_strict_schema_flags_extractor_drift(
     assert main([*base, "--strict-schema"]) == 2
     assert "schema mismatch" in capsys.readouterr().err
     assert main(base) == 0  # tolerant mode warns but still analyzes
+
+
+def test_cli_keeps_a_loaded_models_strict_schema_policy(
+    training_dir, image_path, tmp_path, capsys
+) -> None:
+    pytest.importorskip("sklearn")
+    from phytovision.models.persistence import load_model, save_model
+
+    model_path = tmp_path / "gb.joblib"
+    assert main(["train", str(training_dir), "--out", str(model_path)]) == 0
+    # Re-save with a strict drift policy, as a producer wanting strict enforcement would.
+    strict_model = load_model(model_path)
+    strict_model.strict_schema = True  # type: ignore[attr-defined]
+    save_model(strict_model, model_path)
+
+    cfg = tmp_path / "fewer.json"
+    cfg.write_text(json.dumps({"feature_extractors": ["geometry", "colour"]}))
+    base = ["analyze", str(image_path), "--model-path", str(model_path), "--config", str(cfg)]
+
+    # No flag: the persisted strict policy is kept, not silently reset to lenient.
+    assert main(base) == 2
+    assert "schema mismatch" in capsys.readouterr().err
+    # --no-strict-schema explicitly overrides the file's policy to lenient.
+    assert main([*base, "--no-strict-schema"]) == 0

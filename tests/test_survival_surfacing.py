@@ -54,23 +54,30 @@ def test_plant_survival_metrics_reads_a_plant_and_a_missing_plant() -> None:
 
 
 def test_survival_row_blank_when_unavailable() -> None:
-    row = survival_row(None, "p1")
+    row = survival_row(None, "p1", [0.2, 0.4])
     assert row["survival_basis"] == "unavailable-stats-extra"
-    assert row["median_time_to_wilt"] == "" and row["time_to_wilt_lo"] == ""
+    assert row["median_time_to_wilt"] is None and row["time_to_wilt_lo"] is None
 
 
 def test_survival_row_reads_a_finite_plant() -> None:
-    row = survival_row(_hand_fit(), "p1")
+    row = survival_row(_hand_fit(), "p1", [0.2, 0.4])
     assert row["survival_basis"] == "weibull-aft"
     assert row["median_time_to_wilt"] == 2.5
 
 
-def test_survival_row_names_the_dropped_plant_honestly() -> None:
+def test_survival_row_names_a_short_series_insufficient() -> None:
     # The fit ran (not None) but this plant was dropped for too few observations, so the missing
     # extra must not be blamed.
-    row = survival_row(_hand_fit(), "p_absent")
+    row = survival_row(_hand_fit(), "p_absent", [0.3])
     assert row["survival_basis"] == "insufficient-observations"
-    assert row["median_time_to_wilt"] == ""
+    assert row["median_time_to_wilt"] is None
+
+
+def test_survival_row_names_a_prevalent_plant_distinctly() -> None:
+    # A plant already over the stressed cut at its first frame was dropped for lacking a pre-event
+    # window, not for too few observations; a ten-observation prevalent plant must not read short.
+    row = survival_row(_hand_fit(), "p_absent", [0.9] * 10)
+    assert row["survival_basis"] == "already-stressed-at-first-observation"
 
 
 # --- the API /trend survival block ---

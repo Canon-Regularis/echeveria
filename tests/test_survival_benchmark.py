@@ -98,6 +98,24 @@ def test_leaderboard_skips_a_model_whose_extra_is_missing() -> None:
 
 
 @_needs_lifelines
+def test_leaderboard_names_the_tied_duration_skip_reason(caplog) -> None:
+    # Every plant crosses at the same step, so all durations tie and no fold has an admissible pair.
+    # The model is skipped, but the reason is the tied pair, not "no fold had enough events".
+    import logging
+
+    params = DryDownParams(
+        n_steps=3, base_decline_rate=0.9, decline_rate_spread=0.4, initial_stress=0.5
+    )
+    history = cohort_history(simulate_cohort(30, params, seed=11))
+    with caplog.at_level(logging.WARNING, logger="phytovision.evaluation.survival"):
+        board = benchmark_survival_models(history, names=["weibull-aft"], folds=5, seed=0)
+    assert board.skipped == ("weibull-aft",)
+    assert board.scores == ()
+    assert "no fold had a comparable pair" in caplog.text
+    assert "no fold had enough events" not in caplog.text
+
+
+@_needs_lifelines
 def test_survival_concordance_scores_predicted_medians() -> None:
     history = _history()
     dataset = derive_records(history)

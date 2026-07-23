@@ -57,8 +57,10 @@ def add_pipeline_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--strict-schema",
-        action="store_true",
-        help="fail if a loaded model's feature schema differs from the live extractor output",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="fail (or, with --no-strict-schema, do not fail) if a loaded model's feature schema "
+        "differs from the live extractor output; unset keeps the loaded model's own policy",
     )
 
 
@@ -73,7 +75,11 @@ def build_pipeline(args: argparse.Namespace, model: StressModel | None = None) -
     if chosen is None and args.model_path:
         chosen = stress_model_from_path(args.model_path)
     if chosen is not None:
-        apply_strict_schema(chosen, getattr(args, "strict_schema", False))
+        # Only override the model's own drift policy when the flag was given; unset (None) keeps the
+        # strict_schema the model was saved with, rather than silently resetting it to lenient.
+        strict = getattr(args, "strict_schema", None)
+        if strict is not None:
+            apply_strict_schema(chosen, strict)
         pipeline = pipeline.with_model(chosen)
     return pipeline
 
@@ -93,9 +99,16 @@ def stress_model_from_path(path: str) -> StressModel:
 
 
 def write_table(out: Path, fieldnames: list[str], records: list[dict[str, object]]) -> None:
-    """Write records to the output path as JSON (.json) or CSV (any other suffix)."""
+    """Write records to the output path as JSON (.json) or CSV (any other suffix).
+
+    Both formats project each record onto ``fieldnames`` so every row carries the identical column
+    set: the CSV writer already fills a missing key with a blank, and the JSON branch mirrors that
+    with ``null`` rather than emitting objects whose keys vary by row (e.g. a plant with a
+    degenerate forecast that has no interval columns).
+    """
     if out.suffix.lower() == ".json":
-        out.write_text(json.dumps(records, indent=2), encoding="utf-8")
+        rows = [{key: record.get(key) for key in fieldnames} for record in records]
+        out.write_text(json.dumps(rows, indent=2), encoding="utf-8")
     else:
         with out.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames, restval="")

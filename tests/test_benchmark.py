@@ -20,6 +20,13 @@ class _MissingExtra(SeriesForecaster):
         raise ImportError("needs an extra that is not installed")
 
 
+class _AlwaysFallback(SeriesForecaster):
+    name = "benchmark-fallback"
+
+    def _predict(self, scores, steps):  # type: ignore[no-untyped-def]
+        raise ValueError("cannot fit; degrade to the linear interval")
+
+
 class _Constant(SeriesForecaster):
     name = "benchmark-constant"
 
@@ -38,6 +45,8 @@ if "benchmark-missing-extra" not in FORECASTERS:
     FORECASTERS.register("benchmark-missing-extra")(_MissingExtra)
 if "benchmark-constant" not in FORECASTERS:
     FORECASTERS.register("benchmark-constant")(_Constant)
+if "benchmark-fallback" not in FORECASTERS:
+    FORECASTERS.register("benchmark-fallback")(_AlwaysFallback)
 
 
 def test_benchmark_ranks_forecasters_by_crps() -> None:
@@ -69,6 +78,18 @@ def test_benchmark_skips_a_forecaster_missing_its_extra() -> None:
     )
     assert result.skipped == ("benchmark-missing-extra",)
     assert {score.name for score in result.scores} == {"linear-trend"}
+
+
+def test_benchmark_surfaces_a_forecaster_that_fell_back() -> None:
+    # A forecaster that could not fit on every origin is still scored (linear fallback numbers), but
+    # its row must be flagged so those numbers are not read as pure model output.
+    history = cohort_history(simulate_cohort(5, DryDownParams(n_steps=10), seed=3))
+    result = benchmark_forecasters(
+        history, ["linear-trend", "benchmark-fallback"], horizons=(1,), min_train=4
+    )
+    assert result.fallbacks == ("benchmark-fallback",)
+    assert "benchmark-fallback" in {score.name for score in result.scores}  # still scored
+    assert "linear-trend" not in result.fallbacks  # a genuine fit is not flagged
 
 
 def test_cli_benchmark_ranks_over_a_cohort(tmp_path, capsys) -> None:
@@ -108,6 +129,25 @@ def test_cli_benchmark_mlflow_without_the_extra_reports_a_clean_error(tmp_path, 
     rc = main(["benchmark", str(manifest), "--forecasters", "linear-trend", "--mlflow"])
     assert rc == 2
     assert "tracking extra" in capsys.readouterr().err
+
+
+def test_cli_benchmark_mlflow_runtime_failure_is_a_clean_error(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    # A tracking-store failure (read-only dir, unreachable URI) after the benchmark already ran must
+    # be a clean error, not a traceback that discards the ranked table. Patch the logger to raise a
+    # non-ImportError so this holds whether or not mlflow is installed.
+    import phytovision.tracking as tracking
+
+    def _boom(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("tracking store is read-only")
+
+    monkeypatch.setattr(tracking, "log_benchmark", _boom)
+    cohort = simulate_cohort(4, DryDownParams(n_steps=10), seed=7)
+    manifest = write_manifest(cohort, tmp_path / "c.csv")
+    rc = main(["benchmark", str(manifest), "--forecasters", "linear-trend", "--mlflow"])
+    assert rc == 2
+    assert "MLflow logging failed" in capsys.readouterr().err
 
 
 def _mlflow_installed() -> bool:

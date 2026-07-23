@@ -131,6 +131,29 @@ def test_finite_or_none_maps_non_finite_and_non_numeric_to_none() -> None:
     assert _finite_or_none("not a number") is None  # a non-numeric value is treated as no value
 
 
+def test_exclusion_reason_names_short_and_prevalent_apart() -> None:
+    from phytovision.models.survival import exclusion_reason
+
+    assert exclusion_reason([0.3]) == "insufficient-observations"
+    assert exclusion_reason([0.9, 0.92, 0.95]) == "already-stressed-at-first-observation"
+    assert exclusion_reason([0.2, 0.4, 0.6]) is None  # a normal declining plant is kept
+
+
+def test_all_prevalent_cohort_reports_the_real_reason() -> None:
+    # The raise happens in derive_records before any lifelines use, so this needs no stats extra. An
+    # all-prevalent cohort must not claim "no plant has two or more observations": every plant here
+    # has three.
+    from phytovision.exceptions import InsufficientDataError
+    from phytovision.temporal.history import FeatureHistory, Observation
+
+    history = FeatureHistory()
+    for plant in ("a", "b"):
+        for i, score in enumerate([0.80, 0.85, 0.90]):
+            history.add(Observation(plant, f"2026-03-0{i + 1}", score, {}))
+    with pytest.raises(InsufficientDataError, match="already over the stressed cut"):
+        fit_cohort_survival(history, "weibull-aft")
+
+
 # --- lifelines fits (gated on the stats extra) ---
 
 
@@ -225,17 +248,23 @@ def test_cox_predicts_a_single_record_cohort() -> None:
 
 
 @_needs_lifelines
-def test_covariate_predict_falls_back_when_the_fitter_raises(monkeypatch) -> None:
-    # A fitted covariate model that raises at predict time must degrade to the cohort baseline, not
-    # crash. Force predict_median to raise on a genuinely-fitted model.
+def test_covariate_predict_fallback_is_scoped_to_one_call(monkeypatch) -> None:
+    # A fitted covariate model that raises at predict time must degrade only that call to the cohort
+    # baseline, keeping the trained fitter: the old path nulled it and refitted on the predict-time
+    # argument, so every later prediction returned that (often held-out) cohort's median.
     dataset = derive_records(_history(n_steps=20, base_decline_rate=0.16, decline_rate_spread=0.5))
     model = WeibullAFTSurvival().fit(dataset)
     assert model._fitter is not None  # a real covariate fit, not the fallback
+    original = model._fitter.predict_median
 
     def _boom(*_args: object, **_kwargs: object) -> object:
         raise ValueError("degenerate covariate profile")
 
     monkeypatch.setattr(model._fitter, "predict_median", _boom)
-    prediction = model.predict(dataset)
-    assert {plant.basis for plant in prediction.values()} == {"cohort-km"}
-    assert model._fitter is None  # the model recorded the degrade
+    degraded = model.predict(dataset)
+    assert {plant.basis for plant in degraded.values()} == {"cohort-km"}  # this call degraded
+    assert model._fitter is not None  # but the trained fitter is kept, not nulled
+
+    monkeypatch.setattr(model._fitter, "predict_median", original)  # the library recovers
+    recovered = model.predict(dataset)
+    assert {plant.basis for plant in recovered.values()} == {model.name}  # trained model runs again

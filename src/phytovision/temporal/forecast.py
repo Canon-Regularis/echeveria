@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from statistics import NormalDist
 
 from phytovision._num import clip01
-from phytovision.exceptions import ConfigError
+from phytovision.exceptions import ConfigError, ContractViolationError
 from phytovision.models.base import STRESSED_THRESHOLD
 from phytovision.temporal._fit import fit_line
 from phytovision.temporal.history import Observation
@@ -62,6 +62,9 @@ class Forecast:
     upper: dict[int, float] = field(default_factory=dict)
     interval_level: float = DEFAULT_INTERVAL_LEVEL
     method: str = "linear-trend"
+    # True when a statistical forecaster could not fit and silently substituted the linear interval,
+    # so a consumer (the benchmark) can flag that its numbers are the fallback, not this method.
+    degraded: bool = False
 
 
 def stress_forecast(
@@ -84,6 +87,10 @@ def forecast_scores(
     """The linear-trend forecast over a raw score sequence, with a residual prediction interval."""
     if not valid_interval_level(interval_level):  # else it crashes inside NormalDist
         raise ConfigError(f"interval_level must be in (0, 1), got {interval_level}")
+    if any(not math.isfinite(score) for score in scores):
+        # A NaN score makes the line fit degenerate and silently projects a confident 0.0; the input
+        # is invalid (the pipeline only ever produces finite, clipped scores), so reject it loudly.
+        raise ContractViolationError("forecast series has a non-finite score (NaN or inf)")
     steps = [h for h in horizons if h > 0]
     if len(scores) < 2:
         level = clip01(scores[-1]) if scores else 0.0

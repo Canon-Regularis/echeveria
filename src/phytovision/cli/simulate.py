@@ -40,6 +40,12 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
 
 
 def run(args: argparse.Namespace) -> int:
+    # A non-positive count would otherwise write one observation per plant (the initial state) and a
+    # report claiming a step count that never happened, so reject it before doing any work.
+    if args.steps < 1:
+        return fail("--steps must be at least 1")
+    if args.plants < 1:
+        return fail("--plants must be at least 1")
     params = DryDownParams(n_steps=args.steps, base_decline_rate=args.decline_rate)
     try:
         cohort = simulate_cohort(args.plants, params, seed=args.seed)

@@ -171,3 +171,12 @@ def test_malformed_but_loadable_envelope_raises_clean_error(tmp_path) -> None:
     joblib.dump({"model_type": "heuristic", "state": 5}, path)
     with pytest.raises(ConfigError, match="malformed model file"):
         read_envelope(path)
+
+
+def test_incomplete_state_raises_clean_error(tmp_path) -> None:
+    # An envelope whose state is a mapping but is missing a required key (a drifted or hand-built
+    # file) used to escape as a raw KeyError past callers catching only PhytoVisionError.
+    path = tmp_path / "incomplete.joblib"
+    joblib.dump({"format": 1, "model_type": "heuristic", "state": {}, "manifest": {}}, path)
+    with pytest.raises(ConfigError, match="malformed heuristic model state"):
+        load_model(path)

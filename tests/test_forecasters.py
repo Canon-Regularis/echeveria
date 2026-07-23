@@ -140,6 +140,30 @@ def test_linear_interval_brackets_held_out_truth_most_of_the_time() -> None:
     assert sum(widths) / len(widths) < 0.6  # yet stays sharp, not a vacuous [0, 1] band
 
 
+def test_an_interval_level_that_rounds_to_one_is_rejected() -> None:
+    from phytovision.exceptions import ConfigError
+    from phytovision.models.forecasting.baseline import LinearTrendForecaster
+    from phytovision.temporal.forecast import forecast_scores
+
+    # The largest double below 1.0 passes 0 < level < 1, yet (1 + level) / 2 rounds to exactly 1.0
+    # and crashes NormalDist. It is now rejected at construction and at the free-function entry.
+    edge = 0.9999999999999999
+    with pytest.raises(ConfigError):
+        LinearTrendForecaster(edge)
+    with pytest.raises(ConfigError):
+        forecast_scores("p", [0.1, 0.2, 0.3, 0.4], (1,), interval_level=edge)
+
+
+def test_state_space_band_is_floored_not_absurdly_narrow() -> None:
+    pytest.importorskip("statsmodels")
+    from phytovision.models.forecasting.state_space import StateSpaceForecaster
+
+    # A boundary-solution fit on a smooth series used to report a band ~1e-4 wide from six points;
+    # the residual-std floor keeps it at least as wide as the other forecasters' minimum.
+    forecast = StateSpaceForecaster().forecast([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], (1, 3))
+    assert forecast.upper[1] - forecast.lower[1] > 0.02
+
+
 class _NumericFailure(SeriesForecaster):
     name = "boom"
 

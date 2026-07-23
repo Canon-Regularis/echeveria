@@ -92,11 +92,16 @@ def attach_heads(
     One place for the CLI, API, and dashboard to opt into the secondary heads, so they cannot wire
     them up three different ways. Every shipped head is an unvalidated placeholder or prior, not a
     diagnostic: the physiology head reports crude RGB proxies, not measured physiology.
+
+    Attaching is idempotent: a head already present on ``pipeline`` (e.g. a served pipeline built
+    with it) is left in place rather than added twice, which ``add_head`` rejects. Without this a
+    request for a head the served pipeline already carries would surface as a 500.
     """
-    if disease:
+    present = {head.name for head in pipeline.heads}
+    if disease and "disease" not in present:
         pipeline = pipeline.add_head(DiseaseHead(DISEASE_MODELS.create("heuristic")))
-    if drought_stage:
+    if drought_stage and "drought_stage" not in present:
         pipeline = pipeline.add_head(DroughtStageHead(DROUGHT_STAGE_MODELS.create("rule-based")))
-    if physiology:
+    if physiology and "physiology" not in present:
         pipeline = pipeline.add_head(PhysiologyHead())
     return pipeline

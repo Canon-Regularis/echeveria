@@ -16,7 +16,7 @@ import numpy as np
 from fastapi import FastAPI, Form, HTTPException, Response, UploadFile
 
 from phytovision.api_payloads import trend_payload
-from phytovision.exceptions import InvalidImageError, PhytoVisionError
+from phytovision.exceptions import InvalidImageError, ModelNotFittedError, PhytoVisionError
 from phytovision.io import decode_rgb_bytes
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.pipeline import Pipeline
@@ -32,6 +32,10 @@ def create_app(
 ) -> FastAPI:
     """Build the API. Pass a pipeline and/or conformal wrapper to override the env defaults."""
     engine, conformal = engine_from_env(pipeline, conformal)
+    # An uncalibrated wrapper would raise ModelNotFittedError on every /analyze request; fail at
+    # construction instead, so the misconfiguration surfaces once when the app is built.
+    if conformal is not None and conformal.qhat is None:
+        raise ModelNotFittedError("conformal wrapper is not calibrated; call calibrate() first")
     app = FastAPI(title="phytovision")
 
     @app.get("/health")

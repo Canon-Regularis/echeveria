@@ -213,6 +213,18 @@ def test_cox_medians_are_finite_or_none_never_infinite() -> None:
 
 
 @_needs_lifelines
+def test_cox_predicts_a_single_record_cohort() -> None:
+    # lifelines squeezes a one-row prediction to a bare scalar with no .iloc; reading it back used
+    # to raise AttributeError, which breaks a leave-one-out survival fold. It now reads cleanly.
+    dataset = derive_records(_history(n_steps=20, base_decline_rate=0.16, decline_rate_spread=0.5))
+    model = SURVIVAL_MODELS.create("cox-ph").fit(dataset)
+    prediction = model.predict(dataset.subset([0]))
+    assert len(prediction) == 1
+    (plant,) = prediction.values()
+    assert plant.median is None or math.isfinite(plant.median)
+
+
+@_needs_lifelines
 def test_covariate_predict_falls_back_when_the_fitter_raises(monkeypatch) -> None:
     # A fitted covariate model that raises at predict time must degrade to the cohort baseline, not
     # crash. Force predict_median to raise on a genuinely-fitted model.

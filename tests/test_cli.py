@@ -66,6 +66,14 @@ def test_cli_save_saliency(image_path, tmp_path, capsys) -> None:
     assert "Saliency written" in capsys.readouterr().out
 
 
+def test_cli_save_with_unwritable_extension_is_a_clean_error(image_path, capsys) -> None:
+    # A save path with no recognised image extension used to reach PIL.save() and raise a raw
+    # ValueError traceback; it is now rejected up front with a clean error and exit code 2.
+    rc = main(["analyze", str(image_path), "--save-overlay", "out.txt"])
+    assert rc == 2
+    assert capsys.readouterr().err.startswith("error:")
+
+
 def test_cli_batch_writes_csv(dataset_dir, tmp_path) -> None:
     out = tmp_path / "features.csv"
     assert main(["batch", str(dataset_dir), "--out", str(out)]) == 0
@@ -124,6 +132,27 @@ def test_cli_validate_without_targets_skips_regression(tmp_path, capsys, healthy
     manifest.write_text("image_path,label\na.png,healthy\n")
     assert main(["validate", str(manifest)]) == 0
     assert "regression is skipped" in capsys.readouterr().out
+
+
+def test_cli_validate_without_labels_skips_the_reliability_curve(
+    tmp_path, capsys, healthy_image
+) -> None:
+    # An unlabelled manifest must not fabricate a calibration report: an absent label reads as a
+    # true stressed event, which used to assert every image was stressed with a huge Brier score.
+    _save_image(tmp_path / "a.png", healthy_image)
+    manifest = tmp_path / "m.csv"
+    manifest.write_text("image_path,target\na.png,0.1\n")
+    assert main(["validate", str(manifest)]) == 0
+    out = capsys.readouterr().out
+    assert "reliability curve is skipped" in out
+    assert "Brier score" not in out
+
+
+def test_cli_simulate_rejects_a_non_positive_step_count(tmp_path, capsys) -> None:
+    # --steps 0 used to write one observation per plant and report a step count that never happened.
+    rc = main(["simulate", "--out", str(tmp_path / "c.csv"), "--plants", "3", "--steps", "0"])
+    assert rc == 2
+    assert capsys.readouterr().err.startswith("error:")
 
 
 def test_cli_phenotype_writes_a_trajectory_table(tmp_path, healthy_image, stressed_image) -> None:

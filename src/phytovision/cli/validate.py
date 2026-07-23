@@ -56,17 +56,25 @@ def run(args: argparse.Namespace) -> int:
 
     print("The stress score is an RGB proxy; treat these numbers as indicative, not validated.")
 
-    scores = [row.score for row in rows]
-    events = binary_labels(rows, args.healthy_label)
-    curve = reliability_curve(scores, events, n_bins=args.bins)
-    print(f"\nreliability of the score as P(stressed) over {len(rows)} image(s):")
-    print("  bin  mean_score  observed  count")
-    for i, (mean, observed, count) in enumerate(
-        zip(curve.mean_score, curve.observed_rate, curve.counts, strict=True)
-    ):
-        if count:
-            print(f"  {i:>3}  {mean:>10.3f}  {observed:>8.3f}  {count:>5}")
-    print(f"  Brier score: {brier_score(scores, events):.4f}")
+    # The reliability curve and Brier score need the healthy/stressed label, which is optional in a
+    # manifest. Build them only from labelled rows, mirroring the regression block below: otherwise
+    # an unlabelled row reads as a true stressed event (None != healthy) and fabricates a curve that
+    # asserts every image was stressed.
+    labelled = [row for row in rows if row.label is not None]
+    if labelled:
+        scores = [row.score for row in labelled]
+        events = binary_labels(labelled, args.healthy_label)
+        curve = reliability_curve(scores, events, n_bins=args.bins)
+        print(f"\nreliability of the score as P(stressed) over {len(labelled)} labelled image(s):")
+        print("  bin  mean_score  observed  count")
+        for i, (mean, observed, count) in enumerate(
+            zip(curve.mean_score, curve.observed_rate, curve.counts, strict=True)
+        ):
+            if count:
+                print(f"  {i:>3}  {mean:>10.3f}  {observed:>8.3f}  {count:>5}")
+        print(f"  Brier score: {brier_score(scores, events):.4f}")
+    else:
+        print("\nno 'label' values found, so the reliability curve is skipped")
 
     targeted_scores = [row.score for row in rows if row.target is not None]
     targeted_values = [row.target for row in rows if row.target is not None]

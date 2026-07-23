@@ -134,7 +134,10 @@ def load_saved(path: str | Path) -> StressModel | SplitConformalClassifier:
     if envelope["model_type"] == "conformal":
         from phytovision.models.conformal import SplitConformalClassifier
 
-        return SplitConformalClassifier.from_state(envelope["state"])
+        try:
+            return SplitConformalClassifier.from_state(envelope["state"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ConfigError(f"malformed conformal model state: {exc}") from exc
     return model_from_state(envelope["model_type"], envelope["state"])
 
 
@@ -144,7 +147,12 @@ def model_from_state(model_type: str, state: Mapping[str, Any]) -> StressModel:
         reconstruct = _FROM_STATE[model_type]
     except KeyError:
         raise ConfigError(f"unknown model_type {model_type!r}") from None
-    return reconstruct(state)
+    try:
+        return reconstruct(state)
+    except (KeyError, TypeError, ValueError) as exc:
+        # A loadable envelope whose state is incomplete or wrong-typed (a drifted or hand-built
+        # file) would otherwise raise a raw KeyError past callers catching only PhytoVisionError.
+        raise ConfigError(f"malformed {model_type} model state: {exc}") from exc
 
 
 def _versions() -> dict[str, str]:

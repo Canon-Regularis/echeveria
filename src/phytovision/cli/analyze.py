@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
+
+from PIL import Image as _PILImage
 
 from phytovision.cli._shared import add_pipeline_args, build_pipeline, fail
 from phytovision.exceptions import PhytoVisionError
@@ -65,6 +68,18 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
 
 
 def run(args: argparse.Namespace) -> int:
+    # Reject an unwritable save extension up front: PIL raises a raw ValueError from save(), which
+    # is not in the caught tuple below, so a typo would otherwise crash with a traceback, and the
+    # occlusion overlay only fails after minutes of per-patch work.
+    known_extensions = set(_PILImage.registered_extensions())
+    for flag, path in (
+        ("--save-overlay", args.save_overlay),
+        ("--save-saliency", args.save_saliency),
+        ("--save-occlusion", args.save_occlusion),
+    ):
+        if path and Path(path).suffix.lower() not in known_extensions:
+            return fail(f"{flag} needs a recognised image extension such as .png, got: {path}")
+
     conformal: SplitConformalClassifier | None = None
     try:
         override: StressModel | None = None

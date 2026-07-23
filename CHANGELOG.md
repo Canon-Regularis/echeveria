@@ -167,6 +167,21 @@ All notable changes to this project are documented here. The format is based on
   or 1.0 at an extreme configured bias rather than raising `OverflowError` from `math.exp`. And the
   COCO loader stringifies a per-box category the same way it stringifies the declared category list, so
   a numeric category name still matches the vocabulary it belongs to.
+- CLI, API, survival, and forecasting robustness across the serving surfaces: `validate` builds the
+  reliability curve and Brier score only from labelled rows, so an unlabelled manifest no longer reads
+  every image as a true stressed event and fabricates a catastrophic-miscalibration report; `analyze`
+  rejects a `--save-*` path with no image extension up front instead of crashing with a raw Pillow
+  `ValueError` after the work is done; `simulate` rejects a non-positive `--steps` rather than writing
+  one observation per plant under a step count that never happened; `attach_heads` is idempotent, so a
+  served pipeline that already carries a head plus the matching request flag returns a clean response
+  rather than a 500 from the duplicate-name guard; the API refuses to build with an uncalibrated
+  conformal wrapper instead of raising on every request; the Cox model predicts a single-record cohort
+  (a leave-one-out survival fold) rather than raising `AttributeError` on the scalar lifelines squeezes
+  a one-row frame to; a loadable model envelope whose state is incomplete or wrong-typed is wrapped in a
+  clean `ConfigError` rather than a raw `KeyError`; an interval level a hair below 1.0 is rejected at
+  construction rather than crashing inside `NormalDist`; and the state-space forecaster floors its band
+  width like the other forecasters, so a boundary-solution fit on a smooth series no longer reports a
+  near-zero-width interval.
 
 ## [0.2.0] (2026-07-16)
 

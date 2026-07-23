@@ -29,6 +29,7 @@ from phytovision.temporal.forecast import (
     linear_prediction_interval,
     project_scores,
     trend_confidence,
+    valid_interval_level,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class SeriesForecaster(TrajectoryForecaster, ABC):
     note: ClassVar[str] = "trajectory forecast"
 
     def __init__(self, interval_level: float = DEFAULT_INTERVAL_LEVEL) -> None:
-        if not 0.0 < interval_level < 1.0:
+        if not valid_interval_level(interval_level):
             raise ConfigError(f"interval_level must be in (0, 1), got {interval_level}")
         self.interval_level = interval_level
 

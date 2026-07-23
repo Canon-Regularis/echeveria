@@ -16,6 +16,7 @@ from phytovision.evaluation.benchmark import benchmark_forecasters
 from phytovision.exceptions import PhytoVisionError
 from phytovision.registries import FORECASTERS
 from phytovision.simulation import load_history
+from phytovision.temporal.forecast import valid_interval_level
 
 _TABLE_FIELDS = [
     "horizon",
@@ -53,7 +54,7 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
 
 
 def run(args: argparse.Namespace) -> int:
-    if not 0.0 < args.interval_level < 1.0:
+    if not valid_interval_level(args.interval_level):
         return fail("--interval-level must be in (0, 1)")
     if args.min_train < 2:
         return fail("--min-train must be at least 2")

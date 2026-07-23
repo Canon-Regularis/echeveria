@@ -131,6 +131,31 @@ def test_analyze_drought_stage_exposes_the_head(healthy_image) -> None:
     assert "disclaimer" in payload  # the placeholder is labelled for API clients
 
 
+def test_create_app_rejects_an_uncalibrated_conformal() -> None:
+    from phytovision.exceptions import ModelNotFittedError
+    from phytovision.models.conformal import SplitConformalClassifier
+    from phytovision.models.stress.heuristic import HeuristicStressModel
+
+    # An uncalibrated wrapper would 500 on every /analyze; the app now refuses to build with it.
+    with pytest.raises(ModelNotFittedError):
+        create_app(conformal=SplitConformalClassifier(HeuristicStressModel()))
+
+
+def test_analyze_with_a_preattached_head_and_flag_returns_200(healthy_image) -> None:
+    from phytovision.models.disease.head import DiseaseHead
+    from phytovision.pipeline import Pipeline
+    from phytovision.registries import DISEASE_MODELS
+
+    # The served pipeline already carries a disease head and the request asks for it again:
+    # attaching is idempotent, so this is a clean 200 rather than a duplicate-head 500.
+    served = Pipeline.default().add_head(DiseaseHead(DISEASE_MODELS.create("heuristic")))
+    client = TestClient(create_app(pipeline=served))
+    files = {"file": ("plant.png", _png_bytes(healthy_image), "image/png")}
+    response = client.post("/analyze", files=files, params={"disease": "true"})
+    assert response.status_code == 200
+    assert "disease" in response.json()["head_outputs"]
+
+
 def test_trend_unknown_forecaster_detail_has_no_stray_quotes(healthy_image) -> None:
     client = TestClient(create_app())
     files = [("files", ("a.png", _png_bytes(healthy_image), "image/png"))]

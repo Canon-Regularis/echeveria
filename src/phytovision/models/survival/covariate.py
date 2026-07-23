@@ -15,6 +15,8 @@ import warnings
 from abc import abstractmethod
 from typing import Any, ClassVar, Self
 
+import numpy as np
+
 from phytovision.models.survival.base import (
     _EXTRA_HINT,
     PlantSurvival,
@@ -161,5 +163,10 @@ def _standardized_frame(
 
 
 def _at(prediction: Any, index: int) -> Any:
-    """Read the value at a positional index from a lifelines prediction (a pandas Series)."""
-    return prediction.iloc[index]
+    """Read the value at a positional index from a lifelines prediction.
+
+    lifelines returns a pandas Series for a multi-row frame but squeezes a single-row prediction to
+    a bare scalar, which has no ``.iloc``. Coercing to a 1-d array first handles both, so a one
+    plant cohort (a leave-one-out survival fold) reads back cleanly instead of raising an error.
+    """
+    return np.atleast_1d(np.asarray(prediction, dtype=float))[index]

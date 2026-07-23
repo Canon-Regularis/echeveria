@@ -12,7 +12,7 @@ from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.models.persistence import save_model
 from phytovision.models.stress.heuristic import HeuristicStressModel
 from phytovision.pipeline import Pipeline
-from phytovision.serving import engine_from_env, read_config
+from phytovision.serving import attach_heads, engine_from_env, read_config
 from phytovision.types import PlantFeatures
 
 
@@ -103,3 +103,12 @@ def test_engine_from_env_unwraps_a_calibrated_conformal_model(tmp_path, monkeypa
     assert conformal.alpha == 0.1
     assert not isinstance(engine.model, SplitConformalClassifier)
     assert isinstance(engine.model, HeuristicStressModel)
+
+
+def test_attach_heads_is_idempotent() -> None:
+    # A served pipeline may already carry a head that a request asks for again. Re-attaching must
+    # keep the single head rather than raise the duplicate-name error add_head enforces (a 500).
+    once = attach_heads(Pipeline.default(), disease=True, physiology=True)
+    twice = attach_heads(once, disease=True)
+    assert [head.name for head in twice.heads] == [head.name for head in once.heads]
+    assert sum(head.name == "disease" for head in twice.heads) == 1

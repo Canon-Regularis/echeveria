@@ -16,7 +16,8 @@ from typing import Any, ClassVar
 import numpy as np
 
 from phytovision._num import clip01
-from phytovision.models.forecasting.base import Prediction, SeriesForecaster
+from phytovision.models.forecasting.base import Prediction, SeriesForecaster, z_for
+from phytovision.temporal.forecast import _MIN_RESIDUAL_STD
 
 
 def forecast_with_intervals(result: Any, steps: Sequence[int], level: float) -> Prediction:
@@ -30,13 +31,16 @@ def forecast_with_intervals(result: Any, steps: Sequence[int], level: float) -> 
     mean: dict[int, float] = {}
     lower: dict[int, float] = {}
     upper: dict[int, float] = {}
+    # Floor the half-width like every other forecaster, so a boundary-solution fit on a smooth
+    # series cannot report a band a thousand times too narrow (near-zero spread from six points).
+    floor = z_for(level) * _MIN_RESIDUAL_STD
     for h in steps:
         index = h - 1  # statsmodels forecasts step 1 at position 0
         # Recentre the model's band on the clipped mean before clipping the bounds. Clipping the raw
         # mean and both interval columns independently lets a projection past the ceiling collapse
         # the band to [1.0, 1.0], a zero-width interval the scorer reads as near-certain.
         point = clip01(float(mean_all[index]))
-        half = abs(float(conf[index, 1]) - float(conf[index, 0])) / 2.0
+        half = max(abs(float(conf[index, 1]) - float(conf[index, 0])) / 2.0, floor)
         mean[h] = point
         lower[h] = clip01(point - half)
         upper[h] = clip01(point + half)

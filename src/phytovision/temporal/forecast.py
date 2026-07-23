@@ -35,6 +35,16 @@ _MIN_RESIDUAL_STD = 0.02
 _MAX_STEPS_TO_STRESSED = 30
 
 
+def valid_interval_level(level: float) -> bool:
+    """Whether a coverage level maps to a usable central-interval quantile.
+
+    A level a hair below 1.0 (the largest double below one) passes ``0.0 < level < 1.0`` yet
+    ``(1 + level) / 2`` rounds up to exactly 1.0 in float, which ``NormalDist().inv_cdf`` rejects.
+    Guarding the mapped tail, not just the level, keeps the interval math from crashing.
+    """
+    return 0.0 < level < 1.0 and 0.0 < (1.0 + level) / 2.0 < 1.0
+
+
 @dataclass(frozen=True, slots=True)
 class Forecast:
     plant_id: str
@@ -72,7 +82,7 @@ def forecast_scores(
     interval_level: float = DEFAULT_INTERVAL_LEVEL,
 ) -> Forecast:
     """The linear-trend forecast over a raw score sequence, with a residual prediction interval."""
-    if not 0.0 < interval_level < 1.0:  # an out-of-range level otherwise crashes inside NormalDist
+    if not valid_interval_level(interval_level):  # else it crashes inside NormalDist
         raise ConfigError(f"interval_level must be in (0, 1), got {interval_level}")
     steps = [h for h in horizons if h > 0]
     if len(scores) < 2:

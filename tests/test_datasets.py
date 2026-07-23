@@ -56,6 +56,24 @@ def test_coco_loader_reads_boxes_and_categories(tmp_path) -> None:
     assert {box["category"] for box in boxes} == {"Healthy", "Unhealthy"}
 
 
+def test_coco_box_category_matches_the_declared_vocabulary(tmp_path) -> None:
+    # A non-string category name is stringified for the `categories` list, so the per-box category
+    # must be stringified the same way or a box never matches the vocabulary it belongs to.
+    PILImage.fromarray(np.zeros((4, 4, 3), dtype=np.uint8)).save(tmp_path / "a.png")
+    coco = {
+        "images": [{"id": 1, "file_name": "a.png"}],
+        "categories": [{"id": 1, "name": 5}],  # a numeric name, as some exports emit
+        "annotations": [{"image_id": 1, "category_id": 1, "bbox": [0, 0, 1, 1]}],
+    }
+    annotations = tmp_path / "_annotations.coco.json"
+    annotations.write_text(json.dumps(coco))
+
+    loader = CocoDetectionLoader(annotations)
+    boxes = next(iter(loader)).extra["boxes"]
+    assert loader.categories == ["5"]
+    assert boxes[0]["category"] in loader.categories  # the box joins against the declared list
+
+
 def test_coco_invalid_json_is_a_clean_config_error(tmp_path) -> None:
     # A truncated or corrupt download must name the file, not raise a bare JSONDecodeError.
     bad = tmp_path / "bad.coco.json"

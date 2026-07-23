@@ -114,4 +114,13 @@ class HeuristicStressModel(StressModel):
 
 
 def _sigmoid(x: float) -> float:
-    return 1.0 / (1.0 + math.exp(-x))
+    """A saturating logistic, in the defensive-numerics style of the rest of the codebase.
+
+    ``math.exp`` raises OverflowError past roughly 709, so an extreme configured bias would crash
+    rather than saturate. Branching on the sign keeps the exponent negative and bounded, so a large
+    magnitude settles at 0.0 or 1.0 instead.
+    """
+    if x >= 0.0:
+        return 1.0 / (1.0 + math.exp(-x))
+    exponential = math.exp(x)
+    return exponential / (1.0 + exponential)

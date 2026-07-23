@@ -28,7 +28,10 @@ def _circular_mean(vals: list[float], weights: list[float]) -> float:
     weight_array = np.asarray(weights, dtype=float)
     sin = float(np.average(np.sin(angles), weights=weight_array))
     cos = float(np.average(np.cos(angles), weights=weight_array))
-    return float((np.arctan2(sin, cos) / (2.0 * np.pi)) % 1.0)
+    # A tiny negative angle makes the modulo round up to exactly 1.0, outside [0, 1) and at the far
+    # end of the range from the ~0.0 it should be; fold it back, matching circular_hue_mean.
+    mean = float((np.arctan2(sin, cos) / (2.0 * np.pi)) % 1.0)
+    return 0.0 if mean >= 1.0 else mean
 
 
 def _axial_mean(vals: list[float], weights: list[float]) -> float:

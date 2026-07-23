@@ -157,6 +157,16 @@ All notable changes to this project are documented here. The format is based on
   sources; image loading applies the EXIF orientation tag, so a portrait photo is analysed upright and
   its orientation feature matches the photo as viewed; and a loadable-but-malformed model envelope (a
   non-mapping state or manifest) is wrapped in a clean `ConfigError` rather than leaking a `TypeError`.
+- Numeric edges at the seams and the extremes: a circular mean whose vector lands a hair below the
+  wraparound no longer rounds up to exactly 1.0, which is outside the documented `[0, 1)` hue range and
+  sits at the opposite end of the linear feature range from the value it should report; this is fixed
+  in both the per-region `circular_hue_mean` and the plant-level circular reduction, so two reds
+  straddling the seam stay red at every level. The default linear forecast reports no time-to-stressed
+  on a degenerate (non-finite) fit instead of crashing with a `ValueError` from `math.ceil(NaN)`,
+  matching what the pluggable forecasters already did. The heuristic model's logistic saturates to 0.0
+  or 1.0 at an extreme configured bias rather than raising `OverflowError` from `math.exp`. And the
+  COCO loader stringifies a per-box category the same way it stringifies the declared category list, so
+  a numeric category name still matches the vocabulary it belongs to.
 
 ## [0.2.0] (2026-07-16)
 

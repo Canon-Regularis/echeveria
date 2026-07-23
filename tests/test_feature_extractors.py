@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from phytovision.phenotyping.base import CompositeFeatureExtractor
-from phytovision.phenotyping.colour import ColourFeatures
+from phytovision.phenotyping.colour import ColourFeatures, circular_hue_mean
 from phytovision.phenotyping.geometry import GeometryFeatures
 from phytovision.phenotyping.morphology import MorphologyFeatures
 from phytovision.phenotyping.texture import TextureFeatures
@@ -19,6 +19,15 @@ def test_composite_merges_without_collision(healthy_image, plant_region) -> None
 
     namespaces = {key.split(".", 1)[0] for key in fv.values}
     assert namespaces == {"geometry", "colour", "texture", "morphology"}
+
+
+def test_circular_hue_mean_stays_below_one_at_the_seam() -> None:
+    # Two reds straddling the wraparound average to a mean vector a hair below the seam, and that
+    # negative angle's modulo rounds up to exactly 1.0 in float: outside the documented [0, 1) and
+    # the far end of the linear feature range from the ~0.0 it should read as.
+    mean = circular_hue_mean(np.array([0.02, 0.98]))
+    assert 0.0 <= mean < 1.0
+    assert min(mean, 1.0 - mean) < 0.01  # sits on the red seam, not the opposite hue
 
 
 def test_greenness_features_separate_healthy_from_stressed(

@@ -23,7 +23,11 @@ def circular_hue_mean(hue: np.ndarray) -> float:
     back keeps the mean on the same side of the wraparound as the pixels.
     """
     angle = np.arctan2(np.sin(2.0 * np.pi * hue).mean(), np.cos(2.0 * np.pi * hue).mean())
-    return float((angle / (2.0 * np.pi)) % 1.0)
+    # A mean vector landing a hair below the seam gives a tiny negative angle, and that modulo
+    # rounds up to exactly 1.0 in float: outside the promised [0, 1) and the far end of the linear
+    # feature range from the ~0.0 it should be. Fold it back to 0.0, the same point on the circle.
+    mean = float((angle / (2.0 * np.pi)) % 1.0)
+    return 0.0 if mean >= 1.0 else mean
 
 
 def pixel_class_masks(

@@ -19,6 +19,15 @@ def test_rising_trajectory_projects_upward_and_reaches_stressed() -> None:
     assert 0.0 <= forecast.confidence <= 1.0
 
 
+def test_a_non_finite_score_reports_no_crossing_rather_than_crashing() -> None:
+    # A NaN or inf observation makes the line fit degenerate (a NaN slope). Every NaN comparison is
+    # False, so the guards used to fall through to math.ceil(NaN) and raise. The linear path now
+    # reports no crossing, matching what the pluggable forecasters already do on the same fit.
+    for bad in (float("nan"), float("inf")):
+        series = [_obs("2026-03-01", 0.1), _obs("2026-03-02", bad), _obs("2026-03-03", 0.3)]
+        assert stress_forecast("p", series, horizons=(1, 3, 7)).steps_to_stressed is None
+
+
 def test_steps_to_stressed_matches_the_projection_under_noise() -> None:
     # A noisy final dip must not desync steps_to_stressed from the fitted projection: both anchor on
     # the fitted trend, so the projected score at the reported step is the first to cross the cut.

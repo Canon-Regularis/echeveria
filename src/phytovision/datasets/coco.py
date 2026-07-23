@@ -62,7 +62,9 @@ def _parse(
         boxes_by_image.setdefault(ann["image_id"], []).append(
             {
                 "bbox": ann["bbox"],
-                "category": category_names.get(ann["category_id"], str(ann["category_id"])),
+                # Stringified exactly like the `categories` list above, or a non-string category
+                # name would leave a box whose category never matches the declared vocabulary.
+                "category": str(category_names.get(ann["category_id"], ann["category_id"])),
             }
         )
 

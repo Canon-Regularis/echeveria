@@ -169,6 +169,11 @@ def _steps_to_threshold(intercept: float, slope: float, end: int) -> int | None:
     projected score at that step can never disagree, even at a float boundary or a tiny slope. None
     only when the trend is flat or falling, or already at/above the cut.
     """
+    # A non-finite score makes fit_line return a NaN slope, and every NaN comparison below is False,
+    # so the guards would fall through to math.ceil(NaN) and raise. Report no crossing instead,
+    # which is what the richer forecasters' _first_crossing already does on the same degenerate fit.
+    if not math.isfinite(slope) or not math.isfinite(intercept):
+        return None
     if slope <= 0.0 or intercept + slope * end >= STRESSED_THRESHOLD:
         return None
     step = max(1, int(math.ceil((STRESSED_THRESHOLD - (intercept + slope * end)) / slope)))

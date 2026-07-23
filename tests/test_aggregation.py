@@ -35,6 +35,24 @@ def test_reduction_policy_sum_vs_weighted_mean() -> None:
     assert meaned.values["geometry.area_px"] == np.average([40.0, 20.0], weights=[40, 20])
 
 
+def test_circular_reduction_stays_below_one_at_the_seam() -> None:
+    # Two leaves whose hues straddle the wraparound average to a vector a hair below the seam; the
+    # modulo then rounds up to exactly 1.0, outside the [0, 1) hue range and the opposite end of the
+    # linear feature range from the ~0.0 it should read as.
+    mask = np.ones((4, 4), dtype=bool)
+    regions = _leaf_regions([mask, mask])
+    features = [
+        FeatureVector(0, {"colour.hue_mean": 0.02}),
+        FeatureVector(1, {"colour.hue_mean": 0.98}),
+    ]
+    out = PlantLevelAggregator().aggregate(
+        regions, features, reduction_policy={"colour.hue_mean": "circular"}
+    )
+    hue = out.values["colour.hue_mean"]
+    assert 0.0 <= hue < 1.0
+    assert min(hue, 1.0 - hue) < 0.01  # stays on the red seam, not the opposite hue
+
+
 def test_orientation_reduces_as_an_axial_angle() -> None:
     # orientation is an undirected axis in [-pi/2, pi/2]: two near-horizontal leaves tilted to
     # opposite sides of the seam average linearly to 0.0 (vertical, the wrong axis). The axial

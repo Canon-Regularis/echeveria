@@ -234,6 +234,12 @@ All notable changes to this project are documented here. The format is based on
   scikit-learn's `random_state`; and re-fitting a covariate survival model clears the Kaplan-Meier
   baseline cached from the previous cohort, which a later degradation would otherwise have reported
   as this cohort's median.
+- `evaluate` classifies a score the same way in every mode. The fitted-model modes (`--cv`,
+  `--transfer`, `--importance`) thresholded at a private 0.5 while the single-pass mode used the
+  package's healthy cut, so any row scoring in [0.33, 0.5) flipped class between two runs of the same
+  command on the same data, and the cross-validated numbers described a decision rule the tool never
+  ships. Both paths now use the shared `bucket_label` rule, so the reported accuracy is the accuracy
+  of the verdict the product actually gives.
 
 ## [0.2.0] (2026-07-16)
 

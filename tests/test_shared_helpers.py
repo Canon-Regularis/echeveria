@@ -105,9 +105,29 @@ def test_binary_labels_maps_healthy_to_zero() -> None:
 
 def test_predict_labels_thresholds_scores() -> None:
     model = HeuristicStressModel()
-    # A strongly green plant reads healthy (0); an empty feature vector sits at the 0.5 cut (1).
+    # A strongly green plant reads healthy (0); an empty feature vector reads not-healthy (1).
     labels = predict_labels(model, [{"colour.gcc_mean": 0.42}, {}])
     assert labels == [0, 1]
+
+
+def test_predict_label_uses_the_shared_healthy_rule() -> None:
+    # The fitted-model evaluate modes (--cv, --transfer, --importance) must classify a score exactly
+    # as the single-pass mode does. A private 0.5 cut measured a decision rule the tool never ships
+    # and flipped every row scoring in [0.33, 0.5) between the two modes on identical data.
+    from phytovision.evaluation._common import predict_label
+    from phytovision.models.base import bucket_label
+    from phytovision.types import StressAssessment
+
+    class _Stub:
+        def __init__(self, score: float) -> None:
+            self.score = score
+
+        def predict(self, features: object) -> StressAssessment:
+            return StressAssessment(self.score, 0.5, bucket_label(self.score), "stub")
+
+    for score in (0.0, 0.2, 0.32, 0.33, 0.4, 0.49, 0.5, 0.66, 1.0):
+        single_pass = 0 if bucket_label(score) == "healthy" else 1
+        assert predict_label(_Stub(score), {}) == single_pass
 
 
 def test_trainable_model_names_excludes_the_heuristic() -> None:

@@ -12,7 +12,7 @@ from collections.abc import Callable, Mapping, Sequence
 
 from phytovision.analysis import AnalysisRow
 from phytovision.exceptions import ConfigError
-from phytovision.models.base import StressModel
+from phytovision.models.base import StressModel, bucket_label
 from phytovision.models.stress.ensemble import EnsembleStressModel
 from phytovision.models.stress.gradient_boosted import GradientBoostedStressModel
 from phytovision.models.stress.heuristic import HeuristicStressModel
@@ -21,9 +21,6 @@ from phytovision.types import PlantFeatures
 # Builds and fits a model from a fold: (feature_keys, feature_dicts, labels) -> fitted model.
 ModelFactory = Callable[[Sequence[str], Sequence[Mapping[str, float]], Sequence[int]], StressModel]
 
-# Score at or above this counts as stressed when a model's output becomes a 0/1 label.
-_DECISION_THRESHOLD = 0.5
-
 
 def binary_labels(rows: Sequence[AnalysisRow], healthy_label: str) -> list[int]:
     """Map labelled rows to 0 (the healthy label) or 1 (anything else) for the metrics."""
@@ -31,8 +28,16 @@ def binary_labels(rows: Sequence[AnalysisRow], healthy_label: str) -> list[int]:
 
 
 def predict_label(model: StressModel, row: Mapping[str, float]) -> int:
-    """A fitted model's 0/1 label for one feature row, thresholded at the decision cut."""
-    return int(model.predict(PlantFeatures.from_values(row)).score >= _DECISION_THRESHOLD)
+    """A fitted model's 0/1 label for one feature row, under the package's healthy/not-healthy rule.
+
+    The cut is the shared bucketing, not a private 0.5. The ground truth these predictions are
+    scored against is "not the healthy class", and ``bucket_label`` is how every surface (the
+    verdict, the API, the dashboard, and this command's own single-pass mode) decides a score is not
+    healthy. A private cut measured a classifier the tool never ships, and flipped every row scoring
+    in [0.33, 0.5) between ``evaluate`` and ``evaluate --cv`` on identical data.
+    """
+    score = model.predict(PlantFeatures.from_values(row)).score
+    return int(bucket_label(score) != "healthy")
 
 
 def predict_labels(model: StressModel, rows: Sequence[Mapping[str, float]]) -> list[int]:

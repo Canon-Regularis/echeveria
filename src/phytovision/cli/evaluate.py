@@ -107,9 +107,9 @@ def _load_labelled_rows(pipeline: Pipeline, directories: list[str]) -> list[Anal
 
 def _evaluate_single(rows: list[AnalysisRow], args: argparse.Namespace) -> int:
     y_true = binary_labels(rows, args.healthy_label)
-    y_pred = [
-        0 if row.stress_label == "healthy" else 1 for row in rows
-    ]  # mild/stressed -> positive
+    # The same healthy/not-healthy rule the fitted-model modes (--cv, --transfer, --importance) use,
+    # so the two ways of running this command cannot classify the same row differently.
+    y_pred = [0 if row.stress_label == "healthy" else 1 for row in rows]
     metrics = binary_metrics(y_true, y_pred)
     print(
         f"images: {metrics.n}   accuracy: {metrics.accuracy:.3f}   "

@@ -204,6 +204,10 @@ All notable changes to this project are documented here. The format is based on
   linear, Gaussian-process, and state-space forecasters use, so a smooth series of a few noisy readings
   no longer reports an interval tens of times too narrow that claims near-certainty and tanks its
   benchmark coverage. It was the last forecaster missing the floor.
+- The `analyze --save-*` extension guard now allows only formats PIL can actually write, not every
+  format it can open. A read-only-but-registered suffix such as `.psd` or `.fits` used to pass the
+  guard and then crash `Image.save()` with an uncaught `KeyError` (a traceback and exit 1), defeating
+  the guard's own purpose; it now fails cleanly with exit code 2 like any other bad suffix.
 
 ## [0.2.0] (2026-07-16)
 

@@ -66,10 +66,12 @@ def test_cli_save_saliency(image_path, tmp_path, capsys) -> None:
     assert "Saliency written" in capsys.readouterr().out
 
 
-def test_cli_save_with_unwritable_extension_is_a_clean_error(image_path, capsys) -> None:
-    # A save path with no recognised image extension used to reach PIL.save() and raise a raw
-    # ValueError traceback; it is now rejected up front with a clean error and exit code 2.
-    rc = main(["analyze", str(image_path), "--save-overlay", "out.txt"])
+@pytest.mark.parametrize("bad_out", ["out.txt", "out.psd"])
+def test_cli_save_with_unwritable_extension_is_a_clean_error(image_path, capsys, bad_out) -> None:
+    # A save path PIL cannot write used to reach PIL.save() and raise an uncaught traceback: an
+    # unknown suffix (out.txt), or a read-only PIL format (out.psd) that registered_extensions()
+    # lists as openable but save() rejects with a raw KeyError. Both fail up front now, exit code 2.
+    rc = main(["analyze", str(image_path), "--save-overlay", bad_out])
     assert rc == 2
     assert capsys.readouterr().err.startswith("error:")
 

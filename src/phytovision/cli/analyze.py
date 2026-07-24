@@ -68,10 +68,13 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
 
 
 def run(args: argparse.Namespace) -> int:
-    # Reject an unwritable save extension up front: PIL raises a raw ValueError from save(), which
-    # is not in the caught tuple below, so a typo would otherwise crash with a traceback, and the
-    # occlusion overlay only fails after minutes of per-patch work.
-    known_extensions = set(_PILImage.registered_extensions())
+    # Reject an unwritable save extension up front: PIL raises a raw error from save() that is not
+    # in the caught tuple below, so a bad suffix would otherwise crash with a traceback, and the
+    # occlusion overlay only fails after minutes of per-patch work. registered_extensions() lists
+    # every openable format, including read-only ones (.psd, .fits, ...) that raise KeyError on
+    # save, so keep only those whose format PIL can actually write.
+    extensions = _PILImage.registered_extensions()  # also triggers PIL's lazy registration
+    known_extensions = {ext for ext, fmt in extensions.items() if fmt in _PILImage.SAVE}
     for flag, path in (
         ("--save-overlay", args.save_overlay),
         ("--save-saliency", args.save_saliency),

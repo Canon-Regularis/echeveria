@@ -53,10 +53,21 @@ def test_plant_survival_metrics_reads_a_plant_and_a_missing_plant() -> None:
     assert plant_survival_metrics(fit, "absent")["basis"] == "unavailable"
 
 
-def test_survival_row_blank_when_unavailable() -> None:
-    row = survival_row(None, "p1", [0.2, 0.4])
+def test_survival_row_blames_the_extra_only_when_it_is_missing() -> None:
+    # The missing extra is named only when that is genuinely the cause.
+    row = survival_row(None, "p1", [0.2, 0.4], "unavailable-stats-extra")
     assert row["survival_basis"] == "unavailable-stats-extra"
     assert row["median_time_to_wilt"] is None and row["time_to_wilt_lo"] is None
+
+
+def test_survival_row_names_the_cohort_cause_when_the_extra_is_installed() -> None:
+    # The whole fit can fail on a degenerate cohort with the extra installed. Every row then used to
+    # read "unavailable-stats-extra", telling the user to install something they already have; the
+    # plant's own scores name the real cause instead.
+    prevalent = survival_row(None, "p1", [0.9] * 10, None)
+    assert prevalent["survival_basis"] == "already-stressed-at-first-observation"
+    short = survival_row(None, "p1", [0.3], None)
+    assert short["survival_basis"] == "insufficient-observations"
 
 
 def test_survival_row_reads_a_finite_plant() -> None:
@@ -157,3 +168,23 @@ def test_phenotype_degrades_without_the_stats_extra(
     row = next(csv.DictReader(out.open()))
     assert row["survival_basis"] == "unavailable-stats-extra"
     assert row["median_time_to_wilt"] == ""
+
+
+@_needs_lifelines
+def test_survival_notice_reports_the_cohorts_actual_cause(capsys) -> None:
+    # An all-prevalent cohort printed "no plant has two or more observations" although every plant
+    # had three, and reported the missing extra as the cause. Both now name the real reason.
+    from phytovision.cli.phenotype import _survival_or_notice
+    from phytovision.temporal.history import FeatureHistory, Observation
+
+    history = FeatureHistory()
+    for plant in ("p1", "p2", "p3"):
+        for i, score in enumerate([0.90, 0.95, 0.97]):
+            history.add(Observation(plant, f"2026-03-0{i + 1}", score, {}))
+
+    fit, unavailable = _survival_or_notice(history, "weibull-aft", 3)
+    assert fit is None
+    assert unavailable is None  # not the extra: fall back to each plant's own reason
+    assert "already over the stressed cut" in capsys.readouterr().out
+    row = survival_row(fit, "p1", [0.90, 0.95, 0.97], unavailable)
+    assert row["survival_basis"] == "already-stressed-at-first-observation"

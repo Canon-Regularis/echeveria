@@ -69,3 +69,16 @@ def test_clean_mask_keep_largest_drops_the_smaller_blob() -> None:
     kept = clean_mask(mask, (40, 40), min_object_fraction=0.0, closing_radius=0, keep_largest=True)
     assert kept[25, 25]
     assert not kept[4, 4]
+
+
+def test_placeholder_leaf_segmenter_raises_a_package_error() -> None:
+    # The placeholder raised NotImplementedError, which is outside PhytoVisionError, so a config
+    # naming it aborted analyze/batch with a traceback instead of a clean "error: ..." exit.
+    from phytovision.exceptions import PhytoVisionError, SegmentationError
+    from phytovision.segmentation.leaves.instance import NotYetTrainedLeafSegmenter
+
+    assert issubclass(SegmentationError, PhytoVisionError)
+    with pytest.raises(SegmentationError):
+        NotYetTrainedLeafSegmenter().segment_leaves(
+            np.zeros((4, 4, 3), np.uint8), np.ones((4, 4), bool)
+        )

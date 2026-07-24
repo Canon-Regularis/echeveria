@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 from skimage.transform import resize
 
+from phytovision._num import to_unit_rgb
 from phytovision.exceptions import ConfigError
 from phytovision.preprocessing.base import Preprocessor
 from phytovision.types import Image
@@ -26,11 +27,9 @@ class ResizeNormalizePreprocessor(Preprocessor):
     def process(self, image: Image) -> Image:
         validate_rgb_image(image)
 
-        img = image.astype(np.float32)
-        if np.issubdtype(image.dtype, np.integer):  # scale by the dtype's range, not a hard 255
-            img = img / float(np.iinfo(image.dtype).max)
-        elif img.max() > 1.5:  # clearly an 8-bit range; a stray pixel just over 1.0 stays [0, 1]
-            img = img / 255.0
+        # The package's one range rule, shared with the quality checks and the renderers so no two
+        # of them can disagree about whether an array is 8-bit or already normalized.
+        img = to_unit_rgb(image).astype(np.float32)
 
         h, w = img.shape[:2]
         longest = max(h, w)

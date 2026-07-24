@@ -8,8 +8,34 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+import numpy as np
+
 # A small positive constant used to keep divisions away from zero.
 EPS = 1e-9
+
+# A float image is taken as already normalized unless its maximum clears this cut, which reads as an
+# 8-bit range. Above 1.0 rather than at it, so a stray pixel a hair over one does not darken a whole
+# normalized frame by 255; see to_unit_rgb.
+_EIGHT_BIT_CUT = 1.5
+
+
+def to_unit_rgb(image: np.ndarray) -> np.ndarray:
+    """An ``H x W x 3`` float image in [0, 1], however the caller expressed its range.
+
+    One rule for the whole package, so the pipeline, the quality checks, and the renderers cannot
+    disagree about whether an array is 8-bit or already normalized: an integer image is scaled by
+    its own dtype range (so 16-bit input works, not just uint8), and a float image is taken as
+    [0, 1] unless it is clearly an 8-bit range. Two converters drifting apart on that question meant
+    an image the pipeline scored correctly could be rendered or explained as a black frame.
+    """
+    arr = np.asarray(image)
+    if np.issubdtype(arr.dtype, np.integer):  # scale by the dtype's range, not a hard 255
+        scaled = arr.astype(np.float64) / float(np.iinfo(arr.dtype).max)
+    else:
+        scaled = arr.astype(np.float64)
+        if float(scaled.max(initial=0.0)) > _EIGHT_BIT_CUT:
+            scaled = scaled / 255.0
+    return np.clip(scaled[..., :3], 0.0, 1.0)
 
 
 def clip01(value: float) -> float:

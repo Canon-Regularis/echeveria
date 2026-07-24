@@ -268,3 +268,18 @@ def test_covariate_predict_fallback_is_scoped_to_one_call(monkeypatch) -> None:
     monkeypatch.setattr(model._fitter, "predict_median", original)  # the library recovers
     recovered = model.predict(dataset)
     assert {plant.basis for plant in recovered.values()} == {model.name}  # trained model runs again
+
+
+@_needs_lifelines
+def test_refitting_clears_the_previous_cohorts_fallback() -> None:
+    # A cached Kaplan-Meier fallback from an earlier cohort must not survive a re-fit: a later
+    # predict-time degradation would otherwise report that old cohort's median for every plant,
+    # under a "cohort-km" basis that reveals nothing about which cohort it came from.
+    first = derive_records(_history(n_steps=20, base_decline_rate=0.30, decline_rate_spread=0.5))
+    second = derive_records(_history(n_steps=20, base_decline_rate=0.08, decline_rate_spread=0.5))
+    model = WeibullAFTSurvival().fit(first)
+    model._fallback = KaplanMeierSurvival().fit(first)  # as a predict-time degrade would cache
+
+    model.fit(second)
+    assert model._fallback is None  # the stale baseline is gone
+    assert model._train_dataset is second  # and the degrade target is the current cohort

@@ -182,9 +182,9 @@ def _steps_to_threshold(intercept: float, slope: float, end: int) -> int | None:
     """Steps until the fitted projection reaches the stressed cut, or None if it never does.
 
     Uses the exact ``intercept + slope * (end + step)`` that ``project_scores`` evaluates, and walks
-    the step forward until that value actually crosses the cut. So the reported step and the
-    projected score at that step can never disagree, even at a float boundary or a tiny slope. None
-    only when the trend is flat or falling, or already at/above the cut.
+    the step both ways until it is the true first crossing. So the reported step and the projected
+    score can never disagree, even at a float boundary or a tiny slope. None only when the trend is
+    flat or falling, or already at/above the cut.
     """
     # A non-finite score makes fit_line return a NaN slope, and every NaN comparison below is False,
     # so the guards would fall through to math.ceil(NaN) and raise. Report no crossing instead,
@@ -198,6 +198,11 @@ def _steps_to_threshold(intercept: float, slope: float, end: int) -> int | None:
         return None  # beyond the search window: report no crossing, matching the richer forecasters
     while intercept + slope * (end + step) < STRESSED_THRESHOLD:  # walk off any float undershoot
         step += 1
+    # And walk back off any overshoot: the division can round just above an exact integer crossing,
+    # so ceil lands a step late and the forecast would report "2 steps away" while its own horizon-1
+    # projection already sits at the cut.
+    while step > 1 and intercept + slope * (end + step - 1) >= STRESSED_THRESHOLD:
+        step -= 1
     return step if step <= _MAX_STEPS_TO_STRESSED else None
 
 

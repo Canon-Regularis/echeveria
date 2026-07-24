@@ -137,28 +137,41 @@ def load_history(manifest_path: str | Path) -> FeatureHistory:
     """
     manifest = Path(manifest_path)
     history = FeatureHistory()
-    with manifest.open(newline="", encoding="utf-8-sig") as handle:
-        reader = csv.DictReader(handle)
-        fields = reader.fieldnames or []
-        missing = {"plant_id", "timestamp", "stress_score"} - set(fields)
-        if missing:
-            raise ConfigError(f"manifest {manifest} is missing column(s): {sorted(missing)}")
-        feature_columns = [name for name in fields if "." in name]
-        for row in reader:
-            features = {
-                name: _numeric(manifest, name, row[name])
-                for name in feature_columns
-                if (row.get(name) or "").strip()
-            }
-            history.add(
-                Observation(
-                    plant_id=row["plant_id"],
-                    timestamp=row["timestamp"],
-                    stress_score=_numeric(manifest, "stress_score", row["stress_score"]),
-                    features=features,
+    try:
+        with manifest.open(newline="", encoding="utf-8-sig") as handle:
+            reader = csv.DictReader(handle)
+            fields = reader.fieldnames or []
+            missing = {"plant_id", "timestamp", "stress_score"} - set(fields)
+            if missing:
+                raise ConfigError(f"manifest {manifest} is missing column(s): {sorted(missing)}")
+            feature_columns = [name for name in fields if "." in name]
+            for row in reader:
+                features = {
+                    name: _numeric(manifest, name, row[name])
+                    for name in feature_columns
+                    if (row.get(name) or "").strip()
+                }
+                history.add(
+                    Observation(
+                        # The identity cells are validated like the numeric one: a truncated row
+                        # yields None, which only surfaces later as a TypeError from sorting
+                        # plant_ids, far from the file that caused it.
+                        plant_id=_required_text(manifest, "plant_id", row.get("plant_id")),
+                        timestamp=_required_text(manifest, "timestamp", row.get("timestamp")),
+                        stress_score=_numeric(manifest, "stress_score", row["stress_score"]),
+                        features=features,
+                    )
                 )
-            )
+    except UnicodeDecodeError as exc:  # a non-UTF-8 export, as CsvManifestLoader also reports
+        raise ConfigError(f"manifest {manifest} is not valid UTF-8 text: {exc}") from exc
     return history
+
+
+def _required_text(manifest: Path, column: str, value: str | None) -> str:
+    """Read a manifest identity cell, or raise a clean ConfigError naming the column."""
+    if value is None or not value.strip():
+        raise ConfigError(f"manifest {manifest} is missing a {column!r} value")
+    return value
 
 
 def _numeric(manifest: Path, column: str, value: str | None) -> float:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from phytovision.exceptions import SegmentationError
 from phytovision.types import Image, Mask
 
 
@@ -23,7 +24,10 @@ class NotYetTrainedLeafSegmenter(LeafInstanceSegmenter):
     """Placeholder so wiring/tests can reference the seam before a model exists."""
 
     def segment_leaves(self, image: Image, plant_mask: Mask) -> list[Mask]:
-        raise NotImplementedError(
-            "Leaf instance segmentation is descoped from v1 (see docs/OBJECTIVES.md). "
-            "Provide a trained LeafInstanceSegmenter to enable per-leaf phenotyping."
+        # A package error, not NotImplementedError: this is reachable from a config naming this
+        # segmenter, and every caller's handler catches PhytoVisionError, so a bare
+        # NotImplementedError escaped as a traceback instead of a clean "error: ..." exit.
+        raise SegmentationError(
+            "leaf instance segmentation is descoped from v1 (see docs/OBJECTIVES.md); "
+            "provide a trained LeafInstanceSegmenter to enable per-leaf phenotyping"
         )

@@ -60,8 +60,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     # falls back to the global random state is reproducible alongside the per-stage seeds.
     seed = getattr(args, "seed", None)
     if seed is not None:
-        from phytovision.seeding import set_global_seed
+        from phytovision.seeding import normalize_seed, set_global_seed
 
+        # Normalize before any command reads args.seed: numpy's SeedSequence and scikit-learn's
+        # random_state reject a negative or too-large value, so a --seed -1 crashed the per-stage
+        # consumers even though the global generators handled it.
+        seed = normalize_seed(seed)
+        args.seed = seed
         set_global_seed(seed)
     exit_code: int = args.func(args)
     return exit_code

@@ -6,6 +6,8 @@ import argparse
 import math
 from collections.abc import Sequence
 
+import numpy as np
+
 from phytovision.analysis import analyze_dataset
 from phytovision.cli._shared import fail
 from phytovision.datasets.folder import FolderClassificationLoader
@@ -77,7 +79,7 @@ def run(args: argparse.Namespace) -> int:
 
     feature_dicts = [row.features for row in rows]
     feature_keys = feature_keys_of(feature_dicts)
-    train_idx, calib_idx = _train_calibration_split(labels, args.calibrate)
+    train_idx, calib_idx = _train_calibration_split(labels, args.calibrate, args.seed)
     if len({labels[i] for i in train_idx}) < 2:
         return fail("not enough data to keep both classes after the calibration split")
 
@@ -115,15 +117,25 @@ def run(args: argparse.Namespace) -> int:
 
 
 def _train_calibration_split(
-    labels: Sequence[int], fraction: float | None
+    labels: Sequence[int], fraction: float | None, seed: int | None = None
 ) -> tuple[list[int], list[int]]:
-    """Split row indices into (train, calibration): a deterministic per-class holdout."""
+    """Split row indices into (train, calibration): a seeded per-class holdout.
+
+    The holdout is drawn at random within each class rather than off the front of the list. Taking a
+    prefix looks deterministic but is not exchangeable: rows arrive in folder order, so a prefix of
+    the positive class can come entirely from the mildest folder and never the severest, and the
+    conformal wrapper's 1-alpha coverage guarantee rests on the calibration set being exchangeable
+    with future test points. Seeding keeps the run reproducible, which is what the determinism was
+    for.
+    """
     if fraction is None:
         return list(range(len(labels))), []
+    rng = np.random.default_rng(seed)
     calib: set[int] = set()
     for cls in sorted(set(labels)):
         members = [i for i, label in enumerate(labels) if label == cls]
         take = max(1, math.ceil(len(members) * fraction))
-        calib.update(members[:take])
+        drawn = rng.permutation(len(members))[:take]
+        calib.update(members[int(i)] for i in drawn)
     train = [i for i in range(len(labels)) if i not in calib]
     return train, sorted(calib)

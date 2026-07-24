@@ -13,6 +13,7 @@ import numpy as np
 from skimage.color import rgb2hsv
 from skimage.transform import resize
 
+from phytovision._num import to_unit_rgb
 from phytovision.models.base import ContributionModel, StressModel
 from phytovision.phenotyping.colour import pixel_class_masks
 from phytovision.types import AnalysisReport
@@ -56,10 +57,10 @@ def pigment_saliency(image: np.ndarray, report: AnalysisReport, model: StressMod
 
 
 def _to_float_rgb(image: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
-    arr = np.asarray(image, dtype=np.float64)
-    if float(arr.max(initial=0.0)) > 1.0:  # accept uint8 or float; work in [0, 1]
-        arr = arr / 255.0
-    arr = arr[..., :3]
+    # The package's one range rule, so the saliency map explains the same pixels the pipeline
+    # scored: guessing locally read a 16-bit frame as 255x too bright and a float frame with a
+    # stray pixel over 1.0 as 255x too dark, classifying every pixel as dark background.
+    arr = to_unit_rgb(image)
     if arr.shape[:2] != shape:
         arr = resize(arr, shape, order=1, anti_aliasing=True)
     return arr

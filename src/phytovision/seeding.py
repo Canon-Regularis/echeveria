@@ -15,6 +15,16 @@ import random
 import numpy as np
 
 
+def normalize_seed(seed: int) -> int:
+    """Reduce any integer seed into the ``[0, 2**32)`` range every consumer accepts.
+
+    numpy's ``SeedSequence`` and ``default_rng``, and scikit-learn's ``random_state``, all reject a
+    negative or too-large value, so normalizing only for the global generators left every per-stage
+    seed to crash on a ``--seed -1``. Reducing once keeps the same seed mapping to the same run.
+    """
+    return seed % 2**32
+
+
 def set_global_seed(seed: int) -> None:
     """Seed Python's ``random`` module and numpy's legacy global generator from one seed.
 
@@ -23,4 +33,4 @@ def set_global_seed(seed: int) -> None:
     ``--seed`` is therefore reproducible rather than a crash.
     """
     random.seed(seed)
-    np.random.seed(seed % 2**32)
+    np.random.seed(normalize_seed(seed))

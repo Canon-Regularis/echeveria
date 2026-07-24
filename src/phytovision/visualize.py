@@ -15,6 +15,7 @@ from PIL import ImageDraw
 from skimage.segmentation import find_boundaries
 from skimage.transform import resize
 
+from phytovision._num import to_unit_rgb
 from phytovision.models.base import StressModel
 from phytovision.occlusion import occlusion_saliency
 from phytovision.saliency import pigment_saliency
@@ -101,11 +102,17 @@ def _signed_overlay(
 
 
 def _to_uint8_rgb(image: Image) -> np.ndarray:
+    """The 8-bit RGB base to draw on, using the package's one range rule.
+
+    Deciding the range here rather than locally matters: reading a float frame with a stray pixel
+    just over 1.0 as already-8-bit skipped the scaling and rendered the photo solid black, and
+    clipping a 16-bit frame to 255 saturated it. ``to_unit_rgb`` answers both the same way the
+    preprocessor does, so the overlay shows the image the report describes.
+    """
     arr = np.asarray(image)
-    if arr.dtype != np.uint8:
-        scaled = arr * 255.0 if float(arr.max(initial=0.0)) <= 1.0 else arr
-        arr = np.clip(scaled, 0, 255).astype(np.uint8)
-    return arr[..., :3]
+    if arr.dtype == np.uint8:  # already the target range; avoid a needless round trip
+        return arr[..., :3]
+    return (to_unit_rgb(arr) * 255.0).round().astype(np.uint8)
 
 
 def _resize_mask(mask: Mask, shape: tuple[int, int]) -> np.ndarray:

@@ -82,7 +82,9 @@ def run(args: argparse.Namespace) -> int:
     except ImportError as exc:  # a statistical forecaster whose optional extra is not installed
         return fail(str(exc))
     stage_model = DROUGHT_STAGE_MODELS.create("rule-based")
-    survival_fit = _survival_or_notice(history, args.survival_model, args.survival_window)
+    survival_fit, survival_unavailable = _survival_or_notice(
+        history, args.survival_model, args.survival_window
+    )
 
     forecast_columns = [f"forecast_h{h}" for h in horizons]
     interval_columns = [f"forecast_h{h}_{bound}" for h in horizons for bound in ("lo", "hi")]
@@ -122,7 +124,12 @@ def run(args: argparse.Namespace) -> int:
             "steps_to_stressed": forecast.steps_to_stressed,
             "forecast_method": forecast.method,
             "forecast_confidence": round(forecast.confidence, 4),
-            **survival_row(survival_fit, plant_id, [obs.stress_score for obs in series]),
+            **survival_row(
+                survival_fit,
+                plant_id,
+                [obs.stress_score for obs in series],
+                survival_unavailable,
+            ),
         }
         for h in horizons:
             row[f"forecast_h{h}"] = round(forecast.projected_scores.get(h, 0.0), 4)
@@ -140,29 +147,45 @@ def run(args: argparse.Namespace) -> int:
     return 0
 
 
-def _survival_or_notice(history: object, model: str, window: int) -> SurvivalFit | None:
-    """Fit the cohort survival, or print a notice and skip it when the stats extra is absent."""
+def _survival_or_notice(
+    history: object, model: str, window: int
+) -> tuple[SurvivalFit | None, str | None]:
+    """Fit the cohort survival, or print a notice and say why it was skipped.
+
+    Returns ``(fit, unavailable_reason)``. The reason is ``unavailable-stats-extra`` only when the
+    extra really is missing; a cohort the fit rejected returns None so each row falls back to its
+    own ``exclusion_reason``, which knows whether that plant was too short or already stressed. The
+    library's message is printed verbatim rather than restated, so the all-prevalent case is not
+    reported as "no plant has two or more observations" when every plant has plenty.
+    """
     try:
-        return fit_cohort_survival(history, model, window)  # type: ignore[arg-type]
+        return fit_cohort_survival(history, model, window), None  # type: ignore[arg-type]
     except ImportError:
         print('survival omitted: install the stats extra (pip install -e ".[stats]")')
-        return None
-    except InsufficientDataError:
-        print("survival omitted: no plant has two or more observations")
-        return None
+        return None, "unavailable-stats-extra"
+    except InsufficientDataError as exc:
+        print(f"survival omitted: {exc}")
+        return None, None
 
 
-def survival_row(fit: SurvivalFit | None, plant_id: str, scores: list[float]) -> dict[str, object]:
+def survival_row(
+    fit: SurvivalFit | None,
+    plant_id: str,
+    scores: list[float],
+    unavailable_reason: str | None = None,
+) -> dict[str, object]:
     """The four survival columns for one plant: blanks and a basis when survival is unavailable.
 
-    Every unavailable case is named honestly: ``unavailable-stats-extra`` when the fit could not run
-    at all, and when the fit ran but this plant was dropped, the plant's own scores say which reason
+    Every unavailable case is named honestly: ``unavailable-stats-extra`` only when the extra is
+    genuinely absent, and otherwise the plant's own scores say which reason
     (``insufficient-observations`` or ``already-stressed-at-first-observation``), so a prevalent
-    plant with plenty of observations is never mislabelled as too short. A missing value is
-    ``None``, which a CSV renders as a blank cell and a JSON payload as ``null``.
+    plant with plenty of observations is never mislabelled as too short, nor blamed on an extra
+    that is installed. A missing value is ``None``, which a CSV renders as a blank cell and a JSON
+    payload as ``null``.
     """
     if fit is None:
-        return _blank_survival("unavailable-stats-extra")
+        basis = unavailable_reason or exclusion_reason(scores) or "insufficient-observations"
+        return _blank_survival(basis)
     if plant_id not in fit.per_plant:
         return _blank_survival(exclusion_reason(scores) or "insufficient-observations")
     plant = fit.per_plant[plant_id]

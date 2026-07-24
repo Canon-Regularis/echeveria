@@ -59,6 +59,11 @@ class CovariateSurvival(SurvivalModel):
         """Return a lifelines fitter configured with this model's penalizer (lazily imported)."""
 
     def fit(self, dataset: SurvivalDataset) -> Self:
+        # Clear what the previous fit derived, so a re-fit cannot later degrade to a baseline built
+        # from a cohort this model is no longer fitted on and report it as this cohort's median.
+        self._fitter = None
+        self._fallback = None
+        self._train_dataset = None
         names = dataset.covariate_names()
         frame = dataset.covariate_frame()
         self._means, self._stds = _column_stats(frame, names)

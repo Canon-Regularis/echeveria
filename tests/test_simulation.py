@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 
 import numpy as np
+import pytest
 
 from phytovision.cli import main
 from phytovision.datasets.manifest import CsvManifestLoader
@@ -162,3 +163,30 @@ def test_cli_simulate_rejects_an_empty_cohort(tmp_path, capsys) -> None:
     rc = main(["simulate", "--out", str(tmp_path / "x.csv"), "--plants", "0"])
     assert rc == 2
     assert capsys.readouterr().err.startswith("error:")
+
+
+def test_load_history_rejects_a_non_utf8_manifest(tmp_path) -> None:
+    # A UTF-16 export crashed benchmark with a raw UnicodeDecodeError traceback; the manifest loader
+    # used by phenotype/validate already reported this cleanly, so the two disagreed on one file.
+    from phytovision.exceptions import ConfigError
+    from phytovision.simulation import load_history
+
+    path = tmp_path / "u16.csv"
+    path.write_bytes("plant_id,timestamp,stress_score\np1,2024-01-01,0.1\n".encode("utf-16"))
+    with pytest.raises(ConfigError, match="UTF-8"):
+        load_history(path)
+
+
+def test_load_history_rejects_a_row_missing_its_identity(tmp_path) -> None:
+    # A truncated row built an Observation with a None plant_id, which only surfaced later as a
+    # TypeError from sorting plant_ids, far from the file that caused it.
+    from phytovision.exceptions import ConfigError
+    from phytovision.simulation import load_history
+
+    path = tmp_path / "trunc.csv"
+    path.write_text(
+        "stress_score,plant_id,timestamp\n0.1,p1,2024-01-01\n0.2,p1,2024-01-02\n0.3\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="plant_id"):
+        load_history(path)

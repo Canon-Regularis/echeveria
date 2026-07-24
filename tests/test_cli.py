@@ -331,6 +331,19 @@ def test_cli_train_seed_is_recorded_in_the_manifest(training_dir, tmp_path) -> N
     assert read_envelope(model_path)["manifest"]["seed"] == 0
 
 
+def test_calibration_holdout_is_drawn_across_each_class_not_off_the_front() -> None:
+    # Rows arrive in folder order, so a prefix holdout drew every positive calibration point from
+    # the mildest folder and none from the severest. Split conformal's 1-alpha coverage rests on the
+    # calibration set being exchangeable with future test points, so the draw must be random.
+    from phytovision.cli.train import _train_calibration_split
+
+    labels = [0] * 10 + [1] * 20  # healthy, then mild [10..19], then severe [20..29]
+    _, calib = _train_calibration_split(labels, 0.2, seed=0)
+    positives = [i for i in calib if labels[i] == 1]
+    assert any(i >= 20 for i in positives)  # the severe half can be represented
+    assert _train_calibration_split(labels, 0.2, seed=0)[1] == calib  # and it stays reproducible
+
+
 def test_cli_train_single_class_errors(tmp_path, capsys, healthy_image) -> None:
     from PIL import Image as PILImage
 

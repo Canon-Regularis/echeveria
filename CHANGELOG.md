@@ -208,6 +208,32 @@ All notable changes to this project are documented here. The format is based on
   format it can open. A read-only-but-registered suffix such as `.psd` or `.fits` used to pass the
   guard and then crash `Image.save()` with an uncaught `KeyError` (a traceback and exit 1), defeating
   the guard's own purpose; it now fails cleanly with exit code 2 like any other bad suffix.
+- One image-range rule for the whole package (`_num.to_unit_rgb`), replacing four converters that had
+  drifted apart on whether an array is 8-bit or already normalized. The preprocessor deliberately
+  treats a float frame whose maximum is a hair over 1.0 as a [0, 1] image, but the overlay, saliency,
+  and occlusion converters cut at 1.0 and none of them scaled a non-8-bit integer image by its own
+  dtype range. So an image the pipeline scored correctly was rendered as a solid black photo, its
+  pigment saliency read every pixel as dark background, and the occlusion map explained a frame 255
+  times darker than the report beside it; a 16-bit photo came out saturated white. All five call
+  sites now share the one rule.
+- Honest survival and forecast reporting, and reproducible calibration: `phenotype` no longer blames a
+  missing stats extra when the extra is installed and the cohort itself was degenerate (each row now
+  falls back to its own `already-stressed-at-first-observation` or `insufficient-observations`), and
+  the notice prints the cohort's real cause instead of restating one reason, on the CLI and the
+  dashboard alike. The linear forecast's time-to-stressed no longer lands a step late when the
+  division rounds just above an exact integer crossing, so it can never report "two steps away" while
+  its own horizon-1 projection already sits at the cut. The conformal calibration holdout is drawn at
+  random within each class from a seeded generator rather than off the front of the list: rows arrive
+  in folder order, so the old prefix took every positive calibration point from the mildest folder and
+  never the severest, which breaks the exchangeability the 1-alpha coverage guarantee rests on.
+- Clean failures and state hygiene: a non-UTF-8 or truncated cohort manifest is a `ConfigError` from
+  `load_history` rather than a raw `UnicodeDecodeError` or a `TypeError` surfacing much later; the
+  not-yet-trained leaf segmenter raises a `SegmentationError` instead of a `NotImplementedError` that
+  escaped every caller's handler as a traceback; `--seed` is normalized once at the CLI entry, so a
+  negative or very large seed reproduces a run rather than crashing numpy's `SeedSequence` or
+  scikit-learn's `random_state`; and re-fitting a covariate survival model clears the Kaplan-Meier
+  baseline cached from the previous cohort, which a later degradation would otherwise have reported
+  as this cohort's median.
 
 ## [0.2.0] (2026-07-16)
 

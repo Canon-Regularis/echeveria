@@ -128,3 +128,28 @@ def test_reason_marker_reflects_direction() -> None:
     down = Reason(feature="f", direction="decreases", contribution=-0.5, value=0.3, description="d")
     assert up.marker == "+"
     assert down.marker == "-"
+
+
+def test_to_unit_rgb_is_the_one_range_rule() -> None:
+    # Every converter in the package (preprocessor, quality, renderers, saliency, occlusion) must
+    # answer "is this 8-bit or already normalized" identically, or an image the pipeline scores
+    # correctly gets rendered or explained as a different image.
+    from phytovision._num import to_unit_rgb
+
+    # A float frame with a stray pixel just over 1.0 is still a [0, 1] image, not an 8-bit one.
+    stray = np.full((4, 4, 3), 0.4, np.float32)
+    stray[0, 0] = 1.2
+    assert to_unit_rgb(stray).mean() == pytest.approx(0.4, abs=0.05)
+
+    # An integer frame is scaled by its own dtype range, so 16-bit is not read as 8-bit.
+    u16 = np.full((4, 4, 3), int(0.4 * 65535), np.uint16)
+    assert to_unit_rgb(u16).mean() == pytest.approx(0.4, abs=0.01)
+    u8 = np.full((4, 4, 3), 102, np.uint8)
+    assert to_unit_rgb(u8).mean() == pytest.approx(0.4, abs=0.01)
+
+    # A clearly 8-bit float frame is still divided by 255.
+    eight_bit = np.full((4, 4, 3), 102.0, np.float64)
+    assert to_unit_rgb(eight_bit).mean() == pytest.approx(0.4, abs=0.01)
+    assert to_unit_rgb(stray).shape == (4, 4, 3)  # always H x W x 3 in [0, 1]
+    assert to_unit_rgb(stray).min() >= 0.0
+    assert to_unit_rgb(stray).max() <= 1.0

@@ -107,3 +107,14 @@ def test_plant_forecasts_over_a_history() -> None:
     forecasts = plant_forecasts(history, horizons=(1,))
     assert set(forecasts) == {"p"}
     assert isinstance(forecasts["p"], Forecast)
+
+
+def test_steps_to_stressed_agrees_with_its_own_projection() -> None:
+    # The float division can round just above an exact integer crossing, so ceil landed a step late
+    # and the forecast reported "2 steps away" while its own horizon-1 projection sat at the cut.
+    from phytovision.models.base import STRESSED_THRESHOLD
+
+    series = [_obs(f"2026-03-0{i + 1}", s) for i, s in enumerate([0.5, 0.6, 0.2, 0.8, 0.6])]
+    forecast = stress_forecast("p", series, horizons=tuple(range(1, 11)))
+    crossing = [h for h in range(1, 11) if forecast.projected_scores[h] >= STRESSED_THRESHOLD]
+    assert forecast.steps_to_stressed == crossing[0]

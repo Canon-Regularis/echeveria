@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from skimage.transform import resize
 
+from phytovision._num import to_unit_rgb
 from phytovision.exceptions import ContractViolationError
 from phytovision.types import Image
 
@@ -98,10 +99,10 @@ def _as_float_rgb(image: Image) -> np.ndarray:
         raise ContractViolationError(
             f"occlusion needs an H x W x 3 RGB image, got shape {arr.shape}"
         )
-    arr = arr[..., :3]
-    if float(arr.max(initial=0.0)) > 1.0:  # accept uint8 or float; work in [0, 1]
-        arr = arr / 255.0
-    return arr
+    # The package's one range rule, so the occluded frames the pipeline re-scores are the same image
+    # the report describes: guessing locally divided a float frame with a stray pixel over 1.0 by
+    # 255, so every patch delta explained a 255x darker photo than the score shown beside it.
+    return to_unit_rgb(arr)
 
 
 def _resize_mask(mask: np.ndarray, shape: tuple[int, int]) -> np.ndarray:

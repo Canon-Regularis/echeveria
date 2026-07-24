@@ -138,8 +138,10 @@ def _render_survival(
     except ImportError:
         st.warning('Survival needs the stats extra: pip install -e ".[stats]"')
         return
-    except InsufficientDataError:
-        st.info("Survival needs at least one plant with two or more observations.")
+    except InsufficientDataError as exc:
+        # Report the cohort's actual cause: restating one reason here told an all-prevalent cohort
+        # it needed more observations when every plant already had plenty.
+        st.info(f"Survival unavailable: {exc}")
         return
 
     metrics = plant_survival_metrics(fit, plant_id)

@@ -19,6 +19,18 @@ EPS = 1e-9
 _EIGHT_BIT_CUT = 1.5
 
 
+def excess_green(r: np.ndarray, g: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """The Excess-Green vegetation index on chromatic coordinates: ``2g - r - b``, each normalized.
+
+    One definition for the whole package, so the feature and the segmenter cannot compute the same
+    named index on two scales. Normalizing by the channel total is what makes ExG exposure
+    invariant, which is the point of the index: on raw intensities the same pigment photographed
+    brighter reads greener, so brightness alone would move a stress score.
+    """
+    total = r + g + b + EPS
+    return (2.0 * g - r - b) / total
+
+
 def to_unit_rgb(image: np.ndarray) -> np.ndarray:
     """An ``H x W x 3`` float image in [0, 1], however the caller expressed its range.
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from phytovision.phenotyping.aggregation.plant_level import PlantLevelAggregator
 from phytovision.phenotyping.geometry import GeometryFeatures
@@ -96,3 +97,49 @@ def test_plant_kind_nulls_instance_only_fields(plant_region) -> None:
     assert out.values["plant.leaf_count"] is None
     assert out.values["plant.wilted_leaf_ratio"] is None
     assert out.values["plant.region_count"] == 1.0
+
+
+def test_area_fraction_is_the_union_coverage_not_a_per_region_average() -> None:
+    # area_fraction divides by the whole image, not the region, so at plant level it is the fraction
+    # of the frame the plant occupies (the union coverage). Averaging it across k leaves reported
+    # 1/k of the true area and contradicted area_px and canopy_coverage.
+    from phytovision.phenotyping.geometry import GeometryFeatures
+
+    first = np.zeros((100, 100), dtype=bool)
+    first[10:33, 10:40] = True
+    second = np.zeros((100, 100), dtype=bool)
+    second[60:83, 60:90] = True  # disjoint from the first
+    regions = _leaf_regions([first, second])
+    extractor = GeometryFeatures()
+    image = np.zeros((100, 100, 3), np.float32)
+    features = [extractor.extract(image, region) for region in regions]
+
+    values = (
+        PlantLevelAggregator()
+        .aggregate(regions, features, reduction_policy=extractor.reduction_policy())
+        .values
+    )
+    assert values["geometry.area_fraction"] == pytest.approx(values["plant.canopy_coverage"])
+    # disjoint leaves: the union is the sum of areas, so it also matches area_px / frame.
+    assert values["geometry.area_fraction"] == pytest.approx(values["geometry.area_px"] / 10000.0)
+
+
+def test_area_fraction_stays_bounded_when_masks_overlap() -> None:
+    # Overlapping masks must not push the fraction past 1.0: it is the union, not the sum, matching
+    # how canopy_coverage is defined.
+    from phytovision.phenotyping.geometry import GeometryFeatures
+
+    whole = np.zeros((50, 50), dtype=bool)
+    whole[10:40, 10:40] = True
+    regions = _leaf_regions([whole, whole, whole])  # three copies of the same region
+    extractor = GeometryFeatures()
+    image = np.zeros((50, 50, 3), np.float32)
+    features = [extractor.extract(image, region) for region in regions]
+
+    values = (
+        PlantLevelAggregator()
+        .aggregate(regions, features, reduction_policy=extractor.reduction_policy())
+        .values
+    )
+    assert values["geometry.area_fraction"] <= 1.0
+    assert values["geometry.area_fraction"] == pytest.approx(values["plant.canopy_coverage"])

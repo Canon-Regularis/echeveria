@@ -55,17 +55,27 @@ def engine_from_env(
         if isinstance(loaded, SplitConformalClassifier):
             return engine.with_model(loaded.model), loaded
         return engine.with_model(loaded), conformal
+    # An explicitly passed wrapper wires its own model in too, exactly as the model-path branch
+    # above does. Otherwise the served pipeline scored with the default model while the conformal
+    # block came from a different one, so a response could report a stressed verdict beside a
+    # healthy-only label set, and the 1-alpha guarantee would not cover the score actually shown.
+    if conformal is not None:
+        return engine.with_model(conformal.model), conformal
     return engine, conformal
 
 
 def validate_serving_selection(config: str | None, model_path: str | None) -> None:
-    """Read the config and model paths a launcher was given, so a bad path fails before a server
+    """Resolve the config and model paths a launcher was given, so a bad one fails before a server
     starts, rather than as a traceback from inside the launched process.
+
+    The config is built, not merely parsed: reading it only catches a missing or malformed file, so
+    a typo'd slot name or an unknown component name still passed here and then killed the launched
+    uvicorn or Streamlit process, while every other surface rejected the same file cleanly.
 
     :raises OSError, ImportError, PhytoVisionError: if a given path cannot be read or loaded.
     """
     if config:
-        read_config(config)
+        Pipeline.from_config(read_config(config))
     if model_path:
         load_saved(model_path)
 

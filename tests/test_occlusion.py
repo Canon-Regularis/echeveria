@@ -107,3 +107,12 @@ def test_overlay_matches_input_size_and_is_rgb() -> None:
     overlay = render_occlusion_overlay(image, Pipeline.default(), patch=24, stride=24)
     assert overlay.size == (_SIZE, _SIZE)  # PIL reports (width, height)
     assert overlay.mode == "RGB"
+
+
+def test_occlusion_reads_a_16_bit_frame_at_its_own_range() -> None:
+    # _as_float_rgb cast to float before the shared range rule, hiding the integer dtype from it, so
+    # a 16-bit frame was read as 8-bit and saturated to a white image the pipeline never scored.
+    from phytovision.occlusion import _as_float_rgb
+
+    u16 = np.full((8, 8, 3), int(0.4 * 65535), np.uint16)
+    assert float(_as_float_rgb(u16).mean()) == pytest.approx(0.4, abs=0.01)

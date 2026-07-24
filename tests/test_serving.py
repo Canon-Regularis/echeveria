@@ -112,3 +112,27 @@ def test_attach_heads_is_idempotent() -> None:
     twice = attach_heads(once, disease=True)
     assert [head.name for head in twice.heads] == [head.name for head in once.heads]
     assert sum(head.name == "disease" for head in twice.heads) == 1
+
+
+def test_an_explicit_conformal_wrapper_wires_in_its_own_model() -> None:
+    # Passing only a wrapper left the served pipeline on the default model while the conformal block
+    # came from the wrapped one, so a response could report a stressed verdict beside a healthy-only
+    # label set and the 1-alpha guarantee would not cover the score actually shown.
+    from phytovision.models.stress.ensemble import EnsembleStressModel
+
+    inner = EnsembleStressModel([HeuristicStressModel(bias=2.0)])
+    wrapper = SplitConformalClassifier(inner, alpha=0.1)
+    engine, conformal = engine_from_env(conformal=wrapper)
+    assert conformal is wrapper
+    assert engine.model is inner  # the served score comes from the wrapped model
+
+
+def test_validate_serving_selection_rejects_a_config_other_surfaces_reject(tmp_path) -> None:
+    # Only parsing the file let a typo'd slot name through the pre-flight, so serve/dashboard
+    # started and then died in the launched process on a config every other surface rejects cleanly.
+    from phytovision.serving import validate_serving_selection
+
+    config = tmp_path / "bad.json"
+    config.write_text(json.dumps({"segmentor": "exg-otsu"}))  # typo: not a known slot
+    with pytest.raises(ConfigError):
+        validate_serving_selection(str(config), None)

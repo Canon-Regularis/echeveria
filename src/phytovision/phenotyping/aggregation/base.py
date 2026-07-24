@@ -15,8 +15,12 @@ class FeatureAggregator(ABC):
     ``leaf_count``) are ``None`` unless the regions are per-leaf, so one aggregator serves v1 (one
     region) and the future leaf module (N regions) unchanged.
 
-    ``reduction_policy`` maps each feature key to ``"sum"`` or ``"mean"``,
-    so the aggregator is driven by declared metadata rather than hardcoded key names.
+    ``reduction_policy`` maps each feature key to one of ``"sum"`` (extensive: add across regions),
+    ``"circular"`` (a wrapping quantity such as hue, averaged on the circle), ``"axial"`` (an
+    undirected angle such as orientation, averaged on the doubled angle), or ``"mean"``, so the
+    aggregator is driven by declared metadata rather than hardcoded key names. An implementation
+    must treat an unrecognised kind as the area-weighted mean: averaging a circular or axial key
+    linearly puts the result on the wrong side of its seam, not merely slightly off.
     """
 
     @abstractmethod

@@ -94,7 +94,9 @@ def _fill_colour(rgb: np.ndarray, plant: np.ndarray) -> np.ndarray:
 
 
 def _as_float_rgb(image: Image) -> np.ndarray:
-    arr = np.asarray(image, dtype=np.float64)
+    # Keep the caller's dtype: casting to float first would hide an integer image from to_unit_rgb,
+    # which would then read a 16-bit frame as an 8-bit one and saturate it to white.
+    arr = np.asarray(image)
     if arr.ndim != 3 or arr.shape[2] < 3:
         raise ContractViolationError(
             f"occlusion needs an H x W x 3 RGB image, got shape {arr.shape}"

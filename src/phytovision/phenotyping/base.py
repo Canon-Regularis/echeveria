@@ -35,7 +35,11 @@ class FeatureExtraction(Protocol):
     def extract(self, image: Image, region: Region) -> FeatureVector: ...
 
     def reduction_policy(self) -> dict[str, str]:
-        """Map produced feature keys to ``"sum"`` (extensive) or ``"mean"`` (intensive)."""
+        """Map produced feature keys to how they reduce across regions.
+
+        One of ``"sum"`` (extensive), ``"circular"`` (a wrapping quantity such as hue), ``"axial"``
+        (an undirected angle such as orientation), or ``"mean"`` (intensive, the default).
+        """
         ...
 
 

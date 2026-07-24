@@ -16,6 +16,7 @@ from phytovision.dashboard.helpers import (
     timing_rows,
 )
 from phytovision.dashboard.theme import DARK_LAYOUT
+from phytovision.datasets.base import IMAGE_SUFFIXES
 from phytovision.exceptions import PhytoVisionError
 from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.pipeline import Pipeline
@@ -31,8 +32,12 @@ def render_analyze_tab(
     from phytovision.visualize import render_overlay, render_saliency_overlay
 
     st.caption("Upload a plant image. The verdict, overlay, and drivers behind it appear below.")
+    # Derived from the package's one suffix list, not restated: the hardcoded copy had drifted, so
+    # the uploader rejected .tif and .webp files that batch and the API both accept.
     upload = st.file_uploader(
-        "Plant image", type=["png", "jpg", "jpeg", "bmp", "tiff"], key="analyze_upload"
+        "Plant image",
+        type=sorted(suffix.lstrip(".") for suffix in IMAGE_SUFFIXES),
+        key="analyze_upload",
     )
     if upload is None:
         st.info("Waiting for an image.")

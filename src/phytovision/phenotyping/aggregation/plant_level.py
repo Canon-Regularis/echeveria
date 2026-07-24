@@ -92,8 +92,15 @@ class PlantLevelAggregator(FeatureAggregator):
         # Plant-level traits that exist regardless of region count.
         values["plant.region_count"] = float(len(regions))
         values["plant.total_area_px"] = total_area
-        values["plant.canopy_coverage"] = union_area / (image_area + EPS)
+        coverage = union_area / (image_area + EPS)
+        values["plant.canopy_coverage"] = coverage
         values["plant.mean_region_area"] = total_area / (len(regions) + EPS)
+        # geometry.area_fraction is the fraction of the frame the plant occupies, so at plant level
+        # it is the union coverage, not an average of per-region fractions. Averaging reported 1/k
+        # of the true area under k leaves; summing double-counts overlapping masks past 1.0. The
+        # union is right both ways and equals the per-region value in the single-region case.
+        if "geometry.area_fraction" in values:
+            values["geometry.area_fraction"] = coverage
 
         # Instance-only traits: defined only when regions are per-leaf.
         if regions.is_per_leaf:

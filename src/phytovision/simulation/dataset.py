@@ -140,7 +140,10 @@ def load_history(manifest_path: str | Path) -> FeatureHistory:
     try:
         with manifest.open(newline="", encoding="utf-8-sig") as handle:
             reader = csv.DictReader(handle)
-            fields = reader.fieldnames or []
+            # Strip the header the way CsvManifestLoader does, so both readers key a padded
+            # export identically rather than one of them missing every column.
+            reader.fieldnames = [name.strip() for name in (reader.fieldnames or [])]
+            fields = reader.fieldnames
             missing = {"plant_id", "timestamp", "stress_score"} - set(fields)
             if missing:
                 raise ConfigError(f"manifest {manifest} is missing column(s): {sorted(missing)}")
@@ -168,10 +171,15 @@ def load_history(manifest_path: str | Path) -> FeatureHistory:
 
 
 def _required_text(manifest: Path, column: str, value: str | None) -> str:
-    """Read a manifest identity cell, or raise a clean ConfigError naming the column."""
+    """Read a manifest identity cell, stripped, or raise a ConfigError naming the column.
+
+    Stripping matters as much as the presence check, and matches ``_clean`` in the dataset manifest
+    loader: a padded plant id forks one plant into two series, and a padded timestamp sorts before
+    every unpadded one (a space precedes a digit), which silently reverses a plant's trend.
+    """
     if value is None or not value.strip():
         raise ConfigError(f"manifest {manifest} is missing a {column!r} value")
-    return value
+    return value.strip()
 
 
 def _numeric(manifest: Path, column: str, value: str | None) -> float:

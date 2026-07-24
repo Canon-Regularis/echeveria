@@ -106,9 +106,15 @@ def run(args: argparse.Namespace) -> int:
 
 
 def _selected_names(raw: str | None) -> list[str] | None:
+    """The requested forecaster names, de-duplicated in order.
+
+    A repeated name would otherwise run the whole expanding-window comparison twice and rank the
+    same forecaster twice in the table, matching how parse_horizons and the config schema already
+    reject or collapse a repeated selector.
+    """
     if not raw:
         return None
-    return [name.strip() for name in raw.split(",") if name.strip()]
+    return list(dict.fromkeys(name.strip() for name in raw.split(",") if name.strip()))
 
 
 def _print_table(rows: list[dict[str, object]]) -> None:

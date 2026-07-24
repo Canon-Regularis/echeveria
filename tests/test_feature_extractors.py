@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from phytovision.phenotyping.base import CompositeFeatureExtractor
 from phytovision.phenotyping.colour import ColourFeatures, circular_hue_mean
 from phytovision.phenotyping.geometry import GeometryFeatures
 from phytovision.phenotyping.morphology import MorphologyFeatures
 from phytovision.phenotyping.texture import TextureFeatures
+from phytovision.regions.base import region_from_mask
 
 _EXTRACTORS = [GeometryFeatures, ColourFeatures, TextureFeatures, MorphologyFeatures]
 
@@ -57,3 +59,20 @@ def test_red_fraction_flags_anthocyanin_reddening(plant_region) -> None:
     assert 0.0 <= green_frac <= red_frac <= 1.0
     assert red_frac > 0.5  # most of a red plant reads as reddened
     assert magenta_frac > 0.5  # the hue>=0.80 purple/magenta band is covered too
+
+
+def test_excess_green_is_exposure_invariant() -> None:
+    # ExG is defined on chromatic coordinates (the segmenter says so and computes it that way, and
+    # the heuristic's term range assumes that scale). Computed on raw intensities it scaled with
+    # brightness, so the same pigment photographed brighter read greener and moved the stress score.
+    mask = np.ones((16, 16), dtype=bool)
+    region = region_from_mask(0, "plant", mask)
+    values = []
+    for exposure in (0.6, 1.2, 2.0):
+        image = np.zeros((16, 16, 3), np.float32)
+        image[..., 0] = 0.33 * exposure
+        image[..., 1] = 0.38 * exposure
+        image[..., 2] = 0.29 * exposure
+        values.append(ColourFeatures().extract(image, region).values["colour.exg_mean"])
+    assert max(values) - min(values) < 1e-6  # identical pigment, identical index
+    assert values[0] == pytest.approx(2 * 0.38 - 0.33 - 0.29, abs=1e-6)

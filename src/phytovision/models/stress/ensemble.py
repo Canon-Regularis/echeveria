@@ -43,7 +43,13 @@ class EnsembleStressModel(StressModel):
         assessments = [m.predict(features) for m in self.members]
         pairs = list(zip(self.weights, assessments, strict=True))
         score = clip01(sum(w * a.score for w, a in pairs))
-        confidence = clip01(sum(w * a.confidence for w, a in pairs))
+        # Damp the averaged member confidence by how far the members disagree. Averaging confidence
+        # alone reported the same certainty for a unanimous verdict and for members that contradict
+        # each other, where the blended score lands on the decision boundary and is least certain.
+        # Unanimous members have zero spread, so a single-member ensemble is unchanged.
+        scores = [a.score for _, a in pairs]
+        agreement = 1.0 - (max(scores) - min(scores))
+        confidence = clip01(sum(w * a.confidence for w, a in pairs) * clip01(agreement))
         return StressAssessment(
             score=score,
             confidence=confidence,

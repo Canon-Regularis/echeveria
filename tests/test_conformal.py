@@ -101,3 +101,15 @@ def test_confident_set_reports_single_label() -> None:
     both = ConformalSet(("healthy", "stressed"), score=0.5, alpha=0.1)
     assert singleton.is_confident
     assert not both.is_confident
+
+
+def test_conformal_quantile_rank_never_wraps_to_the_largest_score() -> None:
+    # For an alpha near 1 the rank product falls below the rounding epsilon, so ceil reached 0 and
+    # the index wrapped to sorted(scores)[-1]: the largest nonconformity instead of the smallest,
+    # which made the threshold non-monotone in alpha and kept every label in every set.
+    from phytovision.models.conformal import conformal_quantile
+
+    scores = [0.01, 0.2, 0.5, 0.9]
+    assert conformal_quantile(scores, 0.99999999999) == 0.01  # the first rank, not the last
+    wide, narrow = conformal_quantile(scores, 0.1), conformal_quantile(scores, 0.9)
+    assert wide >= narrow  # non-increasing in alpha across the whole range

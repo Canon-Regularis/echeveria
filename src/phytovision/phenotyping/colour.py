@@ -10,7 +10,7 @@ import numpy as np
 from skimage.color import rgb2hsv, rgb2lab
 from skimage.util import img_as_float
 
-from phytovision._num import EPS
+from phytovision._num import EPS, excess_green
 from phytovision.phenotyping.base import FeatureExtractor
 from phytovision.types import Image, Region
 
@@ -61,7 +61,10 @@ class ColourFeatures(FeatureExtractor):
         hue, sat, val = hsv[:, 0], hsv[:, 1], hsv[:, 2]
         lab = rgb2lab(rgb)
 
-        exg = 2.0 * g - r - b  # excess green
+        # Excess green on chromatic coordinates, the package's one definition and the scale the
+        # heuristic's term range and the simulator's curve are both built on. The raw 2g-r-b form
+        # scales with exposure, so the same pigment photographed brighter read greener.
+        exg = excess_green(r, g, b)
         gcc = g / total  # green chromatic coordinate
 
         classes = pixel_class_masks(r, g, b, hue, sat, val)

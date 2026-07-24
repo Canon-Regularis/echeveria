@@ -107,3 +107,18 @@ def test_registry_builds_ensemble_by_name() -> None:
     model = STRESS_MODELS.create("ensemble", members=["heuristic", "heuristic"])
     assert isinstance(model, EnsembleStressModel)
     assert 0.0 <= model.predict(_FEATURES).score <= 1.0
+
+
+def test_ensemble_confidence_falls_when_members_disagree() -> None:
+    # Averaging member confidence alone reported the same certainty for a unanimous verdict and for
+    # members that contradict each other, where the blended score lands on the decision boundary.
+    from phytovision.models.stress.heuristic import HeuristicStressModel
+
+    features = PlantFeatures.from_values({"colour.gcc_mean": 0.35, "colour.yellow_fraction": 0.25})
+    lenient, strict = HeuristicStressModel(bias=-4.0), HeuristicStressModel(bias=4.0)
+
+    agreeing = EnsembleStressModel([lenient, lenient]).predict(features)
+    contradicting = EnsembleStressModel([lenient, strict]).predict(features)
+    assert contradicting.confidence < agreeing.confidence * 0.2
+    # A single member has no spread, so its confidence is untouched.
+    assert EnsembleStressModel([lenient]).predict(features).confidence == agreeing.confidence

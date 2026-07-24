@@ -240,6 +240,28 @@ All notable changes to this project are documented here. The format is based on
   command on the same data, and the cross-validated numbers described a decision rule the tool never
   ships. Both paths now use the shared `bucket_label` rule, so the reported accuracy is the accuracy
   of the verdict the product actually gives.
+- More cross-module agreement fixes. `colour.exg_mean` is computed on chromatic coordinates (a shared
+  `_num.excess_green`, used by both the feature and the segmenter that named the index), so the same
+  pigment photographed brighter no longer reads greener and moves the stress score; the raw form
+  scaled with exposure while the heuristic's term range and the simulator's curve both assume the
+  chromatic scale. `geometry.area_fraction` is the plant's union coverage of the frame, computed like
+  `plant.canopy_coverage` rather than averaged per region: its denominator is the whole frame, so
+  under a leaf-instance provider the averaged value reported 1/k of the plant's true coverage and
+  contradicted `area_px` and `plant.canopy_coverage` (and a summed form would exceed 1.0 on
+  overlapping masks).
+  The occlusion converter no longer casts to float before the shared range rule, which had hidden a
+  16-bit frame's integer dtype and saturated it to white (a regression in the round of range-rule
+  unification). An explicitly passed conformal wrapper wires its own model into the served pipeline,
+  so `/analyze` no longer scores with the default model while reporting a conformal set from a
+  different one. The dashboard's upload filter is derived from the one `IMAGE_SUFFIXES` list rather
+  than a drifted copy that rejected `.tif` and `.webp`. `benchmark --forecasters` de-duplicates its
+  names. The ensemble's confidence is damped by member disagreement, so it is no longer maximal
+  exactly when the members contradict each other and the blended score sits on the decision boundary.
+  `conformal_quantile` floors its rank at one, so an alpha near 1 can no longer wrap the index to the
+  largest nonconformity score. `load_history` strips padded id and timestamp cells (a padded timestamp
+  sorted first and reversed a plant's trend), and `serve`/`dashboard` validate a config by building
+  it, not just reading it, so a typo'd slot fails the pre-flight instead of crashing the launched
+  process.
 
 ## [0.2.0] (2026-07-16)
 

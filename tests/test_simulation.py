@@ -190,3 +190,26 @@ def test_load_history_rejects_a_row_missing_its_identity(tmp_path) -> None:
     )
     with pytest.raises(ConfigError, match="plant_id"):
         load_history(path)
+
+
+def test_load_history_strips_padded_identity_cells(tmp_path) -> None:
+    # A padded timestamp sorts before every unpadded one (a space precedes a digit), which reversed
+    # a plant's trend; a padded plant id forked one plant into two series. The dataset manifest
+    # loader already strips, so the two readers disagreed on the same file.
+    from phytovision.simulation import load_history
+    from phytovision.temporal import plant_trends
+
+    path = tmp_path / "padded.csv"
+    path.write_text(
+        "plant_id,timestamp,stress_score\n"
+        "p01,2024-01-01,0.10\n"
+        "p01, 2024-01-04,0.70\n"
+        "p01 ,2024-01-02,0.30\n"
+        "p01,2024-01-03,0.50\n",
+        encoding="utf-8",
+    )
+    history = load_history(path)
+    assert history.plant_ids == ["p01"]  # one plant, not forked by the padding
+    stamps = [obs.timestamp for obs in history.series_for("p01")]
+    assert stamps == sorted(stamps) == ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"]
+    assert plant_trends(history)["p01"].direction == "rising"

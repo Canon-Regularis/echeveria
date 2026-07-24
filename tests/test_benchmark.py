@@ -154,3 +154,13 @@ def _mlflow_installed() -> bool:
     import importlib.util
 
     return importlib.util.find_spec("mlflow") is not None
+
+
+def test_selected_forecaster_names_are_deduplicated() -> None:
+    # A repeated name ran the whole expanding-window comparison twice and ranked the same forecaster
+    # twice in the table, for no additional information.
+    from phytovision.cli.benchmark import _selected_names
+
+    assert _selected_names("arima,arima") == ["arima"]
+    assert _selected_names("arima, linear-trend ,arima") == ["arima", "linear-trend"]
+    assert _selected_names("") is None

@@ -173,6 +173,17 @@ def test_state_space_band_is_floored_not_absurdly_narrow() -> None:
     assert forecast.upper[1] - forecast.lower[1] > 0.02
 
 
+def test_bayesian_ridge_band_is_floored_not_absurdly_narrow() -> None:
+    pytest.importorskip("sklearn")
+    from phytovision.models.forecasting.bayesian import BayesianRidgeForecaster
+
+    # A smooth interior series (no ceiling clipping) used to report a band tens of times too narrow;
+    # flooring the spread keeps it at least as wide as the other forecasters' minimum.
+    series = [0.30, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37]
+    forecast = BayesianRidgeForecaster().forecast(series, (1, 3, 7))
+    assert forecast.upper[1] - forecast.lower[1] > 0.02
+
+
 class _NumericFailure(SeriesForecaster):
     name = "boom"
 

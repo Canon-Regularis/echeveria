@@ -200,6 +200,10 @@ All notable changes to this project are documented here. The format is based on
   resetting it to lenient; and `benchmark --mlflow` reports a tracking-store failure (a read-only
   directory or an unreachable server) as a clean error rather than a traceback that discards the ranked
   table.
+- The Bayesian-ridge forecaster floors its predictive spread at the same residual-std minimum the
+  linear, Gaussian-process, and state-space forecasters use, so a smooth series of a few noisy readings
+  no longer reports an interval tens of times too narrow that claims near-certainty and tanks its
+  benchmark coverage. It was the last forecaster missing the floor.
 
 ## [0.2.0] (2026-07-16)
 

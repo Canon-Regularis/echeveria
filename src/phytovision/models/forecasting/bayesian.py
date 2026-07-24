@@ -14,6 +14,7 @@ import numpy as np
 
 from phytovision._num import clip01
 from phytovision.models.forecasting.base import Prediction, SeriesForecaster, z_for
+from phytovision.temporal.forecast import _MIN_RESIDUAL_STD
 
 
 class BayesianRidgeForecaster(SeriesForecaster):
@@ -42,7 +43,9 @@ class BayesianRidgeForecaster(SeriesForecaster):
         lower: dict[int, float] = {}
         upper: dict[int, float] = {}
         for h, point, spread in zip(steps, centre, std, strict=True):
-            half = z * float(spread)
+            # Floor the spread like the other forecasters, so a smooth series of a few noisy points
+            # cannot report a band tens of times too narrow (near-certain from a few readings).
+            half = z * max(float(spread), _MIN_RESIDUAL_STD)
             # Centre the band on the clipped mean: a projection past the ceiling otherwise clips
             # both bounds to 1.0, so the recovered sigma degenerates to near-zero and overstates
             # confidence.

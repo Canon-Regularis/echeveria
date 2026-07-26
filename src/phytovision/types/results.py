@@ -90,7 +90,12 @@ class AnalysisReport:
             "region_kind": self.regions.kind,
             "region_count": len(self.regions),
             "stress": {
-                "score": round(self.stress.score, 4),
+                # The score is reported at full precision, not rounded: the label was bucketed from
+                # this exact value, and rounding can push a score just below a cut across it
+                # (0.3299996 -> 0.33), shipping a score and label that straddle it. Keeping the
+                # score exact makes the pair self-consistent for any model, including a
+                # custom-threshold one whose verdict a re-bucketing would discard.
+                "score": self.stress.score,
                 "confidence": round(self.stress.confidence, 4),
                 "label": self.stress.label,
                 "model": self.stress.model_name,

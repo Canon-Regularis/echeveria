@@ -38,6 +38,32 @@ def test_feature_vector_merge_detects_collision() -> None:
         a.merged_with(b)
 
 
+def test_summary_score_and_label_never_straddle_a_cut() -> None:
+    # The digest must report a score and label on the same side of every bucket cut: rounding the
+    # score used to push a value just below a cut across it (0.3299996 -> 0.33), so a consumer that
+    # re-buckets the reported score got a label contradicting the one shipped beside it.
+    from phytovision.models.base import bucket_label
+    from phytovision.regions.base import region_from_mask
+    from phytovision.types import AnalysisReport, Explanation, PlantFeatures
+
+    mask = np.ones((4, 4), dtype=bool)
+    regions = RegionSet(
+        regions=(region_from_mask(0, "plant", mask),), kind="plant", image_shape=(4, 4)
+    )
+    for score in (0.3299996, 0.6599997, 0.2, 0.5, 0.9):
+        stress = StressAssessment(score, 0.5, bucket_label(score), "m")
+        report = AnalysisReport(
+            image_path=None,
+            plant_mask=mask,
+            regions=regions,
+            plant_features=PlantFeatures(values={}, region_count=1),
+            stress=stress,
+            explanation=Explanation(reasons=(), method="feature-contribution"),
+        )
+        digest = report.summary()["stress"]
+        assert bucket_label(digest["score"]) == digest["label"]  # type: ignore[arg-type]
+
+
 def test_feature_vector_merge_rejects_cross_region() -> None:
     a = FeatureVector(region_id=0, values={"a": 1.0})
     b = FeatureVector(region_id=1, values={"b": 2.0})

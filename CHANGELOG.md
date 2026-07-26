@@ -67,6 +67,12 @@ All notable changes to this project are documented here. The format is based on
   self-reference and the CI install lists.
 
 ### Fixed
+- The `AnalysisReport.summary()` digest reports the stress score at full precision rather than rounded
+  to four places, so the reported score and the label (which the model bucketed from the exact score)
+  can no longer straddle a cut. Rounding a value just below a threshold (`0.3299996` to `0.33`) used to
+  ship a machine-consumed `{"score", "label"}` pair a consumer would re-bucket to a different label
+  than the one shipped beside it; keeping the score exact keeps the pair self-consistent for any model,
+  including a custom-threshold one whose verdict a re-bucketing would have discarded.
 - A project-wide bug sweep closed a set of latent defects: the config schema now rejects a malformed
   (non-mapping) `params` instead of silently dropping it; `read_config` validates the extension before
   reading and wraps a non-UTF-8 file as a clean `ConfigError`; manifest and cohort readers reject a

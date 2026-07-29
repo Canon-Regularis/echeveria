@@ -137,6 +137,13 @@ Honesty caveats:
   forecaster fitted or benchmarked on it is validated against synthetic data, not real succulents.
 - A distribution-free interval is available separately (split-conformal regression), which reaches
   close to its nominal coverage on the simulator where a parametric interval may not.
+- The parametric intervals (the linear, Gaussian-process, Bayesian-ridge, and state-space forecasters,
+  and the ordinary-least-squares regression interval) use a normal quantile rather than a Student-t
+  one, so at the small per-plant sample sizes here they run somewhat narrow and undercover; prefer the
+  split-conformal interval when calibrated coverage matters.
+- The `benchmark` command's CRPS confidence interval pools the per-observation scores, which are
+  autocorrelated within a plant, rather than bootstrapping over plants, so its reported width is
+  optimistic; read it as a relative ranking aid across forecasters, not an absolute coverage claim.
 - Each observation is treated as one time step, so horizons are days only under daily sampling.
 - Inputs are RGB. The cited work fuses RGB with multispectral sensors; multispectral fusion is out of
   scope here (no hardware or data). A `Sample.extra["modality"]` tag is reserved for that future work.

@@ -54,12 +54,17 @@ def _clustered_ci95(
     unique = np.unique(group)
     if unique.size < 2:
         return (mean, mean)
+    # A set of plants' pooled mean is their total score over their total count, so bootstrap those
+    # two per-plant totals rather than concatenating the samples every iteration; the result is
+    # identical and far cheaper.
     by_plant = [sample[group == g] for g in unique]
+    plant_sums = np.array([block.sum() for block in by_plant], dtype=np.float64)
+    plant_counts = np.array([block.size for block in by_plant], dtype=np.float64)
     rng = np.random.default_rng(seed)
     boot_means = np.empty(_CRPS_BOOTSTRAP, dtype=np.float64)
     for b in range(_CRPS_BOOTSTRAP):
         drawn = rng.integers(0, unique.size, size=unique.size)
-        boot_means[b] = np.concatenate([by_plant[i] for i in drawn]).mean()
+        boot_means[b] = plant_sums[drawn].sum() / plant_counts[drawn].sum()
     low, high = np.percentile(boot_means, [2.5, 97.5])
     return (float(low), float(high))
 

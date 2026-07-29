@@ -67,6 +67,14 @@ All notable changes to this project are documented here. The format is based on
   self-reference and the CI install lists.
 
 ### Fixed
+- The parametric prediction intervals now use a Student-t quantile on the residual degrees of freedom
+  (`n - 2`) instead of a normal one, so the linear, Gaussian-process, and Bayesian-ridge forecasters
+  and the ordinary-least-squares regression interval widen at the small per-plant sample sizes here
+  and stop undercovering; the multiplier converges to the normal quantile as the series grows, so a
+  long series is unchanged, and the state-space forecaster keeps its own model-derived interval. The
+  `benchmark` command's CRPS confidence interval bootstraps over plants rather than pooling
+  autocorrelated per-observation scores, so its reported width reflects the number of independent
+  plants (a seeded, reproducible cluster bootstrap) rather than an optimistic per-observation count.
 - The `AnalysisReport.summary()` digest reports the stress score at full precision rather than rounded
   to four places, so the reported score and the label (which the model bucketed from the exact score)
   can no longer straddle a cut. Rounding a value just below a threshold (`0.3299996` to `0.33`) used to

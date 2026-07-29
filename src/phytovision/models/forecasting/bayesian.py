@@ -13,8 +13,8 @@ from typing import ClassVar
 import numpy as np
 
 from phytovision._num import clip01
-from phytovision.models.forecasting.base import Prediction, SeriesForecaster, z_for
-from phytovision.temporal.forecast import _MIN_RESIDUAL_STD
+from phytovision.models.forecasting.base import Prediction, SeriesForecaster
+from phytovision.temporal.forecast import _MIN_RESIDUAL_STD, t_multiplier
 
 
 class BayesianRidgeForecaster(SeriesForecaster):
@@ -37,7 +37,9 @@ class BayesianRidgeForecaster(SeriesForecaster):
         end = n - 1
         future = np.array([[end + h] for h in steps], dtype=float)
         centre, std = model.predict(future, return_std=True)
-        z = z_for(self.interval_level)
+        # Student-t multiplier on n - 2 degrees, matching the linear interval: the ridge estimates
+        # its noise from few points, so a normal quantile runs narrow at the small samples here.
+        quantile = t_multiplier(self.interval_level, max(1, n - 2))
 
         mean: dict[int, float] = {}
         lower: dict[int, float] = {}
@@ -45,7 +47,7 @@ class BayesianRidgeForecaster(SeriesForecaster):
         for h, point, spread in zip(steps, centre, std, strict=True):
             # Floor the spread like the other forecasters, so a smooth series of a few noisy points
             # cannot report a band tens of times too narrow (near-certain from a few readings).
-            half = z * max(float(spread), _MIN_RESIDUAL_STD)
+            half = quantile * max(float(spread), _MIN_RESIDUAL_STD)
             # Centre the band on the clipped mean: a projection past the ceiling otherwise clips
             # both bounds to 1.0, so the recovered sigma degenerates to near-zero and overstates
             # confidence.

@@ -16,9 +16,9 @@ from typing import ClassVar
 import numpy as np
 
 from phytovision._num import clip01
-from phytovision.models.forecasting.base import Prediction, SeriesForecaster, z_for
+from phytovision.models.forecasting.base import Prediction, SeriesForecaster
 from phytovision.temporal._fit import fit_line
-from phytovision.temporal.forecast import _MIN_RESIDUAL_STD
+from phytovision.temporal.forecast import _MIN_RESIDUAL_STD, t_multiplier
 
 
 class GaussianProcessForecaster(SeriesForecaster):
@@ -59,7 +59,10 @@ class GaussianProcessForecaster(SeriesForecaster):
         resid_std = max(_MIN_RESIDUAL_STD, (float(np.sum(residual**2)) / max(1, n - 2)) ** 0.5)
         future = np.array([[end + h] for h in steps], dtype=float)
         mean_residual, std = gp.predict(future, return_std=True)
-        z = z_for(self.interval_level)
+        # Student-t multiplier on the detrending line's residual degrees of freedom, matching the
+        # linear interval: the extrapolation risk it carries is estimated from few points, so a
+        # normal quantile would run narrow at the small samples here.
+        quantile = t_multiplier(self.interval_level, max(1, n - 2))
 
         mean: dict[int, float] = {}
         lower: dict[int, float] = {}
@@ -69,7 +72,7 @@ class GaussianProcessForecaster(SeriesForecaster):
             leverage = 1.0 / n + ((x0 - mean_x) ** 2 / sxx if sxx > 0 else 0.0)
             total_std = (float(spread) ** 2 + resid_std**2 * leverage) ** 0.5
             centre = intercept + slope * x0 + float(residual_mean)
-            half = z * total_std
+            half = quantile * total_std
             # Centre the band on the reported (clipped) mean. Centring on the raw projection lets a
             # forecast past the ceiling clip both bounds to 1.0, collapsing the band to zero width
             # and handing the probabilistic scorer a near-zero sigma it reads as near-certain.

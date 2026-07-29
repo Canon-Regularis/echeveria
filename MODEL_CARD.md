@@ -137,13 +137,16 @@ Honesty caveats:
   forecaster fitted or benchmarked on it is validated against synthetic data, not real succulents.
 - A distribution-free interval is available separately (split-conformal regression), which reaches
   close to its nominal coverage on the simulator where a parametric interval may not.
-- The parametric intervals (the linear, Gaussian-process, Bayesian-ridge, and state-space forecasters,
-  and the ordinary-least-squares regression interval) use a normal quantile rather than a Student-t
-  one, so at the small per-plant sample sizes here they run somewhat narrow and undercover; prefer the
-  split-conformal interval when calibrated coverage matters.
-- The `benchmark` command's CRPS confidence interval pools the per-observation scores, which are
-  autocorrelated within a plant, rather than bootstrapping over plants, so its reported width is
-  optimistic; read it as a relative ranking aid across forecasters, not an absolute coverage claim.
+- The parametric intervals (the linear, Gaussian-process, and Bayesian-ridge forecasters, and the
+  ordinary-least-squares regression interval) use a Student-t quantile on the residual degrees of
+  freedom, so they widen at the small per-plant sample sizes here instead of undercovering as a
+  normal quantile would; on the simulator they still fall a little short of nominal because a linear
+  trend is misspecified against the saturating latent curve, so prefer the split-conformal interval
+  when a distribution-free guarantee matters. The state-space forecaster reports the interval its own
+  fitted model gives.
+- The `benchmark` command's CRPS confidence interval bootstraps over plants, not over the
+  autocorrelated per-observation scores, so its width reflects how many independent plants there are
+  rather than an optimistic per-observation count.
 - Each observation is treated as one time step, so horizons are days only under daily sampling.
 - Inputs are RGB. The cited work fuses RGB with multispectral sensors; multispectral fusion is out of
   scope here (no hardware or data). A `Sample.extra["modality"]` tag is reserved for that future work.

@@ -15,7 +15,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from phytovision.evaluation._aggregate import mean_ci95
 from phytovision.evaluation.probabilistic import (
     crps_gaussian_samples,
     interval_coverage,
@@ -33,6 +32,36 @@ logger = logging.getLogger(__name__)
 # The minimum training points before the first forecast origin. Two is the least a line can fit;
 # four gives the confidence heuristic something to weigh.
 _DEFAULT_MIN_TRAIN = 4
+# Resamples for the CRPS confidence interval's cluster bootstrap.
+_CRPS_BOOTSTRAP = 1000
+
+
+def _clustered_ci95(
+    samples: Sequence[float] | np.ndarray, groups: Sequence[int], seed: int
+) -> tuple[float, float]:
+    """A 95% confidence interval for the mean of per-observation scores, bootstrapped over plants.
+
+    Every plant contributes several expanding-window origins, and those samples are autocorrelated,
+    so pooling them as if independent (a normal approximation over each sample) reports an interval
+    that is too narrow: it counts observations, not the far fewer independent units. Resampling
+    whole plants with replacement and taking the mean over the drawn plants' pooled samples respects
+    clustering, so the width reflects how many plants there really are. A single plant carries no
+    between-plant spread, so the interval collapses to the mean.
+    """
+    sample = np.asarray(samples, dtype=np.float64)
+    group = np.asarray(groups)
+    mean = float(sample.mean())
+    unique = np.unique(group)
+    if unique.size < 2:
+        return (mean, mean)
+    by_plant = [sample[group == g] for g in unique]
+    rng = np.random.default_rng(seed)
+    boot_means = np.empty(_CRPS_BOOTSTRAP, dtype=np.float64)
+    for b in range(_CRPS_BOOTSTRAP):
+        drawn = rng.integers(0, unique.size, size=unique.size)
+        boot_means[b] = np.concatenate([by_plant[i] for i in drawn]).mean()
+    low, high = np.percentile(boot_means, [2.5, 97.5])
+    return (float(low), float(high))
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,26 +122,35 @@ class BenchmarkResult:
 
 
 class _Accumulator:
-    """Collects held-out (actual, mean, lower, upper) tuples per horizon for one forecaster."""
+    """Collects held-out (actual, mean, lower, upper) tuples per horizon for one forecaster.
+
+    Each sample also carries the index of the plant it came from, so the CRPS confidence interval
+    can bootstrap over plants rather than over autocorrelated per-observation samples.
+    """
 
     def __init__(self, horizons: Sequence[int]) -> None:
         self._data: dict[int, dict[str, list[float]]] = {
             h: {"actual": [], "mean": [], "lower": [], "upper": []} for h in horizons
         }
+        self._groups: dict[int, list[int]] = {h: [] for h in horizons}
 
-    def add(self, horizon: int, actual: float, mean: float, lower: float, upper: float) -> None:
+    def add(
+        self, horizon: int, plant: int, actual: float, mean: float, lower: float, upper: float
+    ) -> None:
         bucket = self._data[horizon]
         bucket["actual"].append(actual)
         bucket["mean"].append(mean)
         bucket["lower"].append(lower)
         bucket["upper"].append(upper)
+        self._groups[horizon].append(plant)
 
-    def score(self, name: str, interval_level: float) -> list[ForecasterScore]:
+    def score(self, name: str, interval_level: float, seed: int) -> list[ForecasterScore]:
         scores: list[ForecasterScore] = []
         for horizon, bucket in self._data.items():
             if not bucket["actual"]:
                 continue
-            scores.append(_score_horizon(name, horizon, bucket, interval_level))
+            groups = self._groups[horizon]
+            scores.append(_score_horizon(name, horizon, bucket, groups, interval_level, seed))
         return scores
 
 
@@ -122,6 +160,7 @@ def benchmark_forecasters(
     horizons: Sequence[int] = DEFAULT_HORIZONS,
     min_train: int = _DEFAULT_MIN_TRAIN,
     interval_level: float = DEFAULT_INTERVAL_LEVEL,
+    seed: int = 0,
 ) -> BenchmarkResult:
     """Run every named forecaster over the cohort's expanding-window origins and score each."""
     names = list(forecaster_names) if forecaster_names is not None else FORECASTERS.names()
@@ -154,7 +193,7 @@ def benchmark_forecasters(
                 n_fallbacks,
             )
             fallbacks.append(name)
-        scores.extend(accumulator.score(name, interval_level))
+        scores.extend(accumulator.score(name, interval_level, seed))
     return BenchmarkResult(tuple(scores), interval_level, tuple(skipped), tuple(fallbacks))
 
 
@@ -168,7 +207,7 @@ def _run_forecaster(
     """Accumulate held-out tuples for one forecaster; return how many origins fell to linear."""
     max_horizon = max(steps)
     fallbacks = 0
-    for series in series_by_plant.values():
+    for plant, series in enumerate(series_by_plant.values()):
         for train_index, _ in expanding_window_splits(len(series), min_train, max_horizon):
             origin = len(train_index)
             forecast = forecaster.forecast([series[i] for i in train_index], steps)  # type: ignore[attr-defined]
@@ -181,6 +220,7 @@ def _run_forecaster(
                 mean = forecast.projected_scores[horizon]
                 accumulator.add(
                     horizon,
+                    plant,
                     series[actual_index],
                     mean,
                     forecast.lower.get(horizon, mean),
@@ -190,7 +230,12 @@ def _run_forecaster(
 
 
 def _score_horizon(
-    name: str, horizon: int, bucket: dict[str, list[float]], interval_level: float
+    name: str,
+    horizon: int,
+    bucket: dict[str, list[float]],
+    groups: Sequence[int],
+    interval_level: float,
+    seed: int,
 ) -> ForecasterScore:
     actual = bucket["actual"]
     mean = bucket["mean"]
@@ -202,7 +247,7 @@ def _score_horizon(
         name=name,
         horizon=horizon,
         crps=float(np.mean(samples)),
-        crps_ci95=mean_ci95(samples),
+        crps_ci95=_clustered_ci95(samples, groups, seed),
         pinball=interval_pinball(actual, mean, lower, upper, interval_level),
         coverage=interval_coverage(actual, lower, upper),
         mean_width=mean_interval_width(lower, upper),

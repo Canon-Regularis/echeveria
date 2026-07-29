@@ -14,7 +14,6 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from statistics import NormalDist
 
 from phytovision._num import clip01
 from phytovision.exceptions import ConfigError, ContractViolationError
@@ -43,6 +42,18 @@ def valid_interval_level(level: float) -> bool:
     Guarding the mapped tail, not just the level, keeps the interval math from crashing.
     """
     return 0.0 < level < 1.0 and 0.0 < (1.0 + level) / 2.0 < 1.0
+
+
+def t_multiplier(level: float, dof: int) -> float:
+    """The two-sided Student-t multiplier for a central ``level`` interval with ``dof`` degrees.
+
+    The residual spread is estimated from a handful of points, so a normal quantile makes the band
+    too narrow and it undercovers at small n. The t multiplier widens it to the honest width and
+    converges to the normal quantile as ``dof`` grows, so a long series is unaffected.
+    """
+    from scipy.stats import t as student_t
+
+    return float(student_t.ppf((1.0 + level) / 2.0, max(1, dof)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,9 +158,11 @@ def linear_prediction_interval(
 ) -> tuple[dict[int, float], dict[int, float]]:
     """Textbook ordinary-least-squares prediction interval per horizon, clipped to [0,1].
 
-    The half-width is ``z * s * sqrt(1 + 1/n + (x0 - xbar)^2 / Sxx)``: it grows with the residual
+    The half-width is ``t * s * sqrt(1 + 1/n + (x0 - xbar)^2 / Sxx)``: it grows with the residual
     spread ``s`` and with the horizon's distance from the observed window, so a projection further
-    ahead is honestly wider. A floor on ``s`` keeps a perfect fit from claiming a zero-width band.
+    ahead is honestly wider. The multiplier is a Student-t quantile on ``n - 2`` degrees of freedom,
+    which is the exact OLS prediction interval and widens the band at the small samples here, where
+    a normal quantile would undercover. A floor on ``s`` keeps a perfect fit from a zero-width band.
     """
     steps = [h for h in horizons if h > 0]
     n = len(scores)
@@ -161,14 +174,14 @@ def linear_prediction_interval(
     residuals = [y - (intercept + slope * x) for x, y in enumerate(scores)]
     dof = max(1, n - 2)
     resid_std = max(_MIN_RESIDUAL_STD, (sum(r * r for r in residuals) / dof) ** 0.5)
-    z = NormalDist().inv_cdf((1.0 + level) / 2.0)
+    t = t_multiplier(level, dof)
     end = n - 1
     lower: dict[int, float] = {}
     upper: dict[int, float] = {}
     for h in steps:
         x0 = end + h
         leverage = 1.0 + 1.0 / n + ((x0 - mean_x) ** 2 / sxx if sxx > 0 else 0.0)
-        half = z * resid_std * leverage**0.5
+        half = t * resid_std * leverage**0.5
         # Centre the band on the reported (clipped) projection. Centring on the raw mean lets a
         # projection past the ceiling clip both bounds to 1.0, collapsing the band to zero width and
         # feeding the probabilistic scorer a sigma of 0.

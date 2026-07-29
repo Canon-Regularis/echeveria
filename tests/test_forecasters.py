@@ -56,6 +56,39 @@ def test_linear_baseline_matches_the_point_forecast() -> None:
     assert baseline.steps_to_stressed == reference.steps_to_stressed
 
 
+def test_t_multiplier_widens_at_small_dof_and_converges_to_normal() -> None:
+    from statistics import NormalDist
+
+    from phytovision.temporal.forecast import t_multiplier
+
+    z = NormalDist().inv_cdf(0.95)  # the two-sided normal multiplier at the 0.9 level
+    assert t_multiplier(0.9, 3) > t_multiplier(0.9, 30) > z  # smaller n, wider band
+    assert t_multiplier(0.9, 100000) == pytest.approx(z, abs=1e-3)  # converges to normal at large n
+    assert t_multiplier(0.9, 0) == t_multiplier(0.9, 1)  # dof floored at one for a two-point fit
+
+
+def test_small_sample_interval_is_wider_than_the_normal_one() -> None:
+    from statistics import NormalDist
+
+    from phytovision.temporal.forecast import linear_prediction_interval
+
+    # A short series estimates the residual spread from few points, so the Student-t band is wider
+    # than the normal quantile would give, which is what fixes the undercoverage at small n.
+    scores = [0.20, 0.28, 0.24, 0.33]  # n = 4, so 2 residual degrees of freedom
+    lower, upper = linear_prediction_interval(scores, (1,), level=0.9)
+    t_width = upper[1] - lower[1]
+    # The normal-quantile width at the same residual spread, computed the same way.
+    from phytovision.temporal._fit import fit_line
+
+    slope, intercept, _ = fit_line(scores)
+    residuals = [y - (intercept + slope * x) for x, y in enumerate(scores)]
+    resid_std = max(0.02, (sum(r * r for r in residuals) / 2) ** 0.5)
+    mean_x, sxx = 1.5, sum((x - 1.5) ** 2 for x in range(4))
+    leverage = 1.0 + 1.0 / 4 + (4 - mean_x) ** 2 / sxx
+    z_width = 2 * NormalDist().inv_cdf(0.95) * resid_std * leverage**0.5
+    assert t_width > z_width
+
+
 def test_intervals_widen_with_horizon() -> None:
     # Further ahead is less certain, so the band is wider. A mid-range series keeps the band off the
     # [0, 1] clip, where widening would otherwise be hidden.

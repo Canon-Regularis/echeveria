@@ -61,6 +61,41 @@ def test_benchmark_ranks_forecasters_by_crps() -> None:
         assert 0.0 <= row[0].coverage <= 1.0
 
 
+def test_crps_ci_brackets_the_point_estimate_and_is_reproducible() -> None:
+    history = cohort_history(simulate_cohort(12, DryDownParams(n_steps=14), seed=3))
+    first = benchmark_forecasters(history, ["linear-trend"], horizons=(1,), min_train=4, seed=0)
+    again = benchmark_forecasters(history, ["linear-trend"], horizons=(1,), min_train=4, seed=0)
+    score = first.for_horizon(1)[0]
+    low, high = score.crps_ci95
+    assert low <= score.crps <= high
+    assert first.for_horizon(1)[0].crps_ci95 == again.for_horizon(1)[0].crps_ci95  # seeded
+
+
+def test_clustered_ci_is_wider_than_the_naive_per_observation_ci() -> None:
+    # Observations within a plant are correlated. Pooling them as independent (the per-observation
+    # normal approximation) reports a CI that is too narrow; the per-plant cluster bootstrap widens
+    # it to reflect how few independent units there really are.
+    import numpy as np
+
+    from phytovision.evaluation._aggregate import mean_ci95
+    from phytovision.evaluation.benchmark import _clustered_ci95
+
+    rng = np.random.default_rng(0)
+    groups: list[int] = []
+    samples: list[float] = []
+    for plant in range(10):
+        offset = float(rng.normal(0.0, 0.3))  # a per-plant level: within-plant correlation
+        for _ in range(20):
+            groups.append(plant)
+            samples.append(0.5 + offset + float(rng.normal(0.0, 0.02)))
+    naive = mean_ci95(samples)
+    clustered = _clustered_ci95(samples, groups, seed=0)
+    assert (clustered[1] - clustered[0]) > 2 * (naive[1] - naive[0])
+    assert _clustered_ci95(samples, [0] * len(samples), seed=0) == pytest.approx(
+        (float(np.mean(samples)), float(np.mean(samples)))
+    )  # a single plant carries no between-plant spread
+
+
 def test_benchmark_table_is_sorted_within_each_horizon() -> None:
     history = cohort_history(simulate_cohort(6, DryDownParams(n_steps=12), seed=2))
     result = benchmark_forecasters(

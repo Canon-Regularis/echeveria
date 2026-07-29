@@ -46,3 +46,37 @@ def test_decode_honours_exif_orientation() -> None:
 
     out = decode_rgb_bytes(buffer.getvalue())
     assert out.shape[:2] == (16, 8)  # transposed to the display orientation, not (8, 16)
+
+
+# Real photos and uploads arrive in many pixel modes, not just RGB: a grayscale scan, a PNG with an
+# alpha channel, a CMYK JPEG from a print workflow, a palette GIF, a 1-bit fax. Every one must
+# decode to a plain H x W x 3 uint8 array so the pipeline sees a single, uniform contract.
+@pytest.mark.parametrize(
+    ("mode", "fmt"),
+    [("L", "PNG"), ("LA", "PNG"), ("RGBA", "PNG"), ("P", "PNG"), ("CMYK", "JPEG"), ("1", "PNG")],
+)
+def test_decode_normalizes_any_pixel_mode_to_rgb(mode, fmt) -> None:
+    from PIL import Image as PILImage
+
+    buffer = io.BytesIO()
+    PILImage.new("RGB", (12, 8), (60, 150, 70)).convert(mode).save(buffer, format=fmt)
+    out = decode_rgb_bytes(buffer.getvalue())
+    assert out.shape == (8, 12, 3)
+    assert out.dtype == np.uint8
+
+
+def test_decode_rejects_truncated_image_bytes() -> None:
+    from PIL import Image as PILImage
+
+    # A half-finished upload or download must fail cleanly, not decode to a garbled buffer.
+    buffer = io.BytesIO()
+    PILImage.new("RGB", (64, 64), (30, 120, 40)).save(buffer, format="JPEG")
+    whole = buffer.getvalue()
+    with pytest.raises(InvalidImageError):
+        decode_rgb_bytes(whole[: len(whole) // 2])
+
+
+def test_load_image_on_a_directory_is_a_clean_error(tmp_path) -> None:
+    # A path that exists but is a directory must not leak a raw OSError to the caller.
+    with pytest.raises(InvalidImageError):
+        load_image(tmp_path)

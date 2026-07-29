@@ -29,6 +29,14 @@ def test_preprocess_rejects_non_rgb() -> None:
         ResizeNormalizePreprocessor().process(np.zeros((4, 4), dtype=np.uint8))
 
 
+def test_preprocess_rejects_a_too_small_max_size() -> None:
+    from phytovision.exceptions import ConfigError
+
+    # A max_size below the smallest sensible frame is a config error, not a silent tiny-image run.
+    with pytest.raises(ConfigError):
+        ResizeNormalizePreprocessor(max_size=8)
+
+
 def test_segmenter_finds_foreground_blob(healthy_image) -> None:
     mask = ExGThresholdSegmenter().segment(healthy_image)
     assert mask.dtype == np.bool_

@@ -55,6 +55,24 @@ def test_analyze_rejects_a_decompression_bomb(healthy_image, monkeypatch) -> Non
     assert client.post("/analyze", files=files).status_code == 400
 
 
+def test_analyze_accepts_a_grayscale_upload(healthy_image) -> None:
+    import io as _io
+
+    from PIL import Image as PILImage
+
+    # A phone or scanner may send a grayscale JPEG; the upload path must decode it to RGB and score
+    # it, not 400 or 500 on a non-three-channel image.
+    buffer = _io.BytesIO()
+    PILImage.fromarray((healthy_image * 255).astype(np.uint8)).convert("L").save(
+        buffer, format="JPEG"
+    )
+    client = TestClient(create_app())
+    files = {"file": ("scan.jpg", buffer.getvalue(), "image/jpeg")}
+    response = client.post("/analyze", files=files)
+    assert response.status_code == 200
+    assert set(response.json()["stress"]) == {"score", "confidence", "label", "model"}
+
+
 def test_overlay_endpoint_returns_png(healthy_image) -> None:
     client = TestClient(create_app())
     files = {"file": ("plant.png", _png_bytes(healthy_image), "image/png")}

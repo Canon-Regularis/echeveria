@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -28,6 +29,22 @@ def test_folder_loader_reads_classes_and_metadata(tmp_path) -> None:
     assert sample.source == "unit-test"
     assert sample.license == "CC-BY-4.0"
     assert sample.label in {"healthy", "wilted"}
+
+
+def test_folder_loader_skips_non_image_files(tmp_path) -> None:
+    # A real class folder usually carries stray files: editor notes, a macOS .DS_Store, a hidden
+    # dotfile. The loader must enumerate only the images, not choke on or count the junk.
+    class_dir = tmp_path / "healthy"
+    class_dir.mkdir()
+    PILImage.fromarray(np.zeros((4, 4, 3), dtype=np.uint8)).save(class_dir / "leaf.png")
+    (class_dir / "README.txt").write_text("field notes")
+    (class_dir / ".DS_Store").write_bytes(b"\x00\x01")
+    (tmp_path / "wilted").mkdir()
+    PILImage.fromarray(np.zeros((4, 4, 3), dtype=np.uint8)).save(tmp_path / "wilted" / "leaf.jpg")
+
+    loader = FolderClassificationLoader(tmp_path)
+    assert len(loader) == 2  # one image per class, the stray files ignored
+    assert {Path(sample.image_path).name for sample in loader} == {"leaf.png", "leaf.jpg"}
 
 
 def test_coco_loader_reads_boxes_and_categories(tmp_path) -> None:

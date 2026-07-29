@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from phytovision.pipeline import Pipeline
 from phytovision.types import AnalysisReport
@@ -68,3 +69,23 @@ def test_accepts_ndarray_and_path(tmp_path, healthy_image) -> None:
     PILImage.fromarray((healthy_image * 255).astype(np.uint8)).save(out)
     report = Pipeline.default().analyze(out)
     assert report.image_path == str(out)
+
+
+@pytest.mark.parametrize(
+    ("mode", "fmt", "suffix"),
+    [("L", "PNG", ".png"), ("RGBA", "PNG", ".png"), ("CMYK", "JPEG", ".jpg"), ("P", "PNG", ".png")],
+)
+def test_analyze_handles_real_image_formats_end_to_end(
+    tmp_path, healthy_image, mode, fmt, suffix
+) -> None:
+    # A user's photo may be a grayscale scan, an RGBA screenshot, a CMYK print JPEG, or a palette
+    # GIF. Loaded from a file it must run the whole pipeline to a finite, valid verdict, because the
+    # decode path normalizes every mode to RGB before the pipeline sees it.
+    from PIL import Image as PILImage
+
+    path = tmp_path / f"plant{suffix}"
+    PILImage.fromarray((healthy_image * 255).astype(np.uint8)).convert(mode).save(path, format=fmt)
+    report = Pipeline.default().analyze(path)
+    assert 0.0 <= report.stress.score <= 1.0
+    assert report.stress.label in {"healthy", "mild", "stressed"}
+    assert all(np.isfinite(v) for v in report.plant_features.defined().values())

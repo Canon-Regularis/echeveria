@@ -229,6 +229,8 @@ are capped so a single oversized request cannot exhaust a worker.
   open risks.
 - [docs/DATASETS.md](docs/DATASETS.md): the datasets we checked, what each one is good for, and their
   licenses.
+- [docs/DATA_COLLECTION.md](docs/DATA_COLLECTION.md): how to bring your own data in: what to collect,
+  the manifest schema, and how to convert the public datasets into it.
 - [MODEL_CARD.md](MODEL_CARD.md): the intended use, the proxies, and the caveats behind each output.
 
 ## Datasets

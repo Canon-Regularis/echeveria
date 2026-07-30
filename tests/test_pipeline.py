@@ -5,8 +5,16 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from phytovision.exceptions import InvalidImageError
 from phytovision.pipeline import Pipeline
 from phytovision.types import AnalysisReport
+
+
+def test_analyze_rejects_a_non_path_non_array_input() -> None:
+    # analyze accepts a path or an ndarray; anything else (here an int) must be a clean
+    # InvalidImageError naming the offending type, not a fall-through that fails deeper in.
+    with pytest.raises(InvalidImageError, match="int"):
+        Pipeline.default().analyze(12345)  # type: ignore[arg-type]
 
 
 def test_analyze_returns_valid_report(healthy_image) -> None:

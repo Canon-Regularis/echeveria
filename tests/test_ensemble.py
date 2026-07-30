@@ -109,6 +109,19 @@ def test_registry_builds_ensemble_by_name() -> None:
     assert 0.0 <= model.predict(_FEATURES).score <= 1.0
 
 
+def test_ensemble_confidence_is_spread_damped_weighted_mean() -> None:
+    # confidence = the weight-averaged member confidence, damped by (1 - score spread). The existing
+    # disagreement test asserts only inequalities; pinning the exact value stops a mutation that
+    # drops the `* clip01(agreement)` factor or rewrites `1 - (max - min)` from surviving.
+    equal = EnsembleStressModel([_ConstantModel(0.2, 1.0), _ConstantModel(0.8, 1.0)])
+    assert equal.predict(_FEATURES).confidence == pytest.approx(0.4)  # 1.0 * (1 - 0.6)
+
+    weighted = EnsembleStressModel(
+        [_ConstantModel(0.2, 1.0), _ConstantModel(0.8, 0.6)], weights=[3.0, 1.0]
+    )
+    assert weighted.predict(_FEATURES).confidence == pytest.approx(0.36)  # 0.9 * (1 - 0.6)
+
+
 def test_ensemble_confidence_falls_when_members_disagree() -> None:
     # Averaging member confidence alone reported the same certainty for a unanimous verdict and for
     # members that contradict each other, where the blended score lands on the decision boundary.

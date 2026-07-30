@@ -199,3 +199,34 @@ def test_selected_forecaster_names_are_deduplicated() -> None:
     assert _selected_names("arima,arima") == ["arima"]
     assert _selected_names("arima, linear-trend ,arima") == ["arima", "linear-trend"]
     assert _selected_names("") is None
+
+
+def test_cli_benchmark_bad_out_is_a_clean_error(tmp_path, capsys) -> None:
+    # A --out whose parent directory does not exist must be a clean error, not an uncaught OSError
+    # traceback after the ranked table was already computed.
+    manifest = write_manifest(
+        simulate_cohort(5, DryDownParams(n_steps=12), seed=8), tmp_path / "c.csv"
+    )
+    rc = main(
+        [
+            "benchmark",
+            str(manifest),
+            "--forecasters",
+            "linear-trend",
+            "--out",
+            str(tmp_path / "missing_dir" / "table.csv"),
+        ]
+    )
+    assert rc == 2
+    assert capsys.readouterr().err.startswith("error:")
+
+
+def test_cli_benchmark_no_forecasts_scored_is_a_clean_error(tmp_path, capsys) -> None:
+    # A --min-train larger than every plant's series yields no expanding-window origins, so nothing
+    # is scored; the command must say so and exit 2 rather than print an empty table and exit 0.
+    manifest = write_manifest(
+        simulate_cohort(4, DryDownParams(n_steps=8), seed=9), tmp_path / "c.csv"
+    )
+    rc = main(["benchmark", str(manifest), "--forecasters", "linear-trend", "--min-train", "100"])
+    assert rc == 2
+    assert "no forecasts were scored" in capsys.readouterr().err

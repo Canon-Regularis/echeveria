@@ -8,6 +8,7 @@ import sys
 
 import pytest
 
+from phytovision.evaluation.survival import survival_concordance
 from phytovision.models.base import STRESSED_THRESHOLD
 from phytovision.models.survival import (
     KaplanMeierSurvival,
@@ -23,6 +24,7 @@ from phytovision.models.survival import (
 from phytovision.registries import SURVIVAL_MODELS
 from phytovision.simulation import DryDownParams, cohort_history, simulate_cohort
 from phytovision.temporal._fit import fit_line
+from phytovision.temporal.history import FeatureHistory, Observation
 
 _HAS_LIFELINES = importlib.util.find_spec("lifelines") is not None
 _needs_lifelines = pytest.mark.skipif(
@@ -64,6 +66,44 @@ def test_covariates_are_a_pure_function_of_the_scores() -> None:
     assert early_covariates([0.4], warmup=3)["early_slope"] == 0.0
     # A two-point window still yields a finite slope.
     assert math.isfinite(early_covariates([0.4, 0.6], warmup=3)["early_slope"])
+
+
+def test_derive_records_caps_the_covariate_window_at_the_crossing() -> None:
+    # For a plant that wilts inside the warmup window, the "early" covariates must stop at the
+    # crossing so a post-event observation cannot leak the outcome into the held-out concordance.
+    # wilter crosses the 0.66 cut at step 1, so its baseline is just the pre-crossing 0.20; without
+    # the `min(warmup, step_position) if event` cap the window would run to 3 and average in
+    # 0.80/0.90 to give 0.633. A censored plant never crosses, so it keeps the full warmup.
+    history = FeatureHistory()
+    for i, score in enumerate([0.20, 0.80, 0.90, 0.95]):
+        history.add(Observation("wilter", f"t{i}", score))
+    for i, score in enumerate([0.10, 0.15]):
+        history.add(Observation("censored", f"t{i}", score))
+    records = {record.plant_id: record for record in derive_records(history).records}
+
+    assert records["wilter"].event_observed == 1
+    assert records["wilter"].covariates["baseline_stress"] == pytest.approx(0.20)  # not 0.633
+    assert records["wilter"].covariates["early_slope"] == pytest.approx(0.0)
+    assert records["censored"].event_observed == 0
+    assert records["censored"].covariates["baseline_stress"] == pytest.approx(0.125)
+    assert records["censored"].covariates["early_slope"] == pytest.approx(0.05)
+
+
+@_needs_lifelines
+def test_survival_concordance_ranks_a_missing_median_as_longest_surviving() -> None:
+    # A plant with no in-window median gets a sentinel past the longest duration, so it reads as
+    # longest-surviving, not shorter than a finite median. Durations 3/5/7 (all events) with medians
+    # {a: None, b: 4, c: 6}: only the b-c pair is concordant, so C = 1/3. A sentinel flipped below
+    # the finite medians would rank the missing-median plant shortest and return 1.0 instead.
+    dataset = SurvivalDataset(
+        (
+            SurvivalRecord("a", 3, 1, {"baseline_stress": 0.2, "early_slope": 0.0}),
+            SurvivalRecord("b", 5, 1, {"baseline_stress": 0.2, "early_slope": 0.0}),
+            SurvivalRecord("c", 7, 1, {"baseline_stress": 0.2, "early_slope": 0.0}),
+        )
+    )
+    c_index = survival_concordance({"a": None, "b": 4.0, "c": 6.0}, dataset)
+    assert c_index == pytest.approx(1 / 3)
 
 
 def test_derive_records_shape_and_censoring_counts() -> None:

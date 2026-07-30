@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from phytovision.temporal import FeatureHistory, Forecast, plant_forecasts, stress_forecast
+from phytovision.temporal.forecast import forecast_scores
 from phytovision.temporal.history import Observation
 
 
@@ -31,6 +32,17 @@ def test_a_non_finite_score_is_rejected() -> None:
         series = [_obs("2026-03-01", 0.1), _obs("2026-03-02", bad), _obs("2026-03-03", 0.3)]
         with pytest.raises(ContractViolationError):
             stress_forecast("p", series, horizons=(1, 3, 7))
+
+
+def test_steps_to_stressed_reports_none_beyond_the_search_cap() -> None:
+    # A shallow rising trend crosses the cut only far past the 30-step search window (here step 33),
+    # so steps_to_stressed is None rather than a meaningless far-future step, matching the richer
+    # forecasters. The projection still evaluates: proj[30] = 0.63. Widening the cap constant or
+    # dropping the `step > cap` guard would report 33 instead of None.
+    forecast = forecast_scores("p", [0.30, 0.31, 0.32, 0.33], horizons=(1, 30))
+    assert forecast.steps_to_stressed is None
+    assert forecast.slope == pytest.approx(0.01)
+    assert forecast.projected_scores[30] == pytest.approx(0.63)
 
 
 def test_steps_to_stressed_matches_the_projection_under_noise() -> None:

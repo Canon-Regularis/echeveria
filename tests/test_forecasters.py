@@ -7,7 +7,8 @@ import importlib.util
 import numpy as np
 import pytest
 
-from phytovision.models.forecasting.base import SeriesForecaster
+from phytovision.exceptions import ConfigError, ContractViolationError
+from phytovision.models.forecasting.base import Prediction, SeriesForecaster
 from phytovision.registries import FORECASTERS
 from phytovision.simulation import DryDownParams, simulate_cohort
 from phytovision.temporal import stress_forecast
@@ -246,3 +247,44 @@ def test_a_successful_forecast_is_not_flagged_degraded() -> None:
 def test_a_missing_extra_raises_rather_than_silently_degrading() -> None:
     with pytest.raises(ImportError):
         _MissingExtra().forecast([0.1, 0.2, 0.3, 0.4], (1,), "p")
+
+
+class _FlatSeriesForecaster(SeriesForecaster):
+    """A minimal concrete SeriesForecaster (a flat mean at the last score) that exercises the shared
+    template. LinearTrendForecaster overrides forecast(), so the base template's finite-guard and
+    crossing search are only reachable through a subclass like this one."""
+
+    name = "flat-test"
+
+    def _predict(self, scores, steps):  # type: ignore[no-untyped-def]
+        last = scores[-1]
+        return Prediction(
+            {s: last for s in steps},
+            {s: max(0.0, last - 0.1) for s in steps},
+            {s: min(1.0, last + 0.1) for s in steps},
+        )
+
+
+def test_series_forecaster_rejects_a_non_finite_score() -> None:
+    # The shared forecast() finite-guard that the statistical forecasters (GP, ARIMA, state-space,
+    # Bayesian) all rely on is only reachable through a SeriesForecaster subclass, since
+    # LinearTrendForecaster overrides forecast() with its own separate guard. A NaN or inf must be
+    # rejected loudly, not projected as a confident 0.0.
+    for bad in (float("nan"), float("inf")):
+        with pytest.raises(ContractViolationError):
+            _FlatSeriesForecaster().forecast([0.1, bad, 0.3], (1, 3), "p")
+
+
+def test_series_forecaster_reports_no_crossing_for_a_falling_series() -> None:
+    # A falling series never reaches the stressed cut, so the crossing search scans the whole
+    # 1.._MAX_LOOKAHEAD window and returns None. That terminal path is bypassed by the linear
+    # baseline, so only a SeriesForecaster subclass exercises it.
+    forecast = _FlatSeriesForecaster().forecast([0.6, 0.5, 0.4, 0.3], (1, 3, 7), "p")
+    assert forecast.steps_to_stressed is None
+
+
+def test_series_forecaster_rejects_an_interval_level_that_rounds_to_one() -> None:
+    # A level a hair below 1.0 whose (1 + level) / 2 rounds up to exactly 1.0 must be rejected at
+    # construction, or the interval quantile crashes downstream.
+    with pytest.raises(ConfigError):
+        _FlatSeriesForecaster(interval_level=0.9999999999999999)

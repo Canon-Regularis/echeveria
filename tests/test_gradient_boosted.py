@@ -255,3 +255,39 @@ def test_gbm_strict_schema_survives_round_trip(tmp_path) -> None:
     path = tmp_path / "strict.joblib"
     model.save(path)
     assert GradientBoostedStressModel.load(path).strict_schema is True
+
+
+def test_gbm_confidence_is_twice_the_distance_from_a_coin_flip() -> None:
+    # Confidence is min(1.0, 2 * |score - 0.5|). Existing tests only bound it in [0, 1], so a factor
+    # 2.0 -> 1.0/3.0 or an abs(score - 0.5) -> abs(score) mutation survives; pin it to the observed
+    # score so the exact formula is locked without hardcoding a model-dependent number.
+    model = _fitted()
+    features = PlantFeatures(
+        values={"colour.gcc_mean": 0.30, "colour.yellow_fraction": 0.45, "texture.entropy": 4.6},
+        region_count=1,
+    )
+    assessment = model.predict(features)
+    assert assessment.confidence == pytest.approx(min(1.0, 2.0 * abs(assessment.score - 0.5)))
+
+
+def test_feature_keys_from_sorts_and_drops_missing() -> None:
+    # feature_keys_from is the schema-stability bridge: it must return sorted() keys (so the trained
+    # order is deterministic) over defined() features only (so a None-valued key is dropped, not
+    # trained on as NaN). This helper has no direct test today.
+    from phytovision.models.stress.gradient_boosted import feature_keys_from
+
+    features = PlantFeatures(values={"z.b": 0.2, "a.a": 0.1, "m.c": None}, region_count=1)
+    assert feature_keys_from(features) == ["a.a", "z.b"]
+
+
+def test_gbm_load_rejects_a_foreign_model_type(tmp_path) -> None:
+    # load() must reject a file holding a different model type, or a heuristic would be returned
+    # through the gradient-boosted loader. Removing or inverting the isinstance guard would
+    # otherwise pass silently.
+    from phytovision.models.persistence import save_model
+    from phytovision.models.stress.heuristic import HeuristicStressModel
+
+    path = tmp_path / "heuristic.joblib"
+    save_model(HeuristicStressModel(), path)
+    with pytest.raises(ConfigError, match="is not a"):
+        GradientBoostedStressModel.load(path)

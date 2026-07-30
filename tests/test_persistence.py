@@ -15,6 +15,7 @@ from phytovision.models.conformal import SplitConformalClassifier
 from phytovision.models.persistence import (
     build_manifest,
     load_model,
+    load_saved,
     read_envelope,
     save_model,
 )
@@ -171,6 +172,17 @@ def test_malformed_but_loadable_envelope_raises_clean_error(tmp_path) -> None:
     joblib.dump({"model_type": "heuristic", "state": 5}, path)
     with pytest.raises(ConfigError, match="malformed model file"):
         read_envelope(path)
+
+
+def test_load_saved_malformed_conformal_state_is_a_clean_error(tmp_path) -> None:
+    # A loadable "conformal" envelope whose state cannot rebuild the wrapper (here an empty state,
+    # missing every key) must surface as a ConfigError, not the raw KeyError from_state would raise
+    # past callers that catch only PhytoVisionError. This is a distinct branch from the tested
+    # malformed-heuristic path (load_saved's conformal leg, not model_from_state).
+    path = tmp_path / "bad_conformal.joblib"
+    joblib.dump({"format": 1, "model_type": "conformal", "state": {}, "manifest": {}}, path)
+    with pytest.raises(ConfigError, match="malformed conformal model state"):
+        load_saved(path)
 
 
 def test_incomplete_state_raises_clean_error(tmp_path) -> None:

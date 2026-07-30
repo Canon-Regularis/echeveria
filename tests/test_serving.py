@@ -46,6 +46,33 @@ def test_engine_from_env_prefers_an_explicit_pipeline() -> None:
     assert conformal is None
 
 
+def test_serving_env_round_trips_into_engine_from_env(tmp_path, monkeypatch) -> None:
+    from pathlib import Path
+
+    from phytovision.serving import CONFIG_ENV, MODEL_PATH_ENV, serving_env
+
+    config = tmp_path / "c.json"
+    config.write_text(json.dumps({"segmenter": "lab-chroma"}))
+    model_path = tmp_path / "m.joblib"
+    save_model(HeuristicStressModel(), model_path)
+
+    # serving_env is the writer the launchers use: it maps --config/--model-path to exactly the two
+    # environment variables engine_from_env reads, and writes nothing when neither is given.
+    assert serving_env(None, None) == {}
+    env = serving_env(config, model_path)
+    assert env == {CONFIG_ENV: str(Path(config)), MODEL_PATH_ENV: str(Path(model_path))}
+
+    # Applying that env must actually rebuild the configured pipeline; a key-name or branch mismatch
+    # that silently made `serve --config` a no-op cannot pass (the non-default lab-chroma segmenter
+    # only appears if PHYTOVISION_CONFIG was read). The model-path leg uses the same key that
+    # test_engine_from_env_loads_a_saved_model already covers.
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    engine, conformal = engine_from_env()
+    assert type(engine.segmenter).__name__ == "LabChromaSegmenter"
+    assert conformal is None
+
+
 def test_engine_from_env_honors_a_non_default_config(tmp_path, monkeypatch) -> None:
     # lab-chroma is not the default segmenter, so the resolved pipeline must reflect the config
     # rather than silently falling back to Pipeline.default().

@@ -364,6 +364,61 @@ def test_cli_evaluate_runs(dataset_dir, capsys) -> None:
     assert "confusion" in out
 
 
+def test_cli_evaluate_pins_accuracy_and_confusion_cells(
+    tmp_path, capsys, healthy_image, stressed_image
+) -> None:
+    # An asymmetric matrix pins the confusion cells: a perfect 1-healthy/1-wilted set is symmetric
+    # (tn == tp, fp == fn == 0) and would hide a column swap. A stressed image labelled healthy is
+    # a false positive, so tn=1, fp=1, fn=0, tp=1 and accuracy = 2/3. The existing test only greps
+    # for the word "accuracy"; this pins the number and each confusion cell.
+    (tmp_path / "healthy").mkdir()
+    (tmp_path / "wilted").mkdir()
+    _save_image(tmp_path / "healthy" / "h1.png", healthy_image)  # true healthy, pred healthy -> tn
+    _save_image(
+        tmp_path / "healthy" / "h2.png", stressed_image
+    )  # true healthy, pred stressed -> fp
+    _save_image(
+        tmp_path / "wilted" / "w1.png", stressed_image
+    )  # true stressed, pred stressed -> tp
+
+    assert main(["evaluate", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "accuracy: 0.667" in out
+    healthy_line = next(line for line in out.splitlines() if "true healthy" in line)
+    stressed_line = next(line for line in out.splitlines() if "true stressed" in line)
+    assert [int(cell) for cell in healthy_line.split()[2:]] == [1, 1]  # tn, fp
+    assert [int(cell) for cell in stressed_line.split()[2:]] == [0, 1]  # fn, tp
+
+
+def test_cli_evaluate_rejects_same_basename_folders(
+    tmp_path, capsys, healthy_image, stressed_image
+) -> None:
+    # Two dataset folders that share a basename cannot be told apart by source, so --transfer must
+    # reject them rather than silently merge them under one dataset name.
+    for parent in ("a", "b"):
+        root = tmp_path / parent / "data"
+        (root / "healthy").mkdir(parents=True)
+        (root / "wilted").mkdir(parents=True)
+        _save_image(root / "healthy" / "h.png", healthy_image)
+        _save_image(root / "wilted" / "w.png", stressed_image)
+    rc = main(
+        ["evaluate", str(tmp_path / "a" / "data"), str(tmp_path / "b" / "data"), "--transfer"]
+    )
+    assert rc == 2
+    assert "distinct names" in capsys.readouterr().err
+
+
+def test_cli_evaluate_empty_and_missing_directories_are_clean_errors(tmp_path, capsys) -> None:
+    # An image-less folder is a clean "no images found" (not a crash in the metrics on empty input),
+    # and a path that is not a directory is a clean load error, both exit code 2.
+    (tmp_path / "empty" / "healthy").mkdir(parents=True)
+    assert main(["evaluate", str(tmp_path / "empty")]) == 2
+    assert "no images found" in capsys.readouterr().err
+
+    assert main(["evaluate", str(tmp_path / "does-not-exist")]) == 2
+    assert capsys.readouterr().err.startswith("error:")
+
+
 def test_cli_serve_without_uvicorn_reports_clean_error(monkeypatch, capsys) -> None:
     import sys
 

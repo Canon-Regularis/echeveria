@@ -84,6 +84,68 @@ def test_wilted_ratio_uses_configured_keys() -> None:
     assert out.values["plant.leaf_count"] == 2.0
 
 
+def test_wilted_ratio_counts_a_leaf_at_the_exact_threshold() -> None:
+    # A leaf whose senescence sum is exactly the threshold counts as wilted (the test is `>=`, not
+    # `>`). The existing wilted-ratio test uses 0.4 and 0.1 and never lands on the boundary, so a
+    # `>=` -> `>` mutation survives it; here a leaf at exactly 0.30 makes the ratio 0.5, not 0.0.
+    mask = np.ones((4, 4), dtype=bool)
+    regions = _leaf_regions([mask, mask])
+    features = [
+        FeatureVector(0, {"colour.yellow_fraction": 0.30, "colour.brown_fraction": 0.0}),  # 0.30
+        FeatureVector(1, {"colour.yellow_fraction": 0.10, "colour.brown_fraction": 0.0}),  # 0.10
+    ]
+    out = PlantLevelAggregator(wilt_senescence_threshold=0.30).aggregate(regions, features)
+    assert out.values["plant.wilted_leaf_ratio"] == 0.5
+
+
+def test_circular_and_axial_means_are_area_weighted() -> None:
+    # The existing circular/axial tests use two equal masks, so the area weights never matter and
+    # dropping them (np.average with weights=None) would pass. With a 90px leaf and a 10px leaf the
+    # weighted mean leans toward the larger leaf's value, distinct from the unweighted midpoint.
+    big = np.zeros((10, 10), dtype=bool)
+    big[:9, :] = True  # area 90
+    small = np.zeros((10, 10), dtype=bool)
+    small[9:, :] = True  # area 10
+    regions = _leaf_regions([big, small])
+    agg = PlantLevelAggregator()
+
+    circular = agg.aggregate(
+        regions,
+        [FeatureVector(0, {"colour.hue_mean": 0.10}), FeatureVector(1, {"colour.hue_mean": 0.90})],
+        reduction_policy={"colour.hue_mean": "circular"},
+    )
+    assert circular.values["colour.hue_mean"] == pytest.approx(
+        0.0838, abs=1e-3
+    )  # not 0.0 unweighted
+
+    axial = agg.aggregate(
+        regions,
+        [
+            FeatureVector(0, {"geometry.orientation": 1.4}),
+            FeatureVector(1, {"geometry.orientation": -1.4}),
+        ],
+        reduction_policy={"geometry.orientation": "axial"},
+    )
+    assert axial.values["geometry.orientation"] == pytest.approx(1.4322, abs=1e-3)  # not pi/2
+
+
+def test_mean_region_area_is_total_over_region_count() -> None:
+    # plant.mean_region_area is total area over region count; no existing test pins it, so a divisor
+    # mutation (len - 1, union_area, image_area) would survive. Two leaves of 40 and 20 px give 30.
+    big = np.zeros((10, 10), dtype=bool)
+    big[:4, :] = True  # area 40
+    small = np.zeros((10, 10), dtype=bool)
+    small[:2, :] = True  # area 20
+    regions = _leaf_regions([big, small])
+    features = [
+        FeatureVector(0, {"geometry.area_px": 40.0}),
+        FeatureVector(1, {"geometry.area_px": 20.0}),
+    ]
+    out = PlantLevelAggregator().aggregate(regions, features)
+    assert out.values["plant.total_area_px"] == 60.0
+    assert out.values["plant.mean_region_area"] == pytest.approx(30.0)
+
+
 def test_wilted_ratio_none_without_senescence_keys() -> None:
     mask = np.ones((4, 4), dtype=bool)
     regions = _leaf_regions([mask])

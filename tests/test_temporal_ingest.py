@@ -3,15 +3,32 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from PIL import Image as PILImage
 
 from phytovision.datasets.manifest import CsvManifestLoader
 from phytovision.pipeline import Pipeline
-from phytovision.temporal import build_history, plant_trends
+from phytovision.registries import FORECASTERS
+from phytovision.temporal import FeatureHistory, build_history, plant_forecasts, plant_trends
+from phytovision.temporal.history import Observation
 
 
 def _save(path, image) -> None:
     PILImage.fromarray((image * 255).astype(np.uint8)).save(path)
+
+
+def test_plant_forecasts_uses_the_supplied_forecaster() -> None:
+    # With an explicit forecaster, _forecast_plant must call forecaster.forecast(scores, horizons,
+    # plant_id): the rising series [0.2, 0.4, 0.6] projects to {1: 0.8, 3: 1.0} under linear-trend.
+    # The non-None-forecaster branch is otherwise uncovered, so an argument-order regression there
+    # would ship silently.
+    history = FeatureHistory()
+    for i, score in enumerate([0.2, 0.4, 0.6]):
+        history.add(Observation("p", f"t{i}", score))
+    forecast = plant_forecasts(history, (1, 3), FORECASTERS.create("linear-trend"))["p"]
+    assert forecast.method == "linear-trend"
+    assert forecast.projected_scores[1] == pytest.approx(0.8)
+    assert forecast.projected_scores[3] == pytest.approx(1.0)
 
 
 def test_build_history_and_trends_from_a_manifest(tmp_path, healthy_image, stressed_image) -> None:

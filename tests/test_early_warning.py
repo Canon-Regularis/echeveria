@@ -40,6 +40,23 @@ def test_not_flagged_when_already_stressed() -> None:
     assert "already stressed" in warning.note
 
 
+def test_not_flagged_at_exactly_the_stressed_threshold() -> None:
+    # A latest score exactly at the stressed cut counts as "already stressed" (the guard is `>=`,
+    # not `>`), so a rising-pigment series is not an early warning. The existing already-stressed
+    # test uses 0.70, so a `>=` -> `>` mutation survives it; 0.66 is the discriminating boundary.
+    series = [
+        _obs("2026-03-01", 0.50, **{"colour.gcc_mean": 0.40}),
+        _obs("2026-03-02", 0.66, **{"colour.gcc_mean": 0.30, "colour.yellow_fraction": 0.30}),
+    ]
+    warning = pigment_early_warning("p", series)
+    assert (
+        warning.pigment_slope > 0.01
+    )  # pigment is genuinely rising, so only the guard holds it back
+    assert warning.latest_score == 0.66
+    assert not warning.flagged
+    assert "already stressed" in warning.note
+
+
 def test_sorts_before_fitting() -> None:
     # Out of order input; the chronological trend (greenness falling) must still be detected.
     series = [

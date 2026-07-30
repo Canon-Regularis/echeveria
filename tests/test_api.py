@@ -149,6 +149,52 @@ def test_analyze_drought_stage_exposes_the_head(healthy_image) -> None:
     assert "disclaimer" in payload  # the placeholder is labelled for API clients
 
 
+def test_analyze_physiology_exposes_the_proxies(stressed_image) -> None:
+    client = TestClient(create_app())
+    files = {"file": ("plant.png", _png_bytes(stressed_image), "image/png")}
+    payload = client.post("/analyze", files=files, params={"physiology": "true"}).json()
+    physiology = payload["head_outputs"]["physiology"]
+    assert {
+        "water_potential_proxy",
+        "stomatal_conductance_proxy",
+        "transpiration_proxy",
+    } <= set(physiology)
+    assert all(
+        isinstance(physiology[key], int | float)
+        for key in ("water_potential_proxy", "stomatal_conductance_proxy", "transpiration_proxy")
+    )
+    assert "crude RGB proxies" in payload["disclaimer"]  # the proxy is labelled for API clients
+
+
+def test_analyze_maps_a_pipeline_error_to_400(healthy_image, monkeypatch) -> None:
+    from phytovision.exceptions import InvalidImageError
+    from phytovision.pipeline import Pipeline
+
+    # A PhytoVisionError raised during analysis (past decode) must surface as a clean 400, not an
+    # uncaught 500. The decode succeeds here; the failure is in analyze itself.
+    def _boom(self, image):  # type: ignore[no-untyped-def]
+        raise InvalidImageError("synthetic analysis failure")
+
+    monkeypatch.setattr(Pipeline, "analyze", _boom)
+    client = TestClient(create_app())
+    files = {"file": ("plant.png", _png_bytes(healthy_image), "image/png")}
+    response = client.post("/analyze", files=files)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "synthetic analysis failure"
+
+
+def test_analyze_rejects_an_oversized_upload(healthy_image, monkeypatch) -> None:
+    import phytovision.api as api_module
+
+    # Shrink the cap so the test need not build a 25 MiB body. An over-cap upload is a clean 413,
+    # rejected before it is buffered in full or handed to the decoder.
+    monkeypatch.setattr(api_module, "_MAX_UPLOAD_BYTES", 1024)
+    client = TestClient(create_app())
+    files = {"file": ("big.png", b"\x00" * 4096, "image/png")}
+    response = client.post("/analyze", files=files)
+    assert response.status_code == 413
+
+
 def test_create_app_rejects_an_uncalibrated_conformal() -> None:
     from phytovision.exceptions import ModelNotFittedError
     from phytovision.models.conformal import SplitConformalClassifier
@@ -251,3 +297,19 @@ def test_trend_rejects_mismatched_lengths(healthy_image) -> None:
     data = {"plant_id": ["p1"], "timestamp": ["2026-03-01"]}  # one tag for two files
     response = client.post("/trend", files=files, data=data)
     assert response.status_code == 400
+
+
+def test_trend_rejects_too_many_files(healthy_image, monkeypatch) -> None:
+    import phytovision.api as api_module
+
+    # Shrink the batch cap so a small request trips it. A /trend batch past the ceiling is a clean
+    # 413, so one request cannot enqueue an unbounded number of analyses.
+    monkeypatch.setattr(api_module, "_MAX_TREND_FILES", 1)
+    client = TestClient(create_app())
+    files = [
+        ("files", ("a.png", _png_bytes(healthy_image), "image/png")),
+        ("files", ("b.png", _png_bytes(healthy_image), "image/png")),
+    ]
+    data = {"plant_id": ["p1", "p1"], "timestamp": ["2026-03-01", "2026-03-02"]}
+    response = client.post("/trend", files=files, data=data)
+    assert response.status_code == 413

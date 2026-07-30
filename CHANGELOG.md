@@ -66,6 +66,21 @@ All notable changes to this project are documented here. The format is based on
   survival models) and `tracking` (mlflow, for benchmark logging), both added to the `all`
   self-reference and the CI install lists.
 
+### Changed
+- Continuous-operation hardening for the serving surfaces. The Docker Compose services now set
+  `restart: unless-stopped` and carry healthchecks (the API probes its own `GET /health`, the
+  dashboard probes Streamlit's `/_stcore/health`), so an unattended deployment recovers from a crash,
+  an out-of-memory kill, or a host reboot on its own rather than staying down until a human notices.
+  The API's `/analyze`, `/overlay`, `/saliency`, and `/trend` handlers are now synchronous, so
+  Starlette runs the CPU-bound analysis in its worker threadpool instead of on the event loop, keeping
+  `/health` and other requests responsive while one image is being scored. Each upload is read under a
+  size cap, with a per-batch file cap on `/trend`, so one oversized request cannot exhaust a worker.
+  The fastest-moving runtime dependencies (numpy and the `api` and `dashboard` serving extras) gained
+  upper version caps, so a rebuilt container image stays reproducible instead of pulling a breaking
+  major. CI now installs the `dashboard` extra and builds the Compose images, and a headless render
+  smoke test drives the two dashboard tabs, so a broken widget wiring, Dockerfile, or extra name fails
+  the gate rather than at deploy time.
+
 ### Fixed
 - The parametric prediction intervals now use a Student-t quantile on the residual degrees of freedom
   (`n - 2`) instead of a normal one, so the linear, Gaussian-process, and Bayesian-ridge forecasters

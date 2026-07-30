@@ -4,7 +4,10 @@ delegates to: decoding, reason rows, contribution series, disease, timing, and o
 from __future__ import annotations
 
 import io
+import sys
 from dataclasses import replace
+from types import ModuleType, SimpleNamespace
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -169,3 +172,111 @@ def test_timing_rows_from_a_timed_report(report) -> None:
     for row in rows:
         assert row["ms"] == round(report.timing_ms[row["stage"]], 1)
         assert row["ms"] >= 0.0
+
+
+# Headless render smoke tests. The render() functions above are otherwise exercised only inside a
+# running Streamlit server, so a renamed report field or a broken forecast or helper call would ship
+# with the gate green. These inject fake ``streamlit`` and ``plotly.graph_objects`` modules (both
+# imported lazily inside the render functions) and drive the real renderers over a real pipeline, a
+# real report, and a real manifest. The survival numerics are the survival tests' job; here the fit
+# is stubbed to its documented empty-cohort error, so the test stays deterministic while still
+# exercising the render path's handling of it.
+
+
+def _fake_streamlit() -> MagicMock:
+    """A stand-in for streamlit: widgets return controllable values, and layout handles unpack and
+    double as context managers (a MagicMock does both)."""
+    st = MagicMock(name="streamlit")
+    st.columns.side_effect = lambda spec, **k: [
+        MagicMock() for _ in range(spec if isinstance(spec, int) else len(spec))
+    ]
+    st.tabs.side_effect = lambda names, **k: [MagicMock() for _ in names]
+    # A real option, not a MagicMock: the code feeds it to FORECASTERS/SURVIVAL_MODELS.create.
+    st.selectbox.side_effect = lambda label, options, **k: list(options)[0]
+    return st
+
+
+def _inject_streamlit(monkeypatch, st: MagicMock) -> MagicMock:
+    plotly = ModuleType("plotly")
+    go = MagicMock(name="plotly.graph_objects")
+    plotly.graph_objects = go  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "streamlit", st)
+    monkeypatch.setitem(sys.modules, "plotly", plotly)
+    monkeypatch.setitem(sys.modules, "plotly.graph_objects", go)
+    return go
+
+
+def test_render_analyze_tab_over_a_real_report(healthy_image, monkeypatch) -> None:
+    from phytovision.dashboard.analyze_tab import render_analyze_tab
+
+    st = _fake_streamlit()
+    st.file_uploader.return_value = SimpleNamespace(getvalue=lambda: _png_bytes(healthy_image))
+    _inject_streamlit(monkeypatch, st)
+
+    render_analyze_tab(Pipeline.default(), None)  # must not raise on a real analysis
+
+    assert st.subheader.called  # a verdict line was drawn
+    assert st.plotly_chart.called  # at least one figure (drivers / drought markers) rendered
+    assert st.dataframe.called  # the reasons / features tables rendered
+
+
+def test_render_analyze_tab_waits_without_an_upload(monkeypatch) -> None:
+    from phytovision.dashboard.analyze_tab import render_analyze_tab
+
+    st = _fake_streamlit()
+    st.file_uploader.return_value = None
+    _inject_streamlit(monkeypatch, st)
+
+    render_analyze_tab(Pipeline.default(), None)  # returns before analyzing anything
+
+    st.info.assert_called_once()
+    assert not st.subheader.called
+
+
+def test_render_temporal_tab_over_a_real_manifest(
+    healthy_image, stressed_image, tmp_path, monkeypatch
+) -> None:
+    from phytovision.dashboard.temporal_tab import render_temporal_tab
+    from phytovision.exceptions import InsufficientDataError
+
+    # Three timestamped frames of one plant, images on disk so build_history can analyze them into
+    # a real FeatureHistory for the trend and the forecast.
+    rows = []
+    for i, img in enumerate((healthy_image, healthy_image, stressed_image)):
+        name = f"f{i}.png"
+        PILImage.fromarray((img * 255).astype(np.uint8)).save(tmp_path / name)
+        rows.append(f"{name},p1,2026-03-0{i + 1}")
+    manifest = tmp_path / "series.csv"
+    manifest.write_text("image_path,plant_id,timestamp\n" + "\n".join(rows) + "\n")
+
+    # Keep survival deterministic: its numerics are the survival tests' job. Here we only check the
+    # render path calls it and handles its documented empty-cohort error cleanly.
+    def _no_cohort(*_args: object, **_kwargs: object) -> object:
+        raise InsufficientDataError("stubbed: no survival cohort in this smoke test")
+
+    monkeypatch.setattr("phytovision.models.survival.fit_cohort_survival", _no_cohort)
+
+    st = _fake_streamlit()
+    st.text_input.side_effect = lambda label, *a, key=None, **k: (
+        str(manifest) if key == "manifest_path" else ""
+    )
+    _inject_streamlit(monkeypatch, st)
+
+    render_temporal_tab(Pipeline.default())  # must not raise
+
+    assert st.selectbox.called  # the plant / forecaster / survival selectors ran
+    assert st.plotly_chart.called  # the trend series and the forecast projection drew
+    st.info.assert_any_call("Survival unavailable: stubbed: no survival cohort in this smoke test")
+
+
+def test_render_temporal_tab_waits_without_a_manifest(monkeypatch) -> None:
+    from phytovision.dashboard.temporal_tab import render_temporal_tab
+
+    st = _fake_streamlit()
+    st.text_input.side_effect = lambda label, *a, key=None, **k: ""  # empty manifest path
+    _inject_streamlit(monkeypatch, st)
+
+    render_temporal_tab(Pipeline.default())  # returns before loading anything
+
+    st.info.assert_called_once()
+    assert not st.selectbox.called

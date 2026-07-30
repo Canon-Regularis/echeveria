@@ -1,5 +1,11 @@
 # Runs the API and the dashboard together, each on the classical pipeline.
-# Start both with: docker compose up --build.
+# Start both with: docker compose up --build (add -d to run detached, unattended).
+#
+# restart: unless-stopped brings each service back after a crash, an out-of-memory kill, or a host
+# reboot, so an unattended deployment recovers on its own rather than staying down until a human
+# notices. The healthchecks let Docker (and any orchestrator above it) see when a service is actually
+# serving, not merely started: the api probes its own GET /health, the dashboard probes Streamlit's
+# /_stcore/health. start_period covers the cold import of numpy, scipy, and scikit-image at boot.
 services:
   api:
     build:
@@ -7,6 +13,29 @@ services:
       dockerfile: docker/Dockerfile.api
     ports:
       - "8000:8000"
+    # Both services serve the classical heuristic pipeline out of the box. To serve a trained model
+    # instead, build the image with the ml extra and make the model file visible to the container,
+    # then point the app at it, by uncommenting the following (adjust the host path to your model):
+    #   build:
+    #     args:
+    #       EXTRAS: "api,ml"
+    #   environment:
+    #     PHYTOVISION_MODEL_PATH: /models/plant.joblib
+    #   volumes:
+    #     - ./models:/models:ro
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
 
   dashboard:
     build:
@@ -14,3 +43,16 @@ services:
       dockerfile: docker/Dockerfile.dashboard
     ports:
       - "8501:8501"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s

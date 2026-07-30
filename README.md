@@ -144,6 +144,7 @@ tooling.
 | `serve` | run the HTTP API (needs the `api` extra) |
 | `dashboard` | run the Streamlit dashboard (needs the `dashboard` extra) |
 | `phenotype` | high-throughput trajectory phenotyping over a timestamped manifest |
+| `validate` | score the stress model against a manifest of measured water status (reliability, Brier, regression) |
 | `simulate` | write a synthetic dry-down cohort (a manifest plus an events table) |
 | `benchmark` | rank the forecasters over a synthetic cohort with time-series cross-validation |
 
@@ -187,6 +188,29 @@ Adding a new implementation means registering it; nothing in the orchestrator ch
 For reproducible runs, the commands that draw randomness take `--seed`, which threads into the
 per-stage generators and seeds the global RNGs from one place; see the reproducibility notes in
 [CONTRIBUTING.md](CONTRIBUTING.md), which also cover optional MLflow tracking and DVC data versioning.
+
+## Running it continuously
+
+For a local session, `phytovision serve` runs the API and `phytovision dashboard` runs the dashboard;
+both bind to `127.0.0.1` by default. To run both unattended, the shipped Compose file builds and
+starts them together on the classical pipeline:
+
+```bash
+docker compose up -d --build
+```
+
+Each service is set to `restart: unless-stopped`, so a crash, an out-of-memory kill, or a host reboot
+brings it back on its own, and each has a healthcheck (the API probes its own `GET /health`, the
+dashboard probes Streamlit's `/_stcore/health`), so Docker reports a container as healthy only once it
+is actually serving. Check status with `docker compose ps` and follow logs with `docker compose logs
+-f`. The Compose file publishes the API on `http://localhost:8000` and the dashboard on
+`http://localhost:8501`, both serving the classical heuristic pipeline out of the box. To serve a
+trained model instead, build the image with the `ml` extra, make the model file visible inside the
+container, and set `PHYTOVISION_MODEL_PATH` (the same goes for a custom `PHYTOVISION_CONFIG`); the
+`api` service in `docker-compose.yml` carries a commented example of the build arg, volume, and
+environment lines to uncomment. Neither surface has authentication, so keep them on a trusted network
+or put an authenticating reverse proxy in front before exposing either publicly. Uploads to the API
+are capped so a single oversized request cannot exhaust a worker.
 
 ## Honesty and limits
 

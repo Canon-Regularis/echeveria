@@ -26,6 +26,12 @@ from phytovision.temporal import FeatureHistory
 from phytovision.types import AnalysisReport, Image
 from phytovision.visualize import render_overlay, render_saliency_overlay
 
+# A generous ceiling for one plant photo: large enough for a real high-resolution phone image, and
+# small enough that one oversized upload cannot be materialized in memory or handed to the decoder.
+_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+# A ceiling on one /trend batch, so a single request cannot enqueue an unbounded number of analyses.
+_MAX_TREND_FILES = 500
+
 
 def create_app(
     pipeline: Pipeline | None = None, conformal: SplitConformalClassifier | None = None
@@ -43,7 +49,7 @@ def create_app(
         return {"status": "ok"}
 
     @app.post("/analyze")
-    async def analyze(
+    def analyze(
         file: UploadFile,
         disease: bool = False,
         drought_stage: bool = False,
@@ -51,12 +57,16 @@ def create_app(
     ) -> dict[str, object]:
         """Analyze one image. ``disease``, ``drought_stage``, and ``physiology`` query flags attach
         optional heads that are unvalidated placeholders or proxies, not diagnostics; their outputs
-        carry a ``disclaimer``."""
+        carry a ``disclaimer``.
+
+        A plain ``def`` handler (not ``async def``) so Starlette runs the CPU-bound analysis in its
+        worker threadpool rather than on the event loop, keeping ``/health`` and other requests
+        responsive while one image is being scored."""
         report = _run(
             attach_heads(
                 engine, disease=disease, drought_stage=drought_stage, physiology=physiology
             ),
-            await file.read(),
+            _read_capped(file),
         )
         payload = report.summary()
         if conformal is not None:
@@ -84,24 +94,24 @@ def create_app(
         return payload
 
     @app.post("/overlay")
-    async def overlay(file: UploadFile) -> Response:
-        image = _decode(await file.read())
+    def overlay(file: UploadFile) -> Response:
+        image = _decode(_read_capped(file))
         report = _run(engine, image)
         buffer = io.BytesIO()
         render_overlay(image, report).save(buffer, format="PNG")
         return Response(content=buffer.getvalue(), media_type="image/png")
 
     @app.post("/saliency")
-    async def saliency(file: UploadFile) -> Response:
+    def saliency(file: UploadFile) -> Response:
         """A pigment saliency overlay: where colour drivers moved the score. It is an RGB proxy."""
-        image = _decode(await file.read())
+        image = _decode(_read_capped(file))
         report = _run(engine, image)
         buffer = io.BytesIO()
         render_saliency_overlay(image, report, engine.model).save(buffer, format="PNG")
         return Response(content=buffer.getvalue(), media_type="image/png")
 
     @app.post("/trend")
-    async def trend(
+    def trend(
         files: list[UploadFile],
         plant_id: list[str] = Form(...),
         timestamp: list[str] = Form(...),
@@ -110,11 +120,19 @@ def create_app(
     ) -> dict[str, object]:
         """Fit a stress trend over tagged images. ``forecaster`` picks the trajectory model behind
         each plant's ``forecast`` block; ``survival_model`` picks the time-to-wilt model behind the
-        ``survival`` blocks. Every estimate is a synthetic-trained RGB proxy, not a prognosis."""
+        ``survival`` blocks. Every estimate is a synthetic-trained RGB proxy, not a prognosis.
+
+        A plain ``def`` handler for the same reason as ``/analyze``: the per-image analysis runs in
+        the threadpool, off the event loop."""
         if not files or not len(files) == len(plant_id) == len(timestamp):
             raise HTTPException(
                 status_code=400,
                 detail="files, plant_id, and timestamp must be non-empty and the same length",
+            )
+        if len(files) > _MAX_TREND_FILES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"a /trend batch is limited to {_MAX_TREND_FILES} files",
             )
         try:
             chosen = FORECASTERS.create(forecaster)
@@ -130,13 +148,27 @@ def create_app(
             )
         history = FeatureHistory()
         for upload, pid, when in zip(files, plant_id, timestamp, strict=True):
-            history.record(pid, when, _run(engine, await upload.read()))
+            history.record(pid, when, _run(engine, _read_capped(upload)))
         try:
             return trend_payload(history, chosen, survival_model or None)
         except ImportError as exc:  # a forecaster whose optional extra is not installed
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return app
+
+
+def _read_capped(upload: UploadFile) -> bytes:
+    """Read an upload synchronously (the handlers are sync, so this runs in the threadpool), with a
+    hard byte cap. Starlette has already spooled the raw multipart body, so this does not bound
+    transfer; reading one byte past the limit and checking the length rejects an oversized body
+    before it becomes one large in-memory bytes object or reaches the decoder, and also catches a
+    client that lies about ``size``."""
+    if upload.size is not None and upload.size > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"upload exceeds {_MAX_UPLOAD_BYTES} bytes")
+    data = upload.file.read(_MAX_UPLOAD_BYTES + 1)
+    if len(data) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"upload exceeds {_MAX_UPLOAD_BYTES} bytes")
+    return data
 
 
 def _run(engine: Pipeline, data: bytes | Image) -> AnalysisReport:

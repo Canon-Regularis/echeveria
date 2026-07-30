@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+import math
+
 import numpy as np
 import pytest
 from _invariants import assert_valid_feature_vector
 from _strategies import images_with_region
 from hypothesis import given, settings
 
+from phytovision.phenotyping.base import FeatureExtractor
 from phytovision.registries import FEATURE_EXTRACTORS
 
 _NAMES = FEATURE_EXTRACTORS.names()
@@ -45,3 +49,25 @@ def test_extractor_stays_finite_on_random_regions(name, sample) -> None:
     image, region = sample
     extractor = FEATURE_EXTRACTORS.create(name)
     assert_valid_feature_vector(extractor.extract(image, region), extractor.namespace)
+
+
+def test_non_finite_compute_values_are_coerced_to_zero_with_a_warning(
+    healthy_image, plant_region, caplog
+) -> None:
+    # A _compute that emits NaN or inf (e.g. a GLCM correlation on a uniform patch) must not leak a
+    # non-finite feature: the base extract() coerces each to 0.0 so the finiteness contract holds
+    # for every subtype, and warns so the coercion is visible rather than silent. This drives that
+    # branch directly, which no real extractor reliably reaches.
+    class _NonFiniteExtractor(FeatureExtractor):
+        namespace = "test_nonfinite"
+
+        def _compute(self, image, region):  # type: ignore[no-untyped-def]
+            return {"nan_trait": math.nan, "inf_trait": math.inf, "ok_trait": 0.5}
+
+    with caplog.at_level(logging.WARNING):
+        vector = _NonFiniteExtractor().extract(healthy_image, plant_region)
+
+    assert vector.values["test_nonfinite.nan_trait"] == 0.0
+    assert vector.values["test_nonfinite.inf_trait"] == 0.0
+    assert vector.values["test_nonfinite.ok_trait"] == 0.5
+    assert "coerced 2 non-finite feature value(s)" in caplog.text

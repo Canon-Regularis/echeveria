@@ -1,0 +1,34 @@
+name: Docker
+
+# Building the serving images installs the full stack into each image, so it is slow. It only needs
+# to run when the container setup actually changes, so it triggers on main and on pull requests that
+# touch the Dockerfiles, the compose file, the dependencies, or this workflow, not on every push.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "docker/**"
+      - "docker-compose.yml"
+      - "pyproject.toml"
+      - ".github/workflows/docker.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: docker compose build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      # Build both serving images so a broken Dockerfile, a renamed extra, or a wrong CMD fails here
+      # rather than at deploy time. Build only (no run): a smoke-run would need model assets and a long
+      # readiness wait that the unit gate already covers through the API and dashboard tests.
+      - name: Build the API and dashboard images
+        run: docker compose build

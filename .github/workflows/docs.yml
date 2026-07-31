@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Read-only by default; the deploy job below requests the pages and id-token scopes it needs.
+permissions:
+  contents: read
+
 concurrency:
   group: docs-${{ github.ref }}
   cancel-in-progress: true
@@ -13,6 +17,7 @@ jobs:
   build:
     name: build docs (strict)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -39,6 +44,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && vars.DEPLOY_DOCS == 'true'
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       pages: write
       id-token: write

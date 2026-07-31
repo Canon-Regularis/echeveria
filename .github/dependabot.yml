@@ -12,3 +12,9 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+
+  # Keep the serving images' base (python:3.12-slim) patched.
+  - package-ecosystem: docker
+    directory: "/docker"
+    schedule:
+      interval: weekly

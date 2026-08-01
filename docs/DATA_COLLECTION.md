@@ -38,7 +38,7 @@ names are configurable, but the defaults are:
 | `source` | provenance tag, so datasets can be told apart | optional, recommended |
 
 A folder-per-class dataset (`root/<label>/<image>`) needs no manifest at all: `train` and `evaluate`
-read it directly. See [`examples/manifest_sample.csv`](../examples/manifest_sample.csv) for a filled-in
+read it directly. See [`examples/manifest_sample.csv`](https://github.com/Matthew-Miezaniec/echeveria/blob/main/examples/manifest_sample.csv) for a filled-in
 manifest.
 
 ## Capturing your own dry-down (tiers 1 and 2)

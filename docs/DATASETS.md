@@ -22,7 +22,7 @@ rosette plant. `far` is a field crop or a lab leaf, which is a big jump from a s
 | # | Dataset | Type | Good for | License | Domain |
 | --- | --- | --- | --- | --- | --- |
 | **core water stress and in-domain succulent** | | | | | |
-| 1 | [Healthy and Wilted Houseplant Images](https://www.kaggle.com/datasets/russellchan/healthy-and-wilted-houseplant-images) | classification | water-stress | unverified | other |
+| 1 | [Healthy and Wilted Houseplant Images](https://www.kaggle.com/datasets/russellchan/healthy-and-wilted-houseplant-images) | classification | water-stress | © original authors | other |
 | 2 | [Houseplant Dataset (wilted/unhealthy)](https://universe.roboflow.com/seojin-jang/houseplant-dataset) | detection | water-stress | CC BY 4.0 | other |
 | 3 | [Aloe Vera Health Detection wwmar v22](https://universe.roboflow.com/aloe-vera-health-detection/aloe-vera-health-detection-wwmar/dataset/22) | detection | water-stress, disease | CC BY 4.0 | succulent |
 | 4 | [Aloevera Health Detection Y-V11 v8](https://universe.roboflow.com/aloe-vera-health-detection/aloevera-health-detection-y-v11/dataset/8) | detection | water-stress, disease | CC BY 4.0 | succulent |
@@ -58,10 +58,12 @@ rosette plant. `far` is a field crop or a lab leaf, which is a big jump from a s
 ### 1. Healthy and Wilted Houseplant Images (Kaggle, russellchan)
 
 About 904 images, split into healthy and wilted folders. No boxes and no masks. Mixed indoor species
-scraped from web searches, so backgrounds vary and a classifier should generalize. Caveats: the license
-could not be read (the page needs JavaScript), and the images were scraped, so redistribution rights are
-unclear. The wilted label is a single yes/no with no severity. Fine as a first transfer-learning
-baseline, not for anything you plan to redistribute.
+scraped from web searches, so backgrounds vary and a classifier should generalize. Attributed on the
+page to Russell Chan and Dhruv Sharma. License (re-checked 2026-08-01): "Data files © Original
+Authors", so the images stay the authors' copyright with no redistribution or commercial grant, and
+the scraped origin makes those rights murkier still. The wilted label is a single yes/no with no
+severity. Fine as a first transfer-learning baseline for local exploration under Kaggle's terms; keep
+it out of any redistributed data or shipped model without the authors' permission.
 
 ### 2. Houseplant Dataset, wilted and unhealthy (Roboflow, seojin-jang)
 
@@ -245,9 +247,9 @@ none of the goals, so it was removed from the README list.
 | Status | Datasets |
 | --- | --- |
 | Permissive (CC BY 4.0) | 2, 3, 4, 5, 11 (varies), 13, 14, 15, 16, 19, 20, 21, 22 |
-| Unclear, check first | 1 (unreadable), 18 (no LICENSE file) |
+| Unclear, check first | 18 (no LICENSE file) |
 | Cite only, no formal license | 7, 8, 9 |
-| Restricted (academic, non-commercial, or gated) | 6 (academic only and gated), 10 (CSIRO non-commercial), 17 (on request) |
+| Restricted (academic, non-commercial, gated, or rights reserved) | 1 (Kaggle "Data files © Original Authors": no redistribution grant), 6 (academic only and gated), 10 (CSIRO non-commercial), 17 (on request) |
 
 If echeveria ever ships as a product, keep the restricted datasets out of the training set for any
 shipped model, or get written permission.

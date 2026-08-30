@@ -46,7 +46,7 @@ tracking = ["mlflow>=2.11"]
 # carries an upper cap to the next major: a rebuilt image stays reproducible instead of picking up a
 # breaking release (FastAPI/uvicorn/python-multipart are pre-1.0, so their minor bumps are the break).
 api = ["fastapi>=0.110,<1.0", "uvicorn>=0.29,<1.0", "python-multipart>=0.0.9,<1.0"]
-dashboard = ["streamlit>=1.33,<2.0", "plotly>=5.20,<7"]
+dashboard = ["streamlit>=1.33,<2.0", "plotly>=5.20,<8"]
 # Documentation site (API reference generated from docstrings).
 docs = ["mkdocs-material>=9.5", "mkdocstrings[python]>=0.24"]
 # Developer tooling (test, lint, type-check, build).
